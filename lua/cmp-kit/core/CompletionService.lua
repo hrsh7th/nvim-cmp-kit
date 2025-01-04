@@ -19,11 +19,12 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@field public dedup boolean
 ---@field public provider cmp-kit.core.CompletionProvider
 
----@class cmp-kit.core.CompletionService.Option
+---@class cmp-kit.core.CompletionService.Config
 ---@field public view cmp-kit.core.View
 ---@field public sorter cmp-kit.core.Sorter
 ---@field public matcher cmp-kit.core.Matcher
 ---@field public performance { fetching_timeout_ms: number }
+---@field public expand_snippet? cmp-kit.core.ExpandSnippet
 
 ---@class cmp-kit.core.CompletionService.State
 ---@field public complete_trigger_context cmp-kit.core.TriggerContext
@@ -34,7 +35,7 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@class cmp-kit.core.CompletionService
 ---@field private _preventing integer
 ---@field private _state cmp-kit.core.CompletionService.State
----@field private _option cmp-kit.core.CompletionService.Option
+---@field private _config cmp-kit.core.CompletionService.Config
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations cmp-kit.core.CompletionService.ProviderConfiguration[]
@@ -43,19 +44,19 @@ local CompletionService = {}
 CompletionService.__index = CompletionService
 
 ---Create a new CompletionService.
----@param option cmp-kit.core.CompletionService.Option|{}
+---@param config cmp-kit.core.CompletionService.Config|{}
 ---@return cmp-kit.core.CompletionService
-function CompletionService.new(option)
+function CompletionService.new(config)
   local self = setmetatable({
     _id = kit.unique_id(),
     _preventing = 0,
     _changedtick = 0,
-    _option = kit.merge(option or {}, {
+    _config = kit.merge(config or {}, {
       view = DefaultView.new(),
       sorter = DefaultSorter.sorter,
       matcher = DefaultMatcher.matcher,
       performance = {
-        fetching_timeout_ms = 280,
+        fetching_timeout_ms = 200,
       },
     }),
     _events = {},
@@ -75,7 +76,7 @@ function CompletionService.new(option)
   }, CompletionService)
 
   self._keys.macro_complete_auto = ('<Plug>(complete:%s:mc-a)'):format(self._id)
-  vim.keymap.set('i', self._keys.macro_complete_auto, function()
+  vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_auto, function()
     if vim.fn.reg_executing() ~= '' then
       ---@diagnostic disable-next-line: invisible
       table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = false })))
@@ -83,12 +84,37 @@ function CompletionService.new(option)
   end)
 
   self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
-  vim.keymap.set('i', self._keys.macro_complete_force, function()
+  vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_force, function()
     if vim.fn.reg_executing() ~= '' then
       ---@diagnostic disable-next-line: invisible
       table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = true })))
     end
   end)
+
+  vim.on_key(function(_, typed)
+    if not typed or typed == '' then
+      return
+    end
+    local selection = self:get_selection()
+    if selection.index > 0 then
+      local item = self:get_match_at(selection.index).item
+      if vim.tbl_contains(item:get_commit_characters(), typed) then
+        while true do
+          local c = vim.fn.getcharstr(0)
+          if c == '' then
+            break
+          end
+        end
+        item:commit({
+          replace = false,
+          expand_snippet = self._config.expand_snippet,
+        })
+        return ''
+      end
+    end
+  end, vim.api.nvim_create_namespace(('cmp-kit:%s'):format(self._id)), {
+
+  })
 
   return self
 end
@@ -137,7 +163,9 @@ function CompletionService:clear()
   }
 
   -- reset menu.
-  self._option.view:hide(self._state.matches, self._state.selection)
+  if vim.fn.reg_executing() == '' then
+    self._config.view:hide(self._state.matches, self._state.selection)
+  end
 end
 
 ---Select completion.
@@ -250,7 +278,7 @@ do
       end
     else
       -- set new-completion position for macro.
-      if vim.fn.reg_executing() == '' then
+      if vim.fn.reg_recording() ~= '' then
         if trigger_context.force then
           vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
         else
@@ -315,7 +343,7 @@ function CompletionService:update(option)
         -- if higher priority provider is fetching, skip the lower priority providers in same group. (reduce flickering).
         -- NOTE: the providers are ordered by priority.
         local elapsed_ms = vim.uv.hrtime() / 1000000 - provider_configuration.provider:get_request_time()
-        fetching_timeout_remaining_ms = math.max(0, self._option.performance.fetching_timeout_ms - elapsed_ms)
+        fetching_timeout_remaining_ms = math.max(0, self._config.performance.fetching_timeout_ms - elapsed_ms)
         if provider_configuration.provider:get_request_state() == CompletionProvider.RequestState.Fetching then
           has_fetching_provider = true
           if fetching_timeout_remaining_ms > 0 then
@@ -346,7 +374,7 @@ function CompletionService:update(option)
       local dedup_map = {}
       for _, provider_configuration in ipairs(provider_configurations) do
         local score_boost = self:_get_score_boost(provider_configuration.provider)
-        for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._option.matcher)) do
+        for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._config.matcher)) do
           match.score = match.score + score_boost
 
           -- add item and consider de-duplication.
@@ -364,7 +392,7 @@ function CompletionService:update(option)
       -- group matches are found.
       if #self._state.matches > 0 then
         -- sort items.
-        self._state.matches = self._option.sorter(self._state.matches)
+        self._state.matches = self._config.sorter(self._state.matches)
 
         -- preselect index.
         local preselect_index = nil --[[@as integer?]]
@@ -378,7 +406,9 @@ function CompletionService:update(option)
         end
 
         -- completion found.
-        self._option.view:show(self._state.matches, self._state.selection)
+        if vim.fn.reg_executing() == '' then
+          self._config.view:show(self._state.matches, self._state.selection)
+        end
 
         -- emit selection.
         if preselect_index then
@@ -403,17 +433,26 @@ function CompletionService:update(option)
   end
 
   -- no completion found.
-  self._option.view:hide(self._state.matches, self._state.selection)
+  if vim.fn.reg_executing() == '' then
+    self._config.view:hide(self._state.matches, self._state.selection)
+  end
 end
 
 ---Commit completion.
 ---@param item cmp-kit.core.CompletionItem
----@param option? { replace?: boolean, expand_snippet?: cmp-kit.core.ExpandSnippet }
+---@param option? { replace?: boolean }
 function CompletionService:commit(item, option)
+  if vim.fn.reg_executing() ~= '' then
+    local tasks = self._macro_completion
+    self._macro_completion = {}
+    Async.all(tasks):sync(2 * 1000)
+    self:update()
+  end
+
   return item
       :commit({
         replace = option and option.replace,
-        expand_snippet = option and option.expand_snippet,
+        expand_snippet = self._config.expand_snippet,
       })
       :next(self:prevent())
       :next(function()
@@ -520,8 +559,10 @@ function CompletionService:_update_selection(index, preselect, text_before)
     preselect = preselect,
     text_before = text_before or self._state.selection.text_before
   }
-  if self._option.view:is_visible() then
-    self._option.view:select(self._state.matches, self._state.selection)
+  if vim.fn.reg_executing() == '' then
+    if self._config.view:is_visible() then
+      self._config.view:select(self._state.matches, self._state.selection)
+    end
   end
 end
 

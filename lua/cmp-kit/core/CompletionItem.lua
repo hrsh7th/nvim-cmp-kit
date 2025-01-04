@@ -259,6 +259,19 @@ function CompletionItem:get_kind()
   return self._item.kind
 end
 
+---Return commit characters.
+---@return string[]
+function CompletionItem:get_commit_characters()
+  local commit_characters = {}
+  for _, c in ipairs(self._item.commitCharacters or {}) do
+    table.insert(commit_characters, c)
+  end
+  for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
+    table.insert(commit_characters, c)
+  end
+  return commit_characters
+end
+
 ---Return item is preselect or not.
 ---@return boolean
 function CompletionItem:is_preselect()
@@ -360,12 +373,10 @@ function CompletionItem:commit(option)
 
   local bufnr = vim.api.nvim_get_current_buf()
   return Async.run(function()
-    -- Try resolve item.
-    if vim.fn.reg_executing() == '' then
-      Async.race({ self:resolve(), Async.timeout(500) }):await()
-    else
-      Async.race({ self:resolve(), Async.timeout(500) }):sync(2 * 1000)
-    end
+    -- Try resolve item (this must be sync process for supporting macro).
+    pcall(function()
+      Async.race({ self:resolve(), Async.timeout(500) }):sync(501)
+    end)
 
     local trigger_context --[[@as cmp-kit.core.TriggerContext]]
 
@@ -405,10 +416,15 @@ function CompletionItem:commit(option)
     end
 
     -- Expansion (Snippet / PlainText).
-    if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet and option.expand_snippet then
-      -- Snippet: remove range of text and expand snippet.
-      LinePatch.apply_by_func(bufnr, before, after, ''):await()
-      option.expand_snippet(self:get_insert_text(), { item = self })
+    if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
+      if option.expand_snippet then
+        -- Snippet: remove range of text and expand snippet.
+        LinePatch.apply_by_func(bufnr, before, after, ''):await()
+        option.expand_snippet(self:get_insert_text(), { item = self })
+      else
+        -- Snippet: fallback to insert select_text (if `expand_snippet` wasn't provided).
+        LinePatch.apply_by_func(bufnr, before, after, self:get_select_text()):await()
+      end
     else
       -- PlainText: insert text.
       LinePatch.apply_by_func(bufnr, before, after, self:get_insert_text()):await()

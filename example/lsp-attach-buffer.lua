@@ -14,7 +14,11 @@ return {
     local function get(specified_buf)
       local buf = (specified_buf == nil or specified_buf == 0) and vim.api.nvim_get_current_buf() or specified_buf
       if not buf_state[buf] then
-        local service = CompletionService.new({})
+        local service = CompletionService.new({
+          expand_snippet = function(snippet)
+            vim.fn['vsnip#anonymous'](snippet)
+          end
+        })
         buf_state[buf] = { service = service }
 
         vim.api.nvim_create_autocmd('TextChangedI', {
@@ -195,9 +199,6 @@ return {
               if match then
                 get().service:commit(match.item, {
                   replace = option.replace,
-                  expand_snippet = function(snippet)
-                    vim.fn['vsnip#anonymous'](snippet)
-                  end
                 }):await()
                 return
               end

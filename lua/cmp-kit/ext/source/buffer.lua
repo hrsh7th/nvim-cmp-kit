@@ -27,7 +27,7 @@ return function(option)
                 label = word
               })
             end
-            Async.interrupt(1, 16)
+            Async.interrupt(8, 16)
           end
         end
       end
