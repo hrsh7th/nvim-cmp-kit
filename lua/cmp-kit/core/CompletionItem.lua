@@ -269,7 +269,6 @@ function CompletionItem:get_commit_characters()
   for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
     table.insert(commit_characters, c)
   end
-  table.insert(commit_characters, '(')
   return commit_characters
 end
 
