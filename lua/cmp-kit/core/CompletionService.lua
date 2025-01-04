@@ -75,22 +75,25 @@ function CompletionService.new(config)
     },
   }, CompletionService)
 
-  self._keys.macro_complete_auto = ('<Plug>(complete:%s:mc-a)'):format(self._id)
-  vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_auto, function()
-    if vim.fn.reg_executing() ~= '' then
-      ---@diagnostic disable-next-line: invisible
-      table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = false })))
-    end
-  end)
+  -- support macro.
+  do
+    self._keys.macro_complete_auto = ('<Plug>(complete:%s:mc-a)'):format(self._id)
+    vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_auto, function()
+      if vim.fn.reg_executing() ~= '' then
+        ---@diagnostic disable-next-line: invisible
+        table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = false })))
+      end
+    end)
+    self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
+    vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_force, function()
+      if vim.fn.reg_executing() ~= '' then
+        ---@diagnostic disable-next-line: invisible
+        table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = true })))
+      end
+    end)
+  end
 
-  self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
-  vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_force, function()
-    if vim.fn.reg_executing() ~= '' then
-      ---@diagnostic disable-next-line: invisible
-      table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = true })))
-    end
-  end)
-
+  -- support commitCharacters.
   vim.on_key(function(_, typed)
     if not typed or typed == '' then
       return
@@ -108,7 +111,19 @@ function CompletionService.new(config)
         item:commit({
           replace = false,
           expand_snippet = self._config.expand_snippet,
-        })
+        }):next(function()
+          -- NOTE: cmp-kit's specific implementation.
+          -- after commit character, send canceled key if possible.
+          local trigger_context = TriggerContext.create()
+          local select_text = item:get_select_text()
+
+          local can_refeed = true
+          can_refeed = can_refeed and trigger_context.mode == 'i'
+          can_refeed = can_refeed and trigger_context.text_before:sub(- #select_text) == select_text
+          if can_refeed then
+            vim.api.nvim_feedkeys(typed, 'i', true)
+          end
+        end)
         return ''
       end
     end

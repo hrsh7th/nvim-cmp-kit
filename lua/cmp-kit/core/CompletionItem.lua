@@ -82,7 +82,7 @@ function CompletionItem:get_source_name()
 end
 
 ---Get suggest offset position 1-origin utf-8 byte index.
----NOTE: VSCode always shows the completion menu relative to the cursor position. This is vim specific implementation.
+---NOTE: VSCode does not need this because it always shows the completion menu relative to the cursor position. But vim's completion usually shows the menu aligned with the keyword.
 ---@return number
 function CompletionItem:get_offset()
   local cache_key = 'get_offset'
@@ -162,7 +162,7 @@ function CompletionItem:get_sort_text()
 end
 
 ---Return select text that will be inserted if the item is selected.
----NOTE: VSCode doesn't have the text inserted when item was selected. This is vim specific implementation.
+---NOTE: VSCode does not need this because it doesn't insert the text when the item is selected. But vim's completion usually inserts the text when the item is selected.
 ---@return string
 function CompletionItem:get_select_text()
   local cache_key = 'get_select_text'
@@ -269,6 +269,7 @@ function CompletionItem:get_commit_characters()
   for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
     table.insert(commit_characters, c)
   end
+  table.insert(commit_characters, '(')
   return commit_characters
 end
 
@@ -422,8 +423,15 @@ function CompletionItem:commit(option)
         LinePatch.apply_by_func(bufnr, before, after, ''):await()
         option.expand_snippet(self:get_insert_text(), { item = self })
       else
+        -- 
         -- Snippet: fallback to insert select_text (if `expand_snippet` wasn't provided).
-        LinePatch.apply_by_func(bufnr, before, after, self:get_select_text()):await()
+        ---NOTE: This is cmp-kit's specific implementation. if user doesn't provide `expand_snippet`, cmp-kit will fallback to insert `select_text`.
+        local parsed_insert_text = tostring(SnippetText.parse(self:get_insert_text()))
+        if parsed_insert_text == self:get_insert_text() then
+          LinePatch.apply_by_func(bufnr, before, after, parsed_insert_text):await()
+        else
+          LinePatch.apply_by_func(bufnr, before, after, self:get_select_text()):await()
+        end
       end
     else
       -- PlainText: insert text.
