@@ -1,0 +1,11 @@
+local SnippetText = require('cmp-kit.core.SnippetText')
+
+describe('cmp-kit.core', function()
+  describe('SnippetText', function()
+    describe('.parse', function()
+      it('should return snippet text', function()
+        assert.equals('a b c', tostring(SnippetText.parse('a ${1:b} c')))
+      end)
+    end)
+  end)
+end)

@@ -1,61 +1,93 @@
-local Async = require('complete.kit.Async')
-local cmp_compat = require('complete.ext.cmp_compat.source')
-local Client = require('complete.kit.LSP.Client')
-local CompletionService = require('complete.core.CompletionService')
-local CompletionProvider = require('complete.core.CompletionProvider')
-local DefaultView = require('complete.ext.DefaultView')
+local Async = require('cmp-kit.kit.Async')
+local compat_cmp = require('cmp-kit.ext.compat_cmp.source')
+local Client = require('cmp-kit.kit.LSP.Client')
+local TriggerContext = require('cmp-kit.core.TriggerContext')
+local CompletionService = require('cmp-kit.core.CompletionService')
+local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 
 return {
   setup = function()
-    ---@type table<integer, { service: complete.core.CompletionService, view: complete.ext.DefaultView }>
+    ---@type table<integer, { service: cmp-kit.core.CompletionService }>
     local buf_state = {}
 
-    ---@return { service: complete.core.CompletionService, view: complete.ext.DefaultView }
+    ---@return { service: cmp-kit.core.CompletionService }
     local function get(specified_buf)
       local buf = (specified_buf == nil or specified_buf == 0) and vim.api.nvim_get_current_buf() or specified_buf
       if not buf_state[buf] then
         local service = CompletionService.new({})
-        local view = DefaultView.new(service, {
-          border = 'rounded'
-          -- border = nil
+        buf_state[buf] = { service = service }
+
+        vim.api.nvim_create_autocmd('TextChangedI', {
+          pattern = '<buffer>',
+          callback = function()
+            service:complete(TriggerContext.create({}))
+          end
         })
-        view:attach(buf)
-        buf_state[buf] = { service = service, view = view }
 
-        -- -- register cmp sources.
-        -- local ok_cmp, cmp = pcall(require, 'cmp')
-        -- if ok_cmp then
-        --   for _, source in ipairs(cmp.get_registered_sources()) do
-        --     if source.name ~= 'nvim_lsp' and source.name ~= 'cmdline' then
-        --       if source.name == 'nvim_lsp_signature_help' then
-        --         service:register_provider(cmp_compat.create_provider_by_cmp(source), {
-        --           priority = 1000
-        --         })
-        --       else
-        --         service:register_provider(cmp_compat.create_provider_by_cmp(source), {
-        --           group = 10
-        --         })
-        --       end
-        --     end
-        --   end
-        -- end
+        vim.api.nvim_create_autocmd('CursorMovedI', {
+          pattern = '<buffer>',
+          callback = function()
+            service:complete(TriggerContext.create({}))
+          end
+        })
 
-        -- -- register test source.
-        -- service:register_provider(CompletionProvider.new({
-        --   name = 'test',
-        --   complete = function(_)
-        --     return Async.run(function()
-        --       return {
-        --         items = {
-        --           {
-        --             label = '\\date',
-        --             insertText = os.date('%Y-%m-%d'),
-        --           }
-        --         }
-        --       }
-        --     end)
-        --   end
-        -- }))
+        vim.api.nvim_create_autocmd('ModeChanged', {
+          pattern = '<buffer>',
+          callback = function(e)
+            if e.match == 'i:n' then
+              service:clear()
+            end
+          end
+        })
+
+        -- register cmp sources.
+        local ok_cmp, cmp = pcall(require, 'cmp')
+        if false and ok_cmp then
+          for _, source in ipairs(cmp.get_registered_sources()) do
+            if source.name ~= 'nvim_lsp' and source.name ~= 'cmdline' and source.name ~= 'buffer' then
+              if source.name == 'nvim_lsp_signature_help' then
+                service:register_provider(compat_cmp.create_provider_by_cmp(source), {
+                  group = -1,
+                  priority = 1000
+                })
+              else
+                service:register_provider(compat_cmp.create_provider_by_cmp(source), {
+                  group = 10
+                })
+              end
+            end
+          end
+        end
+
+        --- register buffer source.
+        if true then
+          service:register_provider(CompletionProvider.new(require('cmp-kit.ext.source.buffer')({
+            keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
+            min_keyword_length = 3,
+          })), {
+            group = 3,
+            dedup = true
+          })
+        end
+
+        -- register test source.
+        if false then
+          service:register_provider(CompletionProvider.new({
+            name = 'test',
+            complete = function(_)
+              return Async.run(function()
+                return {
+                  items = {
+                    {
+                      label = '\\date',
+                      insertText = os.date('%Y-%m-%d'),
+                    }
+                  }
+                }
+              end)
+            end
+          }))
+        end
       end
       return buf_state[buf]
     end
@@ -84,7 +116,7 @@ return {
             params.configure({
               position_encoding_kind = c.offset_encoding,
               completion_options = c.server_capabilities
-                  .completionProvider --[[@as complete.kit.LSP.CompletionRegistrationOptions]]
+                  .completionProvider --[[@as cmp-kit.kit.LSP.CompletionRegistrationOptions]]
             })
           end,
           resolve = function(_, completion_item)
@@ -95,7 +127,7 @@ return {
               return completion_item
             end)
           end,
-          ---@param command complete.kit.LSP.Command
+          ---@param command cmp-kit.kit.LSP.Command
           execute = function(_, command)
             return Async.run(function()
               return client:workspace_executeCommand({
@@ -188,11 +220,11 @@ return {
             return not get().service:get_match_at(1)
           end,
           action = function()
-            get().service:complete(require('complete.core.TriggerContext').create({ force = true }))
+            get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
           end
         })
         insx.add('<C-Space>', function()
-          get().service:complete(require('complete.core.TriggerContext').create({ force = true }))
+          get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
         end)
       end
     end
