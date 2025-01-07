@@ -8,21 +8,28 @@ local Character = require('cmp-kit.core.Character')
 local SelectText = require('cmp-kit.core.SelectText')
 local SnippetText = require('cmp-kit.core.SnippetText')
 
----@type fun(s: string): string
-local oneline
-do
-  local stop = {
-    [('\n'):byte(1)] = true,
-    [('\r'):byte(1)] = true,
-  }
-  oneline = function(s)
-    for i = 1, #s do
-      if stop[s:byte(i)] then
-        return s:sub(1, i)
-      end
+---Trim whitespace.
+---@param text string
+---@return string
+local function trim_white(text)
+  local s = 1
+  for i = 1, #text do
+    if not Character.is_white(text:byte(i)) then
+      s = i
+      break
     end
-    return s
   end
+  local e = #text
+  for i = #text, 1, -1 do
+    if not Character.is_white(text:byte(i)) then
+      e = i
+      break
+    end
+  end
+  if s ~= 1 or e ~= #text then
+    return text:sub(s, e)
+  end
+  return text
 end
 
 ---Get expanded range.
@@ -92,7 +99,7 @@ function CompletionItem:get_offset()
     if not self:has_text_edit() then
       self._cache[cache_key] = keyword_offset
       local filter_text = self:get_filter_text()
-      if filter_text ~= '' and not Character.is_alpha(filter_text:byte(1)) then
+      if Character.is_symbol(filter_text:byte(1)) then
         local min_i = math.max(1, keyword_offset - #filter_text)
         for i = math.min(#self._trigger_context.text_before, keyword_offset), min_i, -1 do
           if Character.is_semantic_index(self._trigger_context.text, i) then
@@ -169,24 +176,23 @@ function CompletionItem:get_select_text()
   if not self._cache[cache_key] then
     local text = self:get_insert_text()
     if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
-      if text:find('$', 1, true) then
-        text = tostring(SnippetText.parse(text)) --[[@as string]]
-      end
+      text = tostring(SnippetText.parse(text)) --[[@as string]]
     end
 
+    local select_text = SelectText.create(text)
+
+    -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
     local chars = {}
-    for _, c in ipairs(self._item.commitCharacters or {}) do
+    for _, c in ipairs(self:get_commit_characters()) do
       chars[c] = true
     end
     for _, c in ipairs(self._provider:get_completion_options().triggerCharacters or {}) do
       chars[c] = true
     end
-
-    local select_text = SelectText.create(text)
     if chars[select_text:sub(-1, -1)] then
       select_text = select_text:sub(1, -2)
     end
-    self._cache[cache_key] = oneline(select_text)
+    self._cache[cache_key] = select_text
   end
   return self._cache[cache_key]
 end
@@ -195,19 +201,20 @@ end
 function CompletionItem:get_filter_text()
   local cache_key = 'get_filter_text'
   if not self._cache[cache_key] then
-    local text = self._item.filterText or self._item.label
-    text = text:gsub('^%s+', ''):gsub('%s+$', '')
+    local text = trim_white(self._item.filterText or self._item.label)
 
-    -- TODO: this is vim specific implementation and can have some of the pitfalls.
+    -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
     -- Fix filter_text for non-VSCode compliant servers such as clangd.
     local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
         self._trigger_context.character + 1
     if self:has_text_edit() then
       local delta = keyword_offset - self:get_offset()
       if delta > 0 then
-        local prefix = self._trigger_context.text:sub(self:get_offset(), keyword_offset - 1)
-        if Character.is_symbol(prefix:byte(1)) and text:sub(1, #prefix) ~= prefix then
-          text = prefix .. text
+        if Character.is_symbol(self._trigger_context.text:byte(self:get_offset())) then
+          local prefix = self._trigger_context.text:sub(self:get_offset(), keyword_offset - 1)
+          if text:sub(1, #prefix) ~= prefix then
+            text = prefix .. text
+          end
         end
       end
     end
@@ -262,14 +269,18 @@ end
 ---Return commit characters.
 ---@return string[]
 function CompletionItem:get_commit_characters()
-  local commit_characters = {}
-  for _, c in ipairs(self._item.commitCharacters or {}) do
-    table.insert(commit_characters, c)
+  local cache_key = 'get_commit_characters'
+  if not self._cache[cache_key] then
+    local commit_characters = {}
+    for _, c in ipairs(self._item.commitCharacters or {}) do
+      table.insert(commit_characters, c)
+    end
+    for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
+      table.insert(commit_characters, c)
+    end
+    self._cache[cache_key] = commit_characters
   end
-  for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
-    table.insert(commit_characters, c)
-  end
-  return commit_characters
+  return self._cache[cache_key]
 end
 
 ---Return item is preselect or not.
@@ -284,14 +295,14 @@ function CompletionItem:is_deprecated()
   local cache_key = 'is_deprecated'
   if not self._cache[cache_key] then
     if self._item.deprecated then
-      self._cache[cache_key] = true
+      self._cache[cache_key] = { output = true }
     elseif vim.tbl_contains(self._item.tags, LSP.CompletionItemTag.Deprecated) then
-      self._cache[cache_key] = true
+      self._cache[cache_key] = { output = true }
     else
-      self._cache[cache_key] = false
+      self._cache[cache_key] = { output = false }
     end
   end
-  return self._cache[cache_key]
+  return self._cache[cache_key].output
 end
 
 ---Return item's documentation.
@@ -329,12 +340,13 @@ function CompletionItem:get_documentation()
     if documentation.value == '' then
       documentation = nil
     else
-      documentation.value = documentation.value:gsub('\r\n', '\n'):gsub('\r', '\n'):gsub('^[%s\n]+', ''):gsub('[%s\n]+$',
-        '')
+      documentation.value = documentation.value
+        :gsub('\r\n', '\n')
+        :gsub('\r', '\n')
     end
-    self._cache[cache_key] = documentation
+    self._cache[cache_key] = { output = documentation }
   end
-  return self._cache[cache_key]
+  return self._cache[cache_key].output
 end
 
 ---Resolve completion item (completionItem/resolve).
@@ -422,7 +434,7 @@ function CompletionItem:commit(option)
         LinePatch.apply_by_func(bufnr, before, after, ''):await()
         option.expand_snippet(self:get_insert_text(), { item = self })
       else
-        -- 
+        --
         -- Snippet: fallback to insert select_text (if `expand_snippet` wasn't provided).
         ---NOTE: This is cmp-kit's specific implementation. if user doesn't provide `expand_snippet`, cmp-kit will fallback to insert `select_text`.
         local parsed_insert_text = tostring(SnippetText.parse(self:get_insert_text()))

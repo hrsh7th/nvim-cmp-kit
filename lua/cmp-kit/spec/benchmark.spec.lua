@@ -1,5 +1,16 @@
 local tailwindcss_fixture = require('cmp-kit.spec.fixtures.tailwindcss')
 
+if true then
+  ---@diagnostic disable-next-line: duplicate-set-field
+  _G.describe = function(_, fn)
+    fn()
+  end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  _G.it = function(_, fn)
+    fn()
+  end
+end
+
 local spec = require('cmp-kit.spec')
 local CompletionService = require('cmp-kit.core.CompletionService')
 local TriggerContext = require('cmp-kit.core.TriggerContext')

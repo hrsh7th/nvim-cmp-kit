@@ -17,6 +17,7 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@field public priority integer
 ---@field public item_count integer
 ---@field public dedup boolean
+---@field public keyword_length integer
 ---@field public provider cmp-kit.core.CompletionProvider
 
 ---@class cmp-kit.core.CompletionService.Config
@@ -24,6 +25,7 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@field public sorter cmp-kit.core.Sorter
 ---@field public matcher cmp-kit.core.Matcher
 ---@field public performance { fetching_timeout_ms: number }
+---@field public sync_mode? fun(): boolean
 ---@field public expand_snippet? cmp-kit.core.ExpandSnippet
 
 ---@class cmp-kit.core.CompletionService.State
@@ -50,11 +52,13 @@ function CompletionService.new(config)
   local self = setmetatable({
     _id = kit.unique_id(),
     _preventing = 0,
-    _changedtick = 0,
     _config = kit.merge(config or {}, {
       view = DefaultView.new(),
       sorter = DefaultSorter.sorter,
       matcher = DefaultMatcher.matcher,
+      sync_mode = function()
+        return vim.fn.reg_executing() ~= ''
+      end,
       performance = {
         fetching_timeout_ms = 200,
       },
@@ -78,15 +82,15 @@ function CompletionService.new(config)
   -- support macro.
   do
     self._keys.macro_complete_auto = ('<Plug>(complete:%s:mc-a)'):format(self._id)
-    vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_auto, function()
-      if vim.fn.reg_executing() ~= '' then
+    vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_auto, function()
+      if self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = false })))
       end
     end)
     self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
-    vim.keymap.set({ 'i', 's', 'c' }, self._keys.macro_complete_force, function()
-      if vim.fn.reg_executing() ~= '' then
+    vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_force, function()
+      if self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = true })))
       end
@@ -100,31 +104,33 @@ function CompletionService.new(config)
     end
     local selection = self:get_selection()
     if selection.index > 0 then
-      local item = self:get_match_at(selection.index).item
-      if vim.tbl_contains(item:get_commit_characters(), typed) then
-        while true do
-          local c = vim.fn.getcharstr(0)
-          if c == '' then
-            break
+      local match = self:get_match_at(selection.index)
+      if match and match.item then
+        if vim.tbl_contains(match.item:get_commit_characters(), typed) then
+          while true do
+            local c = vim.fn.getcharstr(0)
+            if c == '' then
+              break
+            end
           end
-        end
-        item:commit({
-          replace = false,
-          expand_snippet = self._config.expand_snippet,
-        }):next(function()
-          -- NOTE: cmp-kit's specific implementation.
-          -- after commit character, send canceled key if possible.
-          local trigger_context = TriggerContext.create()
-          local select_text = item:get_select_text()
+          match.item:commit({
+            replace = false,
+            expand_snippet = self._config.expand_snippet,
+          }):next(function()
+            -- NOTE: cmp-kit's specific implementation.
+            -- after commit character, send canceled key if possible.
+            local trigger_context = TriggerContext.create()
+            local select_text = match.item:get_select_text()
 
-          local can_refeed = true
-          can_refeed = can_refeed and trigger_context.mode == 'i'
-          can_refeed = can_refeed and trigger_context.text_before:sub(- #select_text) == select_text
-          if can_refeed then
-            vim.api.nvim_feedkeys(typed, 'i', true)
-          end
-        end)
-        return ''
+            local can_refeed = true
+            can_refeed = can_refeed and trigger_context.mode == 'i'
+            can_refeed = can_refeed and trigger_context.text_before:sub(- #select_text) == select_text
+            if can_refeed then
+              vim.api.nvim_feedkeys(typed, 'i', true)
+            end
+          end)
+          return ''
+        end
       end
     end
   end, vim.api.nvim_create_namespace(('cmp-kit:%s'):format(self._id)), {
@@ -145,6 +151,7 @@ function CompletionService:register_provider(provider, config)
     priority = config and config.priority or 0,
     item_count = config and config.item_count or math.huge,
     dedup = config and config.dedup or false,
+    keyword_length = config and config.keyword_length or 1,
     provider = provider,
   })
   return function()
@@ -178,9 +185,7 @@ function CompletionService:clear()
   }
 
   -- reset menu.
-  if vim.fn.reg_executing() == '' then
-    self._config.view:hide(self._state.matches, self._state.selection)
-  end
+  self._config.view:hide(self._state.matches, self._state.selection)
 end
 
 ---Select completion.
@@ -188,7 +193,7 @@ end
 ---@param preselect? boolean
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionService:select(index, preselect)
-  if vim.fn.reg_executing() ~= '' then
+  if self._config.sync_mode() then
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
@@ -225,7 +230,7 @@ end
 ---Get selection.
 ---@return cmp-kit.core.Selection
 function CompletionService:get_selection()
-  if vim.fn.reg_executing() ~= '' then
+  if self._config.sync_mode() then
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
@@ -288,17 +293,15 @@ do
 
     if #fresh_completing_providers == 0 then
       -- on-demand filter (if does not invoked new completion).
-      if vim.fn.reg_executing() == '' then
+      if not self._config.sync_mode() then
         self:update()
       end
     else
       -- set new-completion position for macro.
-      if vim.fn.reg_recording() ~= '' then
-        if trigger_context.force then
-          vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
-        else
-          vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
-        end
+      if trigger_context.force then
+        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
+      else
+        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
       end
     end
 
@@ -382,10 +385,8 @@ function CompletionService:update(option)
 
     -- group providers are capable.
     if #provider_configurations ~= 0 then
-      local preselect_item = nil
-      self._state.matches = {}
-
       -- gather items.
+      local preselect_item = nil
       local dedup_map = {}
       for _, provider_configuration in ipairs(provider_configurations) do
         local score_boost = self:_get_score_boost(provider_configuration.provider)
@@ -421,7 +422,7 @@ function CompletionService:update(option)
         end
 
         -- completion found.
-        if vim.fn.reg_executing() == '' then
+        if not self._config.sync_mode() then
           self._config.view:show(self._state.matches, self._state.selection)
         end
 
@@ -439,25 +440,24 @@ function CompletionService:update(option)
         vim.defer_fn(function()
           -- if trigger_context is not changed, update menu forcely.
           if self._state.update_trigger_context == trigger_context then
-            self:update({ force = true })
+            self._state.update_trigger_context = TriggerContext.create_empty_context()
+            self:update()
           end
-        end, fetching_timeout_remaining_ms + 1)
+        end, fetching_timeout_remaining_ms + 16)
       end
       return
     end
   end
 
   -- no completion found.
-  if vim.fn.reg_executing() == '' then
-    self._config.view:hide(self._state.matches, self._state.selection)
-  end
+  self._config.view:hide(self._state.matches, self._state.selection)
 end
 
 ---Commit completion.
 ---@param item cmp-kit.core.CompletionItem
 ---@param option? { replace?: boolean }
 function CompletionService:commit(item, option)
-  if vim.fn.reg_executing() ~= '' then
+  if self._config.sync_mode() then
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
@@ -474,8 +474,7 @@ function CompletionService:commit(item, option)
         self:clear()
 
         -- re-trigger completion for trigger characters.
-        --For this to run, we need to ignore contexts marked by `self:clear()`, so `force=true` is required.
-        local trigger_context = TriggerContext.create({ force = true })
+        local trigger_context = TriggerContext.create()
         if trigger_context.before_character and Character.is_symbol(trigger_context.before_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
             local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
@@ -574,7 +573,7 @@ function CompletionService:_update_selection(index, preselect, text_before)
     preselect = preselect,
     text_before = text_before or self._state.selection.text_before
   }
-  if vim.fn.reg_executing() == '' then
+  if not self._config.sync_mode() then
     if self._config.view:is_visible() then
       self._config.view:select(self._state.matches, self._state.selection)
     end

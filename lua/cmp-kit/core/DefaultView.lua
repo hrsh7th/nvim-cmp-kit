@@ -1,6 +1,8 @@
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
+local Async = require('cmp-kit.kit.Async')
 local Markdown = require('cmp-kit.core.Markdown')
+local TriggerContext = require('cmp-kit.core.TriggerContext')
 local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 
 ---@class cmp-kit.core.DefaultView.Config
@@ -13,9 +15,7 @@ local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 ---@field menu_max_win_height integer
 ---@field docs_min_win_width_ratio number
 ---@field docs_max_win_width_ratio number
----@field docs_min_win_height_ratio number
----@field docs_max_win_height_ratio number
----@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): string, string?
+---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
 
 ---Lookup table for CompletionItemKind.
 local CompletionItemKindLookup = {}
@@ -30,6 +30,11 @@ local function winhighlight(map)
   end):join(',')
 end
 
+---Get string char part.
+local function strcharpart(str, start, finish)
+  return vim.fn.strcharpart(str, start, finish)
+end
+
 ---@type { clear_cache: fun() }|fun(text: string): integer
 local get_strwidth
 do
@@ -41,7 +46,7 @@ do
   }, {
     __call = function(_, text)
       if not cache[text] then
-        cache[text] = vim.api.nvim_strwidth(text)
+        cache[text] = #text
       end
       return cache[text]
     end
@@ -60,8 +65,7 @@ local default_config = {
       padding_right = 0,
       align = 'right',
       resolve = function(item, config)
-        local kind = item:get_kind() or LSP.CompletionItemKind.Text
-        return { config.icon_resolver(kind) }
+        return config.icon_resolver(item:get_kind() or LSP.CompletionItemKind.Text) or { '', '' }
       end,
     },
     {
@@ -70,10 +74,7 @@ local default_config = {
       padding_right = 0,
       align = 'left',
       resolve = function(item)
-        return {
-          vim.fn.strcharpart(item:get_label_text(), 0, 48),
-          'CmpItemAbbr',
-        }
+        return { strcharpart(item:get_label_text(), 0, 48), 'CmpItemAbbr' }
       end,
     },
     {
@@ -81,10 +82,7 @@ local default_config = {
       padding_right = 0,
       align = 'right',
       resolve = function(item)
-        return {
-          vim.fn.strcharpart(item:get_label_details().description or '', 0, 28),
-          'Comment',
-        }
+        return { strcharpart(item:get_label_details().description or '', 0, 28), 'Comment' }
       end,
     },
     {
@@ -103,15 +101,18 @@ local default_config = {
   menu_max_win_height = 18,
   docs_min_win_width_ratio = 0.25,
   docs_max_win_width_ratio = 0.55,
-  docs_min_win_height_ratio = 0.25,
-  docs_max_win_height_ratio = 0.55,
-  icon_resolver = (function(completion_item_kind)
-    local ok, MiniIcons = pcall(require, 'nvim-web-devicons')
-    return function()
+  icon_resolver = (function()
+    local ok, MiniIcons = pcall(require, 'mini.icons')
+    local cache = {}
+    return function(completion_item_kind)
       if not ok then
-        return '', ''
+        return { '', '' }
       end
-      return MiniIcons.get('lsp', (CompletionItemKindLookup[completion_item_kind] or 'text'):lower())
+      if not cache[completion_item_kind] then
+        local kind = CompletionItemKindLookup[completion_item_kind] or 'text'
+        cache[completion_item_kind] = { MiniIcons.get('lsp', kind:lower()) }
+      end
+      return cache[completion_item_kind]
     end
   end)(),
 }
@@ -206,12 +207,13 @@ function DefaultView:show(matches, selection)
   end
 
   -- init columns.
-  ---@type { is_label?: boolean, display_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', resolved: { [1]: string, [2]?: string }[] }[]
+  ---@type { is_label?: boolean, display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', resolved: { [1]: string, [2]?: string }[] }[]
   local columns = {}
   for _, component in ipairs(self._config.menu_components) do
     table.insert(columns, {
       is_label = component.is_label,
       display_width = 0,
+      byte_width = 0,
       padding_left = component.padding_left,
       padding_right = component.padding_right,
       align = component.align,
@@ -226,6 +228,7 @@ function DefaultView:show(matches, selection)
     for j, component in ipairs(self._config.menu_components) do
       local resolved = component.resolve(match.item, self._config)
       columns[j].display_width = math.max(columns[j].display_width, get_strwidth(resolved[1]))
+      columns[j].byte_width = math.max(columns[j].byte_width, #resolved[1])
       columns[j].resolved[i] = resolved
     end
   end
@@ -255,7 +258,7 @@ function DefaultView:show(matches, selection)
             end_row = row,
             end_col = off + column_byte_width,
             hl_group = resolved[2],
-            hl_mode = 'blend',
+            hl_mode = 'combine',
             ephemeral = true,
           })
           if column.is_label then
@@ -264,7 +267,7 @@ function DefaultView:show(matches, selection)
                 end_row = row,
                 end_col = off + pos.end_index,
                 hl_group = pos.hl_group or 'CmpItemAbbrMatch',
-                hl_mode = 'blend',
+                hl_mode = 'combine',
                 ephemeral = true,
               })
             end
@@ -289,7 +292,7 @@ function DefaultView:show(matches, selection)
   local formatting = table.concat(parts, '')
 
   -- draw lines.
-  local display_width = 0
+  local max_content_width = 0
   local lines = {}
   for i in ipairs(self._matches) do
     local args = {}
@@ -305,32 +308,43 @@ function DefaultView:show(matches, selection)
     end
     local line = formatting:format(unpack(args))
     table.insert(lines, line)
-    display_width = math.max(display_width, get_strwidth(line))
+    max_content_width = math.max(max_content_width, get_strwidth(line))
   end
   vim.api.nvim_buf_set_lines(self._menu_window:get_buf(), 0, -1, false, lines)
 
-  -- show window.
   local border_size = FloatingWindow.get_border_size(self._config.border)
-  local leading_text = vim.api.nvim_get_current_line():sub(min_offset, vim.fn.col('.') - 1)
-  local pos = vim.fn.screenpos(0, vim.fn.line('.'), vim.fn.col('.'))
+  local trigger_context = TriggerContext.create()
+  local leading_text = trigger_context.text_before:sub(min_offset)
+
+  local pos --[[@as { row: integer, col: integer }]]
+  if vim.api.nvim_get_mode().mode ~= 'c' then
+    pos = vim.fn.screenpos(0, trigger_context.line + 1, trigger_context.character + 1)
+  else
+    pos = {
+      row = vim.o.lines,
+      col = vim.fn.getcmdscreenpos()
+    }
+  end
   local row = pos.row - 1 -- default row should be below the cursor. so we use 1-origin as-is.
-  local col = pos.col - vim.api.nvim_strwidth(leading_text)
+  local col = pos.col - get_strwidth(leading_text)
 
   -- setup default position offset.
   local row_off = 1
-  local col_off = (function()
-    local label_off = self._config.menu_padding_left
+  local col_off = 0
+  do
+    local label_off = border_size.left + self._config.menu_padding_left
     for i, column in ipairs(columns) do
       if column.is_label then
         break
       end
-      label_off = label_off + (i > 1 and self._config.menu_gap and 1 or 0) + column.padding_left + column.display_width +
-          column.padding_right
+      local gap = i ~= 1 and self._config.menu_gap or 0
+      label_off = label_off + gap + column.padding_left + column.byte_width + column.padding_right
     end
-    return -label_off
-  end)()
+    col_off = -label_off
+  end
   local anchor = 'NW'
 
+  -- compute outer_height.
   local outer_height --[[@as integer]]
   do
     local can_bottom = row + row_off + self._config.menu_min_win_height <= vim.o.lines
@@ -348,13 +362,17 @@ function DefaultView:show(matches, selection)
   self._menu_window:show({
     row = row + row_off,
     col = col + col_off,
-    width = display_width,
+    width = max_content_width,
     height = outer_height - border_size.v,
     anchor = anchor,
     style = 'minimal',
     border = self._config.border,
   })
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
+
+  if vim.api.nvim_get_mode().mode == 'c' then
+    vim.cmd.redraw()
+  end
 end
 
 ---Hide window.
@@ -391,12 +409,15 @@ end
 function DefaultView:_update_docs(item)
   self._selected_item = item
 
-  if not item then
-    self._docs_window:hide()
-    return
-  end
+  Async.run(function()
+    if not item then
+      self._docs_window:hide()
+      return
+    end
 
-  item:resolve():next(vim.schedule_wrap(function()
+    item:resolve():await()
+    Async.schedule()
+
     if item ~= self._selected_item then
       return
     end
@@ -472,7 +493,11 @@ function DefaultView:_update_docs(item)
       border = docs_border,
       style = 'minimal',
     })
-  end))
+  end):next(function()
+    if vim.api.nvim_get_mode().mode == 'c' then
+      vim.cmd.redraw()
+    end
+  end)
 end
 
 return DefaultView

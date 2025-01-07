@@ -2,6 +2,7 @@
 - [ ] {set,get}_sync_mode の実装（nvim-automa 向け）
 - [x] dedup 機能
 - [x] commitCharacters
+- [ ] イベント機構（補完開始、補完終了）
 
 # 設計
 - [ ] ソース単位の設定 API

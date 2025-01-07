@@ -1,5 +1,9 @@
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
 
+local cache_keeper = {
+  trigger_context = nil
+}
+
 ---The TriggerContext.
 ---@class cmp-kit.core.TriggerContext
 ---@field public mode string
@@ -18,7 +22,7 @@ TriggerContext.__index = TriggerContext
 ---Create empty TriggerContext.
 ---@return cmp-kit.core.TriggerContext
 function TriggerContext.create_empty_context()
-  return TriggerContext.new('i', 0, 0, '', 0)
+  return TriggerContext.new('i', -1, -1, '', -1)
 end
 
 ---Create new TriggerContext from current state.
@@ -44,7 +48,8 @@ end
 ---@return cmp-kit.core.TriggerContext
 function TriggerContext.new(mode, line, character, text, bufnr, reason)
   local text_before = text:sub(1, character)
-  return setmetatable({
+
+  local self = setmetatable({
     mode = mode,
     line = line,
     character = character,
@@ -56,6 +61,22 @@ function TriggerContext.new(mode, line, character, text, bufnr, reason)
     before_character = text_before:gsub('%s*$', ''):match('(.)$'),
     cache = {},
   }, TriggerContext)
+
+  cache_keeper.trigger_context = cache_keeper.trigger_context or self
+
+  local keep = true
+  keep = keep and cache_keeper.trigger_context.mode == self.mode
+  keep = keep and cache_keeper.trigger_context.line == self.line
+  keep = keep and cache_keeper.trigger_context.character == self.character
+  keep = keep and cache_keeper.trigger_context.text == self.text
+  keep = keep and cache_keeper.trigger_context.bufnr == self.bufnr
+  if not keep then
+    cache_keeper.trigger_context = self
+  else
+    self.cache = cache_keeper.trigger_context.cache
+  end
+
+  return self
 end
 
 ---Get query text.
@@ -104,10 +125,12 @@ function TriggerContext:get_keyword_offset(pattern)
   if not self.cache[cache_key] then
     local _, s = RegExp.extract_at(self.text, pattern, self.character + 1)
     if s then
-      self.cache[cache_key] = s
+      self.cache[cache_key] = { s = s }
+    else
+      self.cache[cache_key] = {}
     end
   end
-  return self.cache[cache_key]
+  return self.cache[cache_key].s
 end
 
 return TriggerContext

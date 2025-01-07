@@ -85,7 +85,9 @@ end
 function LinePatch.apply_by_keys(bufnr, before, after, insert_text)
   local mode = vim.api.nvim_get_mode().mode
   if mode == 'c' then
-    return LinePatch.apply_by_func(bufnr, before, after, insert_text)
+    return LinePatch.apply_by_func(bufnr, before, after, insert_text):next(function()
+      return Keymap.send('')
+    end)
   end
 
   local cursor = vim.api.nvim_win_get_cursor(0)

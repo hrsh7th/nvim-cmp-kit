@@ -15,30 +15,53 @@ return {
       local buf = (specified_buf == nil or specified_buf == 0) and vim.api.nvim_get_current_buf() or specified_buf
       if not buf_state[buf] then
         local service = CompletionService.new({
+          sync_mode = function()
+            local ok, automa = pcall(require, 'automa')
+            return vim.fn.reg_executing() ~= '' or (ok and automa.executing())
+          end,
           expand_snippet = function(snippet)
             vim.fn['vsnip#anonymous'](snippet)
           end
         })
         buf_state[buf] = { service = service }
 
+        do
+          local ticket = 0
+          vim.api.nvim_create_autocmd('CmdlineChanged', {
+            pattern = ('<buffer=%s>'):format(buf),
+            callback = function()
+              ticket = ticket + 1
+              local my_ticket = ticket
+              vim.schedule(function()
+                if vim.api.nvim_get_mode().mode == 'c' then
+                  if my_ticket == ticket then
+                    service:complete(TriggerContext.create({}))
+                  end
+                end
+              end)
+            end
+          })
+        end
+
         vim.api.nvim_create_autocmd('TextChangedI', {
-          pattern = '<buffer>',
+          pattern = ('<buffer=%s>'):format(buf),
           callback = function()
             service:complete(TriggerContext.create({}))
           end
         })
 
         vim.api.nvim_create_autocmd('CursorMovedI', {
-          pattern = '<buffer>',
+          pattern = ('<buffer=%s>'):format(buf),
           callback = function()
             service:complete(TriggerContext.create({}))
           end
         })
 
         vim.api.nvim_create_autocmd('ModeChanged', {
-          pattern = '<buffer>',
           callback = function(e)
             if e.match == 'i:n' then
+              service:clear()
+            elseif e.match == 'c:n' then
               service:clear()
             end
           end
@@ -69,8 +92,8 @@ return {
             keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
             min_keyword_length = 3,
           })), {
-            group = 3,
-            dedup = true
+            dedup = true,
+            keyword_length = 4,
           })
         end
 
@@ -187,13 +210,15 @@ return {
         option.select_first = option.select_first or false
         return {
           enabled = function()
-            return get().service and (get().service:get_selection().index > 0 or option.select_first)
+            local select_first = option.select_first and vim.api.nvim_get_mode().mode ~= 'c'
+            return get().service and (get().service:get_selection().index > 0 or select_first)
           end,
           action = function(ctx)
+            local select_first = option.select_first and vim.api.nvim_get_mode().mode ~= 'c'
             local selection = get().service:get_selection()
             if selection then
               local match = get().service:get_match_at(selection.index)
-              if not match and option.select_first then
+              if not match and select_first then
                 match = get().service:get_match_at(1)
               end
               if match then
@@ -210,12 +235,12 @@ return {
 
       local ok, insx = pcall(require, 'insx')
       if ok then
-        insx.add('<C-n>', select({ delta = 1, preselect = false }))
-        insx.add('<C-p>', select({ delta = -1, preselect = false }))
-        insx.add('<Down>', select({ delta = 1, preselect = true }))
-        insx.add('<Up>', select({ delta = -1, preselect = true }))
+        insx.add('<C-n>', select({ delta = 1, preselect = false }), { mode = { 'i', 'c' } })
+        insx.add('<C-p>', select({ delta = -1, preselect = false }), { mode = { 'i', 'c' } })
+        insx.add('<Down>', select({ delta = 1, preselect = true }), { mode = { 'i', 'c' } })
+        insx.add('<Up>', select({ delta = -1, preselect = true }), { mode = { 'i', 'c' } })
         insx.add('<CR>', commit({ select_first = true, replace = false }))
-        insx.add('<C-y>', commit({ select_first = true, replace = true }))
+        insx.add('<C-y>', commit({ select_first = true, replace = true }), { mode = { 'i', 'c' } })
         insx.add('<C-n>', {
           enabled = function()
             return not get().service:get_match_at(1)
@@ -223,10 +248,10 @@ return {
           action = function()
             get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
           end
-        })
+        }, { mode = { 'i', 'c' } })
         insx.add('<C-Space>', function()
           get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
-        end)
+        end, { mode = { 'i', 'c' } })
       end
     end
   end

@@ -18,6 +18,10 @@ SelectText.StopCharacters = {
   [string.byte('}')] = true,
   [string.byte(' ')] = true,
   [string.byte('\t')] = true,
+}
+
+---@type table<integer, boolean>
+SelectText.ForceStopCharacters = {
   [string.byte('\n')] = true,
   [string.byte('\r')] = true,
 }
@@ -36,12 +40,13 @@ SelectText.Pairs = {
 ---@param insert_text string
 ---@return string
 function SelectText.create(insert_text)
-  insert_text = (insert_text:gsub('%s*$', ''):gsub('^%s*', ''))
-
   local is_alnum_consumed = false
   local pairs_stack = {}
   for i = 1, #insert_text do
     local byte = insert_text:byte(i)
+    if SelectText.ForceStopCharacters[byte] then
+      return insert_text:sub(1, i - 1)
+    end
     local alnum = Character.is_alnum(byte)
 
     if byte == pairs_stack[#pairs_stack] then

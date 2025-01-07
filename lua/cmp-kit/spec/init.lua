@@ -2,7 +2,7 @@ local LSP = require('cmp-kit.kit.LSP')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Async = require('cmp-kit.kit.Async')
-local assert = require('luassert')
+local assert = select(2, pcall(require, 'luassert')) or _G.assert
 local LinePatch = require('cmp-kit.core.LinePatch')
 local CompletionService = require('cmp-kit.core.CompletionService')
 
