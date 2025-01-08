@@ -62,7 +62,6 @@ end
 
 ---@class cmp-kit.ext.source.path.Option
 ---@field public get_cwd? fun(): string
----@field public enable_directory_document? boolean
 ---@field public enable_file_document? boolean
 ---@param option? cmp-kit.ext.source.path.Option
 return function(option)
@@ -77,8 +76,6 @@ return function(option)
     end
     return vim.fn.getcwd()
   end
-  option.enable_directory_document = option.enable_directory_document == nil and true or option
-      .enable_directory_document
   option.enable_file_document = option.enable_file_document == nil and true or option.enable_file_document
 
   ---@type cmp-kit.core.CompletionSource
@@ -158,56 +155,29 @@ return function(option)
       end)
     end,
     resolve = function(_, item)
-      local icon_resolver = (function()
-        local ok, MiniIcons = pcall(require, 'mini.icons')
-        return function(basename)
-          if not ok then
-            return nil
-          end
-          return MiniIcons.get('file', basename)
-        end
-      end)()
       return Async.run(function()
-        if item.data.type == 'directory' and option.enable_directory_document then
-          local entries = IO.scandir(item.data.path):catch(function()
-            return {}
-          end):await()
-          table.sort(entries, function(a, b)
-            local is_directory_a = a.type == 'directory'
-            local is_directory_b = b.type == 'directory'
-            if is_directory_b ~= is_directory_a then
-              return is_directory_a
-            end
-            return a.path < b.path
-          end)
-
-          local lines = {}
-          for _, entry in ipairs(entries) do
-            local icon = icon_resolver and icon_resolver(vim.fs.basename(entry.path)) or ''
-            table.insert(lines,
-              ('%s%s%s'):format(
-                icon ~= '' and icon .. ' ' or '',
-                vim.fs.basename(entry.path),
-                entry.type == 'directory' and '/' or ''
-              ))
-          end
-          return kit.merge(item, {
-            documentation = table.concat(lines, '\n'),
-          })
-        elseif item.data.type == 'file' and option.enable_file_document then
+        if item.data.type == 'file' and option.enable_file_document then
+          -- read file.
           local contents = vim.split(IO.read_file(item.data.path):catch(function()
             return ''
           end):await(), '\n')
+
+          -- resolve filetype
           local filetype = vim.filetype.match({
             contents = contents,
             filename = item.data.path,
           })
+
+          -- trim contents.
           if #contents > 120 then
             contents = vim.list_slice(contents, 1, 10)
             table.insert(contents, '...')
           end
+
+          -- markdown.
           table.insert(contents, 1, ('```%s'):format(filetype))
           table.insert(contents, '```')
+
           return kit.merge(item, {
             documentation = {
               kind = vim.lsp.protocol.MarkupKind.Markdown,
