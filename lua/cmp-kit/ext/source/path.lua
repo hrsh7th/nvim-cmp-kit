@@ -62,6 +62,8 @@ end
 
 ---@class cmp-kit.ext.source.path.Option
 ---@field public get_cwd? fun(): string
+---@field public enable_directory_document? boolean
+---@field public enable_file_document? boolean
 ---@param option? cmp-kit.ext.source.path.Option
 return function(option)
   option = option or {}
@@ -75,6 +77,9 @@ return function(option)
     end
     return vim.fn.getcwd()
   end
+  option.enable_directory_document = option.enable_directory_document == nil and true or option
+      .enable_directory_document
+  option.enable_file_document = option.enable_file_document == nil and true or option.enable_file_document
 
   ---@type cmp-kit.core.CompletionSource
   return {
@@ -163,8 +168,10 @@ return function(option)
         end
       end)()
       return Async.run(function()
-        if item.data.type == 'directory' then
-          local entries = IO.scandir(item.data.path):await()
+        if item.data.type == 'directory' and option.enable_directory_document then
+          local entries = IO.scandir(item.data.path):catch(function()
+            return {}
+          end):await()
           table.sort(entries, function(a, b)
             local is_directory_a = a.type == 'directory'
             local is_directory_b = b.type == 'directory'
@@ -187,21 +194,27 @@ return function(option)
           return kit.merge(item, {
             documentation = table.concat(lines, '\n'),
           })
+        elseif item.data.type == 'file' and option.enable_file_document then
+          local contents = vim.split(IO.read_file(item.data.path):catch(function()
+            return ''
+          end):await(), '\n')
+          local filetype = vim.filetype.match({
+            contents = contents,
+            filename = item.data.path,
+          })
+          if #contents > 120 then
+            contents = vim.list_slice(contents, 1, 10)
+            table.insert(contents, '...')
+          end
+          table.insert(contents, 1, ('```%s'):format(filetype))
+          table.insert(contents, '```')
+          return kit.merge(item, {
+            documentation = {
+              kind = vim.lsp.protocol.MarkupKind.Markdown,
+              value = table.concat(contents, '\n'),
+            },
+          })
         end
-
-        local contents = vim.split(IO.read_file(item.data.path):await(), '\n')
-        if #contents > 120 then
-          contents = vim.list_slice(contents, 1, 10)
-          table.insert(contents, '...')
-        end
-        table.insert(contents, 1, ('```%s'):format(vim.fn.fnamemodify(item.data.path, ':e')))
-        table.insert(contents, '```')
-        return kit.merge(item, {
-          documentation = {
-            kind = vim.lsp.protocol.MarkupKind.Markdown,
-            value = table.concat(contents, '\n'),
-          },
-        })
       end)
     end
   }

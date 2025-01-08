@@ -273,6 +273,8 @@ end
 ---@param ns_id integer
 ---@param raw_contents string[]
 function Markdown.set(bufnr, ns_id, raw_contents)
+  vim.treesitter.stop(bufnr)
+
   local contents, languages, extmarks = prepare_markdown_contents(raw_contents)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
@@ -297,6 +299,9 @@ function Markdown.set(bufnr, ns_id, raw_contents)
             local hl_id = highlighter_query:get_hl_from_capture(capture)
             if hl_id then
               local start_row, start_col, end_row, end_col = node:range(false)
+              if end_row >= #contents then
+                end_col = #contents[end_row + 1]
+              end
 
               -- TODO: hack for nvim's treesitter.
               -- native treesitter highlights escaped-string and concealed-text but I don't expected it.
