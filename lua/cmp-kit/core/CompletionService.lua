@@ -354,8 +354,7 @@ function CompletionService:update(option)
         -- check the provider was triggered by triggerCharacters.
         local completion_context = provider_configuration.provider:get_completion_context()
         if completion_context and completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter then
-          has_provider_triggered_by_character = has_provider_triggered_by_character or
-              #provider_configuration.provider:get_items() > 0
+          has_provider_triggered_by_character = has_provider_triggered_by_character or #provider_configuration.provider:get_items() > 0
         end
 
         -- if higher priority provider is fetching, skip the lower priority providers in same group. (reduce flickering).
@@ -364,9 +363,10 @@ function CompletionService:update(option)
         fetching_timeout_remaining_ms = math.max(0, self._config.performance.fetching_timeout_ms - elapsed_ms)
         if provider_configuration.provider:get_request_state() == CompletionProvider.RequestState.Fetching then
           has_fetching_provider = true
-          if fetching_timeout_remaining_ms > 0 then
+          if completion_context and completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
             break
           end
+          table.insert(provider_configurations, provider_configuration)
         elseif provider_configuration.provider:get_request_state() == CompletionProvider.RequestState.Completed then
           table.insert(provider_configurations, provider_configuration)
         end

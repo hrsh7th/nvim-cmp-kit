@@ -95,6 +95,10 @@ return {
             dedup = true,
             keyword_length = 4,
           })
+          service:register_provider(CompletionProvider.new(require('cmp-kit.ext.source.path')()))
+          service:register_provider(CompletionProvider.new(require('cmp-kit.ext.source.cmdline')()), {
+            priority = 1000
+          })
         end
 
         -- register test source.
@@ -237,8 +241,8 @@ return {
       if ok then
         insx.add('<C-n>', select({ delta = 1, preselect = false }), { mode = { 'i', 'c' } })
         insx.add('<C-p>', select({ delta = -1, preselect = false }), { mode = { 'i', 'c' } })
-        insx.add('<Down>', select({ delta = 1, preselect = true }), { mode = { 'i', 'c' } })
-        insx.add('<Up>', select({ delta = -1, preselect = true }), { mode = { 'i', 'c' } })
+        insx.add('<Down>', select({ delta = 1, preselect = true }), { mode = { 'i' } })
+        insx.add('<Up>', select({ delta = -1, preselect = true }), { mode = { 'i' } })
         insx.add('<CR>', commit({ select_first = true, replace = false }))
         insx.add('<C-y>', commit({ select_first = true, replace = true }), { mode = { 'i', 'c' } })
         insx.add('<C-n>', {

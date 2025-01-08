@@ -4,7 +4,7 @@ local Buffer = require('cmp-kit.core.Buffer')
 ---@class cmp-kit.ext.source.buffer.Option
 ---@field public keyword_pattern? string
 ---@field public min_keyword_length? integer
----@param option cmp-kit.ext.source.buffer.Option
+---@param option? cmp-kit.ext.source.buffer.Option
 return function(option)
   local keyword_pattern = option and option.keyword_pattern or [[\k\+]]
   local min_keyword_length = option and option.min_keyword_length or 3

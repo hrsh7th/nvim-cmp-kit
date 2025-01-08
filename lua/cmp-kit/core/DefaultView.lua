@@ -35,6 +35,15 @@ local function strcharpart(str, start, finish)
   return vim.fn.strcharpart(str, start, finish)
 end
 
+---Debounced redraw.
+local debounced_redraw = kit.debounce(function()
+  vim.schedule(function()
+    if vim.api.nvim_get_mode().mode == 'c' then
+      vim.cmd.redraw()
+    end
+  end)
+end, 8)
+
 ---@type { clear_cache: fun() }|fun(text: string): integer
 local get_strwidth
 do
@@ -46,7 +55,7 @@ do
   }, {
     __call = function(_, text)
       if not cache[text] then
-        cache[text] = #text
+        cache[text] = vim.api.nvim_strwidth(text)
       end
       return cache[text]
     end
@@ -278,13 +287,13 @@ function DefaultView:show(matches, selection)
     end,
   })
 
-  -- create formatting.
+  -- create formatting (padding and gap is reoslved here).
   local parts = {}
   table.insert(parts, (' '):rep(self._config.menu_padding_left or 1))
   for i, column in ipairs(columns) do
     table.insert(parts, (' '):rep(column.padding_left or 0))
     table.insert(parts, '%s%s')
-    if i ~= #columns then
+    if #columns > 1 and i < #columns then
       table.insert(parts, (' '):rep(self._config.menu_gap or 1))
     end
   end
@@ -320,10 +329,9 @@ function DefaultView:show(matches, selection)
   if vim.api.nvim_get_mode().mode ~= 'c' then
     pos = vim.fn.screenpos(0, trigger_context.line + 1, trigger_context.character + 1)
   else
-    pos = {
-      row = vim.o.lines,
-      col = vim.fn.getcmdscreenpos()
-    }
+    pos = {}
+    pos.row = vim.o.lines
+    pos.col = vim.fn.getcmdscreenpos()
   end
   local row = pos.row - 1 -- default row should be below the cursor. so we use 1-origin as-is.
   local col = pos.col - get_strwidth(leading_text)
@@ -366,13 +374,12 @@ function DefaultView:show(matches, selection)
     height = outer_height - border_size.v,
     anchor = anchor,
     style = 'minimal',
+
     border = self._config.border,
   })
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
 
-  if vim.api.nvim_get_mode().mode == 'c' then
-    vim.cmd.redraw()
-  end
+  debounced_redraw()
 end
 
 ---Hide window.
@@ -494,9 +501,7 @@ function DefaultView:_update_docs(item)
       style = 'minimal',
     })
   end):next(function()
-    if vim.api.nvim_get_mode().mode == 'c' then
-      vim.cmd.redraw()
-    end
+    debounced_redraw()
   end)
 end
 
