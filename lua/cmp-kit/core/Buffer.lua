@@ -145,19 +145,31 @@ end
 ---@param rev integer
 function Indexer:_run_index(rev)
   local regex = get_regex(self._regex)
+
   for i = self._s_idx, self._e_idx do
     if self._words[i] == nil then
       self._words[i] = {}
       local text = vim.api.nvim_buf_get_lines(self._bufnr, i - 1, i, false)[1] or ''
+      local off = 0
       while true do
         local s, e = regex:match_str(text)
         if s and e then
-          table.insert(self._words[i], text:sub(s + 1, e))
+          local cursor = vim.api.nvim_win_get_cursor(0)
+          local is_inserting = vim.api.nvim_get_mode().mode == 'i'
+          if not is_inserting or cursor[1] ~= i or cursor[2] < (off + s) or (off + e) < cursor[2] then
+            table.insert(self._words[i], text:sub(s + 1, e))
+          end
+          off = off + e
+
+          local prev = text
           text = text:sub(e + 1)
+          if text == prev then
+            break
+          end
         else
           break
         end
-        Async.interrupt(8, 16)
+        Async.interrupt(16, 16)
         if self._rev ~= rev then
           return
         end
@@ -165,6 +177,7 @@ function Indexer:_run_index(rev)
       self._s_idx = i + 1
     end
   end
+
   if self._rev == rev then
     self._s_idx = nil
     self._e_idx = nil

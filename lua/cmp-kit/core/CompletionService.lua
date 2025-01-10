@@ -85,14 +85,14 @@ function CompletionService.new(config)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_auto, function()
       if self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
-        table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = false })))
+        table.insert(self._macro_completion, self:complete({ force = false }))
       end
     end)
     self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_force, function()
       if self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
-        table.insert(self._macro_completion, self:complete(TriggerContext.create({ force = true })))
+        table.insert(self._macro_completion, self:complete({ force = true }))
       end
     end)
   end
@@ -102,6 +102,7 @@ function CompletionService.new(config)
     if not typed or typed == '' then
       return
     end
+
     local selection = self:get_selection()
     if selection.index > 0 then
       local match = self:get_match_at(selection.index)
@@ -122,10 +123,10 @@ function CompletionService.new(config)
             local trigger_context = TriggerContext.create()
             local select_text = match.item:get_select_text()
 
-            local can_refeed = true
-            can_refeed = can_refeed and trigger_context.mode == 'i'
-            can_refeed = can_refeed and trigger_context.text_before:sub(- #select_text) == select_text
-            if can_refeed then
+            local can_feedkeys = true
+            can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
+            can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #select_text) == select_text
+            if can_feedkeys then
               vim.api.nvim_feedkeys(typed, 'i', true)
             end
           end)
@@ -133,9 +134,7 @@ function CompletionService.new(config)
         end
       end
     end
-  end, vim.api.nvim_create_namespace(('cmp-kit:%s'):format(self._id)), {
-
-  })
+  end, vim.api.nvim_create_namespace(('cmp-kit:%s'):format(self._id)), {})
 
   return self
 end
@@ -188,6 +187,12 @@ function CompletionService:clear()
   self._config.view:hide(self._state.matches, self._state.selection)
 end
 
+---Is menu visible.
+---@return boolean
+function CompletionService:is_menu_visible()
+  return self._config.view:is_visible()
+end
+
 ---Select completion.
 ---@param index integer
 ---@param preselect? boolean
@@ -197,7 +202,6 @@ function CompletionService:select(index, preselect)
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
-    self:update()
   end
 
   local prev_index = self._state.selection.index
@@ -234,7 +238,6 @@ function CompletionService:get_selection()
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
-    self:update()
   end
   return kit.clone(self._state.selection)
 end
@@ -309,9 +312,10 @@ do
   end
 
   ---Invoke completion.
-  ---@param trigger_context cmp-kit.core.TriggerContext
+  ---@param option? { force: boolean? }
   ---@return cmp-kit.kit.Async.AsyncTask
-  function CompletionService:complete(trigger_context)
+  function CompletionService:complete(option)
+    local trigger_context = TriggerContext.create(option)
     return Async.run(function()
       complete_inner(self, trigger_context):await()
     end)
@@ -354,7 +358,8 @@ function CompletionService:update(option)
         -- check the provider was triggered by triggerCharacters.
         local completion_context = provider_configuration.provider:get_completion_context()
         if completion_context and completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter then
-          has_provider_triggered_by_character = has_provider_triggered_by_character or #provider_configuration.provider:get_items() > 0
+          has_provider_triggered_by_character = has_provider_triggered_by_character or
+              #provider_configuration.provider:get_items() > 0
         end
 
         -- if higher priority provider is fetching, skip the lower priority providers in same group. (reduce flickering).
@@ -486,7 +491,7 @@ function CompletionService:commit(item, option)
             for _, provider_configuration in ipairs(provider_configurations) do
               local completion_options = provider_configuration.provider:get_completion_options()
               if vim.tbl_contains(completion_options.triggerCharacters or {}, trigger_context.before_character) then
-                return self:complete(trigger_context)
+                return self:complete()
               end
             end
           end
@@ -555,10 +560,13 @@ function CompletionService:_get_score_boost(provider)
   local cur_priority = 0
   local max_priority = 0
   for _, provider_configuration in ipairs(self._provider_configurations) do
-    max_priority = math.max(max_priority, provider_configuration.priority)
+    max_priority = math.max(max_priority, provider_configuration.priority or 0)
     if provider == provider_configuration.provider then
       cur_priority = provider_configuration.priority
     end
+  end
+  if max_priority == 0 then
+    return 0
   end
   return 5 * (cur_priority / max_priority)
 end

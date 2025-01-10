@@ -74,10 +74,17 @@ local lua_expression_cmd_regex = create_head_regex({
   [=[\s*luado]=],
 })
 
+local remove_last_arg_regex = vim.regex([=[[^[:blank:]]\+$]=])
+
 ---@class cmp-kit.ext.source.cmdline.Option
 ---@param option? cmp-kit.ext.source.cmdline.Option
 return function(option)
   option = option or {}
+
+  local cache = {
+    cmdline = '',
+    items = {},
+  }
 
   ---@type cmp-kit.core.CompletionSource
   return {
@@ -109,6 +116,7 @@ return function(option)
             break
           end
         end
+        cmdline = (cmdline:gsub('^%s+', ''))
 
         -- if cmd is not determined, return empty.
         local cmd = cmdline:match('^%S+') or ''
@@ -116,16 +124,18 @@ return function(option)
           return {}
         end
 
-        -- fix arg for specific commands.
+        -- get arg and fix for specific commands.
         local arg = cmdline:sub(#cmd + 2)
-        if lua_expression_cmd_regex:match_str(cmd) then
-          -- - remove in-completed identifier.
-          --   - `lua vim.api.nivmbuf` -> `lua vim.api.`
-          arg = arg:match('%.') and (arg:gsub('%w*$', '')) or arg
-        elseif set_option_cmd_regex:match_str(cmd) then
-          -- - remove `no` prefix.
-          --   - `set nonumber` -> `set number`
-          arg = (arg:gsub('^no', ''))
+        do
+          if lua_expression_cmd_regex:match_str(cmd) then
+            -- - remove in-complete identifier.
+            --   - `lua vim.api.nivmbuf` -> `lua vim.api.`
+            arg = arg:match('%.') and (arg:gsub('%w*$', '')) or arg
+          elseif set_option_cmd_regex:match_str(cmd) then
+            -- - remove `no` prefix.
+            --   - `set nonumber` -> `set number`
+            arg = (arg:gsub('^no', ''))
+          end
         end
 
         -- invoke completion.
@@ -134,11 +144,8 @@ return function(option)
           table.insert(query_parts, arg)
         end
         local completions = vim.fn.getcompletion(table.concat(query_parts, ' '), 'cmdline')
-        if #completions == 0 then
-          return {}
-        end
 
-        -- get last argment (probably, this is only needed for lua expression completion).
+        -- get last argment for fixing lua expression completion.
         local offset = 0
         for i = #arg, 1, -1 do
           if arg:sub(i, i) == ' ' and arg:sub(i - 1, i - 1) ~= '\\' then
@@ -150,18 +157,46 @@ return function(option)
 
         -- convert to LSP items.
         local items = {}
+        local label_map = {}
         for _, completion in ipairs(completions) do
-          local label = completion:find(last_arg, 1, true) and completion or last_arg .. completion
+          local label = completion
+
+          -- fix lua expression completion.
+          if lua_expression_cmd_regex:match_str(cmd) then
+            label = label:find(last_arg, 1, true) and label or last_arg .. label
+          end
+
+          label_map[label] = true
           table.insert(items, {
             label = label,
           })
+
+          -- add `no` prefix for boolean options.
           if set_option_cmd_regex:match_str(cmd) and is_boolean_option(label) then
+            label_map['no' .. completion] = true
             table.insert(items, {
               label = 'no' .. completion,
               filterText = completion,
             })
           end
         end
+
+        -- append or discard cache.
+        do
+          local prev_leading_text = remove_regex(cache.cmdline, remove_last_arg_regex)
+          local next_leading_text = remove_regex(cmdline, remove_last_arg_regex)
+          if prev_leading_text == next_leading_text then
+            for _, item in ipairs(cache.items) do
+              if not label_map[item.label] then
+                table.insert(items, item)
+              end
+            end
+          else
+            cache.cmdline = cmdline
+            cache.items = items
+          end
+        end
+
         return {
           isIncomplete = true,
           items = items,

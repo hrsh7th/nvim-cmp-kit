@@ -93,7 +93,7 @@ function spec.setup(option)
     item_count = math.huge,
   })
 
-  service:complete(TriggerContext.create({ force = true })):sync(5000)
+  service:complete({ force = true }):sync(5000)
 
   -- Insert filtering query after request.
   if option.input then

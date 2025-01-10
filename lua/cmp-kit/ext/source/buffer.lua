@@ -4,10 +4,14 @@ local Buffer = require('cmp-kit.core.Buffer')
 ---@class cmp-kit.ext.source.buffer.Option
 ---@field public keyword_pattern? string
 ---@field public min_keyword_length? integer
+---@field public get_bufnrs? fun(): integer[]
 ---@param option? cmp-kit.ext.source.buffer.Option
 return function(option)
   local keyword_pattern = option and option.keyword_pattern or [[\k\+]]
   local min_keyword_length = option and option.min_keyword_length or 3
+  local get_bufnrs = option and option.get_bufnrs or function()
+    return vim.iter(vim.api.nvim_list_wins()):map(vim.api.nvim_win_get_buf):totable()
+  end
 
   ---@param bufs integer[]
   ---@return cmp-kit.kit.LSP.CompletionList
@@ -43,7 +47,7 @@ return function(option)
     name = 'buffer',
     complete = function()
       return Async.run(function()
-        return get_items({ vim.api.nvim_get_current_buf() })
+        return get_items(get_bufnrs())
       end)
     end
   }

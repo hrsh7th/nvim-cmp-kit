@@ -1,6 +1,5 @@
 local Async = require('cmp-kit.kit.Async')
 local compat_cmp = require('cmp-kit.ext.compat_cmp.source')
-local Client = require('cmp-kit.kit.LSP.Client')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionService = require('cmp-kit.core.CompletionService')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
@@ -35,7 +34,7 @@ return {
               vim.schedule(function()
                 if vim.api.nvim_get_mode().mode == 'c' then
                   if my_ticket == ticket then
-                    service:complete(TriggerContext.create({}))
+                    service:complete()
                   end
                 end
               end)
@@ -46,14 +45,14 @@ return {
         vim.api.nvim_create_autocmd('TextChangedI', {
           pattern = ('<buffer=%s>'):format(buf),
           callback = function()
-            service:complete(TriggerContext.create({}))
+            service:complete()
           end
         })
 
         vim.api.nvim_create_autocmd('CursorMovedI', {
           pattern = ('<buffer=%s>'):format(buf),
           callback = function()
-            service:complete(TriggerContext.create({}))
+            service:complete()
           end
         })
 
@@ -131,68 +130,17 @@ return {
 
     vim.api.nvim_create_autocmd('LspAttach', {
       callback = function(e)
-        local c = vim.lsp.get_clients({
+        local client = vim.lsp.get_clients({
           bufnr = e.buf,
           id = e.data.client_id
         })[1]
-        if not c or not c.server_capabilities.completionProvider then
-          return
+        if client then
+          get(e.buf).service:register_provider(CompletionProvider.new(require('cmp-kit.ext.source.lsp.completion')({
+            client = client
+          })), {
+            priority = 100
+          })
         end
-
-        local client = Client.new(c)
-        local last_request = nil
-        get(e.buf).service:register_provider(CompletionProvider.new({
-          name = c.name,
-          initialize = function(_, params)
-            params.configure({
-              position_encoding_kind = c.offset_encoding,
-              completion_options = c.server_capabilities
-                  .completionProvider --[[@as cmp-kit.kit.LSP.CompletionRegistrationOptions]]
-            })
-          end,
-          resolve = function(_, completion_item)
-            return Async.run(function()
-              if c.server_capabilities.completionProvider.resolveProvider then
-                return client:completionItem_resolve(completion_item):await()
-              end
-              return completion_item
-            end)
-          end,
-          ---@param command cmp-kit.kit.LSP.Command
-          execute = function(_, command)
-            return Async.run(function()
-              return client:workspace_executeCommand({
-                command = command.command,
-                arguments = command.arguments
-              }):await()
-            end)
-          end,
-          complete = function(_, completion_context)
-            if last_request then
-              last_request.cancel()
-            end
-            local position_params = vim.lsp.util.make_position_params(0, c.offset_encoding)
-            return Async.run(function()
-              last_request = client:textDocument_completion({
-                textDocument = {
-                  uri = position_params.textDocument.uri,
-                },
-                position = {
-                  line = position_params.position.line,
-                  character = position_params.position.character,
-                },
-                context = completion_context
-              })
-              local response = last_request:catch(function()
-                return nil
-              end):await()
-              last_request = nil
-              return response
-            end)
-          end
-        }), {
-          priority = 100
-        })
       end
     })
 
@@ -250,11 +198,11 @@ return {
             return not get().service:get_match_at(1)
           end,
           action = function()
-            get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
+            get().service:complete({ force = true })
           end
         }, { mode = { 'i', 'c' } })
         insx.add('<C-Space>', function()
-          get().service:complete(require('cmp-kit.core.TriggerContext').create({ force = true }))
+          get().service:complete({ force = true })
         end, { mode = { 'i', 'c' } })
       end
     end

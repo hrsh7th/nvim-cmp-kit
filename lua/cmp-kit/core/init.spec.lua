@@ -1,5 +1,4 @@
 local Async = require('cmp-kit.kit.Async')
-local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 local CompletionService = require('cmp-kit.core.CompletionService')
 
@@ -24,7 +23,7 @@ describe('cmp-kit.core', function()
         end
       }))
       vim.keymap.set('i', '<Plug>(complete)', function()
-        service:complete(TriggerContext.create({ force = true }))
+        service:complete({ force = true })
       end, { buffer = 0 })
       vim.keymap.set('i', '<Plug>(select_next)', function()
         local selection = service:get_selection()

@@ -91,15 +91,7 @@ local default_config = {
       padding_right = 0,
       align = 'right',
       resolve = function(item)
-        return { strcharpart(item:get_label_details().description or '', 0, 28), 'Comment' }
-      end,
-    },
-    {
-      padding_left = 0,
-      padding_right = 0,
-      align = 'right',
-      resolve = function(item)
-        return { item:get_source_name(), 'NonText' }
+        return { strcharpart(item:get_label_details().description or '', 0, 32), 'Comment' }
       end,
     },
   },

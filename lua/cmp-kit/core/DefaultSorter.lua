@@ -1,3 +1,4 @@
+local kit = require('cmp-kit.kit')
 local Buffer = require('cmp-kit.core.Buffer')
 
 ---Compare two items.
@@ -66,7 +67,7 @@ function DefaultSorter.sorter(matches)
       local min_row = math.max(1, cur - 30)
       local max_row = cur
       for row = min_row, max_row do
-        for _, word in ipairs(Buffer.ensure(0):get_words([[\k\+]], row)) do
+        for _, word in ipairs(Buffer.ensure(0):get_words([[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]], row)) do
           locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
         end
       end
@@ -77,6 +78,7 @@ function DefaultSorter.sorter(matches)
   table.sort(matches, function(a, b)
     return compare(a, b, locality_map)
   end)
+
   return matches
 end
 

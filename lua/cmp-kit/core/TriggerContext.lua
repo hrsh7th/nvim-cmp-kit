@@ -26,16 +26,16 @@ function TriggerContext.create_empty_context()
 end
 
 ---Create new TriggerContext from current state.
----@param reason? { force?: boolean }
+---@param option? { force: boolean? }
 ---@return cmp-kit.core.TriggerContext
-function TriggerContext.create(reason)
+function TriggerContext.create(option)
   local mode = vim.api.nvim_get_mode().mode --[[@as string]]
   local bufnr = vim.api.nvim_get_current_buf()
   if mode == 'c' then
-    return TriggerContext.new(mode, 0, vim.fn.getcmdpos() - 1, vim.fn.getcmdline(), bufnr, reason)
+    return TriggerContext.new(mode, 0, vim.fn.getcmdpos() - 1, vim.fn.getcmdline(), bufnr, option)
   end
   local row1, col0 = unpack(vim.api.nvim_win_get_cursor(0))
-  return TriggerContext.new(mode, row1 - 1, col0, vim.api.nvim_get_current_line(), bufnr, reason)
+  return TriggerContext.new(mode, row1 - 1, col0, vim.api.nvim_get_current_line(), bufnr, option)
 end
 
 ---Create new TriggerContext.
@@ -44,9 +44,9 @@ end
 ---@param character integer 0-origin
 ---@param text string
 ---@param bufnr integer
----@param reason? { force?: boolean }
+---@param option? { force?: boolean }
 ---@return cmp-kit.core.TriggerContext
-function TriggerContext.new(mode, line, character, text, bufnr, reason)
+function TriggerContext.new(mode, line, character, text, bufnr, option)
   local text_before = text:sub(1, character)
 
   local self = setmetatable({
@@ -57,7 +57,7 @@ function TriggerContext.new(mode, line, character, text, bufnr, reason)
     text_before = text_before,
     bufnr = bufnr,
     time = vim.uv.now(),
-    force = not not (reason and reason.force),
+    force = not not (option and option.force),
     before_character = text_before:gsub('%s*$', ''):match('(.)$'),
     cache = {},
   }, TriggerContext)

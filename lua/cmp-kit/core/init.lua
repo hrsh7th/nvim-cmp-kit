@@ -29,8 +29,8 @@
 ---@field public text_before string
 
 ---@class cmp-kit.core.View
----@field public is_visible fun(): boolean
 ---@field public show fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
 ---@field public hide fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
+---@field public is_visible fun(): boolean
 ---@field public select fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
 

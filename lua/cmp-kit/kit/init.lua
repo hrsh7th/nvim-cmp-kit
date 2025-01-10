@@ -253,6 +253,10 @@ do
       return new_tbl
     else
       local new_tbl = {}
+      local meta = getmetatable(target)
+      if meta then
+        setmetatable(new_tbl, meta)
+      end
       seen[target] = new_tbl
       for k, v in pairs(target) do
         new_tbl[k] = do_clone(v, seen)
