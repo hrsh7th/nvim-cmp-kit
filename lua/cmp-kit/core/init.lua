@@ -33,4 +33,5 @@
 ---@field public hide fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
 ---@field public is_visible fun(): boolean
 ---@field public select fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
+---@field public dispose fun(self: cmp-kit.core.View)
 

@@ -119,7 +119,7 @@ local default_config = {
 }
 
 ---@class cmp-kit.core.DefaultView: cmp-kit.core.View
----@field private _ns_id integer
+---@field private _ns integer
 ---@field private _config cmp-kit.core.DefaultView.Config
 ---@field private _service cmp-kit.core.CompletionService
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
@@ -134,7 +134,7 @@ DefaultView.__index = DefaultView
 ---@return cmp-kit.core.DefaultView
 function DefaultView.new(config)
   local self = setmetatable({
-    _ns_id = vim.api.nvim_create_namespace(('cmp-kit.core.DefaultView.%s'):format(vim.uv.now())),
+    _ns = vim.api.nvim_create_namespace(('cmp-kit.core.DefaultView.%s'):format(vim.uv.now())),
     _config = kit.merge(config or {}, default_config) --[[@as cmp-kit.core.DefaultView.Config]],
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
@@ -242,7 +242,7 @@ function DefaultView:show(matches, selection)
   end
 
   -- set decoration provider.
-  vim.api.nvim_set_decoration_provider(self._ns_id, {
+  vim.api.nvim_set_decoration_provider(self._ns, {
     on_win = function(_, _, buf, toprow, botrow)
       if buf ~= self._menu_window:get_buf() then
         return
@@ -255,7 +255,7 @@ function DefaultView:show(matches, selection)
 
           local resolved = column.resolved[row + 1]
           local column_byte_width = #resolved[1] + column.display_width - get_strwidth(resolved[1])
-          vim.api.nvim_buf_set_extmark(buf, self._ns_id, row, off, {
+          vim.api.nvim_buf_set_extmark(buf, self._ns, row, off, {
             end_row = row,
             end_col = off + column_byte_width,
             hl_group = resolved[2],
@@ -264,7 +264,7 @@ function DefaultView:show(matches, selection)
           })
           if column.is_label then
             for _, pos in ipairs(self._matches[row + 1].match_positions) do
-              vim.api.nvim_buf_set_extmark(buf, self._ns_id, row, off + pos.start_index - 1, {
+              vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + pos.start_index - 1, {
                 end_row = row,
                 end_col = off + pos.end_index,
                 hl_group = pos.hl_group or 'CmpItemAbbrMatch',
@@ -403,6 +403,16 @@ function DefaultView:select(matches, selection)
   self:_update_docs(match and match.item)
 end
 
+---Dispose view.
+function DefaultView:dispose()
+  self._menu_window:hide()
+  self._docs_window:hide()
+  vim.api.nvim_buf_clear_namespace(self._menu_window:get_buf(), self._ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(self._docs_window:get_buf(), self._ns, 0, -1)
+  vim.api.nvim_buf_delete(self._menu_window:get_buf(), { force = true })
+  vim.api.nvim_buf_delete(self._docs_window:get_buf(), { force = true })
+end
+
 ---Update documentation.
 ---@param item? cmp-kit.core.CompletionItem
 function DefaultView:_update_docs(item)
@@ -433,7 +443,7 @@ function DefaultView:_update_docs(item)
     end
 
     -- set buffer contents.
-    Markdown.set(self._docs_window:get_buf(), self._ns_id, vim.split(documentation.value, '\n', { plain = true }))
+    Markdown.set(self._docs_window:get_buf(), self._ns, vim.split(documentation.value, '\n', { plain = true }))
 
     -- prepare some sizes.
     local min_width = math.floor(vim.o.columns * self._config.docs_min_win_width_ratio)

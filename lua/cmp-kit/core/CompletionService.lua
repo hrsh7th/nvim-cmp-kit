@@ -35,6 +35,8 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@field public matches cmp-kit.core.Match[]
 
 ---@class cmp-kit.core.CompletionService
+---@field private _id integer
+---@field private _ns integer
 ---@field private _preventing integer
 ---@field private _state cmp-kit.core.CompletionService.State
 ---@field private _config cmp-kit.core.CompletionService.Config
@@ -49,8 +51,10 @@ CompletionService.__index = CompletionService
 ---@param config cmp-kit.core.CompletionService.Config|{}
 ---@return cmp-kit.core.CompletionService
 function CompletionService.new(config)
+  local id = kit.unique_id()
   local self = setmetatable({
-    _id = kit.unique_id(),
+    _id = id,
+    _ns = vim.api.nvim_create_namespace(('cmp-kit:%s'):format(id)),
     _preventing = 0,
     _config = kit.merge(config or {}, {
       view = DefaultView.new(),
@@ -141,6 +145,13 @@ function CompletionService.new(config)
   return self
 end
 
+---Dispose completion service.
+function CompletionService:dispose()
+  self._config.view:dispose()
+  vim.on_key(nil, self._ns, {})
+  vim.api.nvim_del_namespace(self._ns)
+end
+
 ---Register provider.
 ---@param provider cmp-kit.core.CompletionProvider
 ---@param config? cmp-kit.core.CompletionService.ProviderConfiguration|{ provider: nil }
@@ -189,12 +200,6 @@ function CompletionService:clear()
   if not self._config.sync_mode() then
     self._config.view:hide(self._state.matches, self._state.selection)
   end
-end
-
----Is menu visible.
----@return boolean
-function CompletionService:is_menu_visible()
-  return self._config.view:is_visible()
 end
 
 ---Is menu visible.
