@@ -83,14 +83,16 @@ function CompletionService.new(config)
   do
     self._keys.macro_complete_auto = ('<Plug>(complete:%s:mc-a)'):format(self._id)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_auto, function()
-      if self._config.sync_mode() then
+      local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
+      if is_valid_mode and self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete({ force = false }))
       end
     end)
     self._keys.macro_complete_force = ('<Plug>(complete:%s:mc-f)'):format(self._id)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x' }, self._keys.macro_complete_force, function()
-      if self._config.sync_mode() then
+      local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
+      if is_valid_mode and self._config.sync_mode() then
         ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete({ force = true }))
       end
@@ -184,7 +186,15 @@ function CompletionService:clear()
   }
 
   -- reset menu.
-  self._config.view:hide(self._state.matches, self._state.selection)
+  if not self._config.sync_mode() then
+    self._config.view:hide(self._state.matches, self._state.selection)
+  end
+end
+
+---Is menu visible.
+---@return boolean
+function CompletionService:is_menu_visible()
+  return self._config.view:is_visible()
 end
 
 ---Is menu visible.
@@ -301,10 +311,12 @@ do
       end
     else
       -- set new-completion position for macro.
-      if trigger_context.force then
-        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
-      else
-        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
+      if not self._config.sync_mode() then
+        if trigger_context.force then
+          vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
+        else
+          vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
+        end
       end
     end
 
@@ -455,7 +467,9 @@ function CompletionService:update(option)
   end
 
   -- no completion found.
-  self._config.view:hide(self._state.matches, self._state.selection)
+  if not self._config.sync_mode() then
+    self._config.view:hide(self._state.matches, self._state.selection)
+  end
 end
 
 ---Commit completion.
