@@ -498,7 +498,7 @@ function CompletionService:update(option)
             self._state.update_trigger_context = TriggerContext.create_empty_context()
             self:update()
           end
-        end, fetching_timeout_remaining_ms + 16)
+        end, fetching_timeout_remaining_ms + 1)
       end
       return
     end
