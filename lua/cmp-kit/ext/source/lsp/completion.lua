@@ -11,7 +11,7 @@ return function(option)
 
   ---@type cmp-kit.core.CompletionSource
   return {
-    name = ('lsp.completion.%s'):format(option.client.name),
+    name = option.client.name,
     initialize = function(_, params)
       params.configure({
         position_encoding_kind = option.client.offset_encoding,

@@ -517,7 +517,7 @@ function CompletionItem:get_insert_range()
     return self:_convert_range_encoding(range)
   else
     local default_range = self._provider:get_default_insert_range()
-    default_range.start.character = self:get_offset() - 1
+    default_range.start.character = self:get_offset() - 1 -- in this branch, the item has no textEdit so this don't cause infinity loop.
     return default_range
   end
 end
