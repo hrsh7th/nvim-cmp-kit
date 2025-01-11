@@ -32,36 +32,36 @@ local function is_boolean_option(o)
 end
 
 local modifier_regex = create_head_regex({
-  [=[\s*abo\%[veleft]\s]=],
-  [=[\s*bel\%[owright]\s]=],
-  [=[\s*bo\%[tright]\s]=],
-  [=[\s*bro\%[wse]\s]=],
-  [=[\s*conf\%[irm]\s]=],
-  [=[\s*hid\%[e]\s]=],
-  [=[\s*keepalt\s]=],
-  [=[\s*keeppa\%[tterns]\s]=],
-  [=[\s*lefta\%[bove]\s]=],
-  [=[\s*loc\%[kmarks]\s]=],
-  [=[\s*nos\%[wapfile]\s]=],
-  [=[\s*rightb\%[elow]\s]=],
-  [=[\s*sil\%[ent]\s]=],
-  [=[\s*tab\s]=],
-  [=[\s*to\%[pleft]\s]=],
-  [=[\s*verb\%[ose]\s]=],
-  [=[\s*vert\%[ical]\s]=],
+  [=[\s*abo\%[veleft]\s*]=],
+  [=[\s*bel\%[owright]\s*]=],
+  [=[\s*bo\%[tright]\s*]=],
+  [=[\s*bro\%[wse]\s*]=],
+  [=[\s*conf\%[irm]\s*]=],
+  [=[\s*hid\%[e]\s*]=],
+  [=[\s*keepalt\s*]=],
+  [=[\s*keeppa\%[tterns]\s*]=],
+  [=[\s*lefta\%[bove]\s*]=],
+  [=[\s*loc\%[kmarks]\s*]=],
+  [=[\s*nos\%[wapfile]\s*]=],
+  [=[\s*rightb\%[elow]\s*]=],
+  [=[\s*sil\%[ent]\s*]=],
+  [=[\s*tab\s*]=],
+  [=[\s*to\%[pleft]\s*]=],
+  [=[\s*verb\%[ose]\s*]=],
+  [=[\s*vert\%[ical]\s*]=],
 })
 
 local count_range_regex = create_head_regex({
-  [=[\s*\%(\d\+\|\$\)\%[,\%(\d\+\|\$\)]\s]=],
-  [=[\s*'\%[<,'>]\s]=],
-  [=[\s*\%(\d\+\|\$\)\s]=],
+  [=[\s*\%(\d\+\|\$\)\%[,\%(\d\+\|\$\)]\s*]=],
+  [=[\s*'\%[<,'>]\s*]=],
+  [=[\s*\%(\d\+\|\$\)\s*]=],
 })
 
 local range_only_regex = create_head_regex({
-  [=[\s*\%(\d\+\|\$\)\%[,\%(\d\+\|\$\)]\s]=],
-  [=[\s*'\%[<,'>]\s]=],
-  [=[\s*\%(\d\+\|\$\)\s]=],
-  [=[\s*%\s]=],
+  [=[\s*\%(\d\+\|\$\)\%[,\%(\d\+\|\$\)]\s*]=],
+  [=[\s*'\%[<,'>]\s*]=],
+  [=[\s*\%(\d\+\|\$\)\s*]=],
+  [=[\s*%\s*]=],
 })
 
 local set_option_cmd_regex = create_head_regex({
