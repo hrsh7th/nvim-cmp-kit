@@ -1,6 +1,4 @@
 local Async = require('cmp-kit.kit.Async')
-local compat_cmp = require('cmp-kit.ext.compat_cmp.source')
-local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionService = require('cmp-kit.core.CompletionService')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 
@@ -65,25 +63,6 @@ return {
             end
           end
         })
-
-        -- register cmp sources.
-        local ok_cmp, cmp = pcall(require, 'cmp')
-        if false and ok_cmp then
-          for _, source in ipairs(cmp.get_registered_sources()) do
-            if source.name ~= 'nvim_lsp' and source.name ~= 'cmdline' and source.name ~= 'buffer' then
-              if source.name == 'nvim_lsp_signature_help' then
-                service:register_provider(compat_cmp.create_provider_by_cmp(source), {
-                  group = -1,
-                  priority = 1000
-                })
-              else
-                service:register_provider(compat_cmp.create_provider_by_cmp(source), {
-                  group = 10
-                })
-              end
-            end
-          end
-        end
 
         --- register buffer source.
         if true then

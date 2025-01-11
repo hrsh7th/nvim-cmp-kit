@@ -5,9 +5,28 @@ local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 
+---@class cmp-kit.core.DefaultView.WindowPosition
+---@field public row integer
+---@field public col integer
+---@field public anchor 'NW' | 'NE' | 'SW' | 'SE'
+
+---@class cmp-kit.core.DefaultView.Extmark
+---@field public col integer
+---@field public end_col integer
+---@field public hl_group? string
+---@field public priority? integer
+---@field public conceal? string
+
+---@class cmp-kit.core.DefaultView.MenuComponent
+---@field padding_left integer
+---@field padding_right integer
+---@field align 'left' | 'right'
+---@field get_text fun(match: cmp-kit.core.Match, config: cmp-kit.core.DefaultView.Config): string
+---@field get_extmarks fun(match: cmp-kit.core.Match, config: cmp-kit.core.DefaultView.Config): cmp-kit.core.DefaultView.Extmark[]
+
 ---@class cmp-kit.core.DefaultView.Config
 ---@field border string
----@field menu_components { is_label?: boolean, padding_left: integer, padding_right: integer, align: 'left' | 'right', resolve: fun(item: cmp-kit.core.CompletionItem, config: cmp-kit.core.DefaultView.Config): { [1]: string, [2]?: string } }[]
+---@field menu_components cmp-kit.core.DefaultView.MenuComponent[]
 ---@field menu_padding_left integer
 ---@field menu_padding_right integer
 ---@field menu_gap integer
@@ -15,6 +34,7 @@ local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 ---@field menu_max_win_height integer
 ---@field docs_min_win_width_ratio number
 ---@field docs_max_win_width_ratio number
+---@field get_menu_position fun(preset: { offset: cmp-kit.core.DefaultView.WindowPosition, cursor: cmp-kit.core.DefaultView.WindowPosition }): cmp-kit.core.DefaultView.WindowPosition
 ---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
 
 ---Lookup table for CompletionItemKind.
@@ -73,26 +93,58 @@ local default_config = {
       padding_left = 0,
       padding_right = 0,
       align = 'right',
-      resolve = function(item, config)
-        return config.icon_resolver(item:get_kind() or LSP.CompletionItemKind.Text) or { '', '' }
+      get_text = function(match, config)
+        return config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text)[1]
+      end,
+      get_extmarks = function(match, config)
+        local icon, hl_group = unpack(config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text) or {})
+        if icon then
+          return { {
+            col = 0,
+            end_col = #icon,
+            hl_group = hl_group,
+          } }
+        end
+        return {}
       end,
     },
     {
-      is_label = true,
       padding_left = 0,
       padding_right = 0,
       align = 'left',
-      resolve = function(item)
-        return { strcharpart(item:get_label_text(), 0, 48), 'CmpItemAbbr' }
+      get_text = function(match)
+        return strcharpart(match.item:get_label_text(), 0, 48)
       end,
+      get_extmarks = function(match)
+        return vim.iter(match.match_positions):map(function(position)
+          return {
+            col = position.start_index - 1,
+            end_col = position.end_index,
+            hl_group = position.hl_group or 'CmpItemAbbrMatch',
+          }
+        end):totable()
+      end
     },
     {
       padding_left = 0,
       padding_right = 0,
       align = 'right',
-      resolve = function(item)
-        return { strcharpart(item:get_label_details().description or '', 0, 32), 'Comment' }
+      get_text = function(match)
+        if not match.item:get_label_details().description then
+          return ''
+        end
+        return strcharpart(match.item:get_label_details().description, 0, 32)
       end,
+      get_extmarks = function(match)
+        if not match.item:get_label_details().description then
+          return {}
+        end
+        return { {
+          col = 0,
+          end_col = #match.item:get_label_details().description,
+          hl_group = 'Comment',
+        } }
+      end
     },
   },
   menu_padding_left = 1,
@@ -102,6 +154,9 @@ local default_config = {
   menu_max_win_height = 18,
   docs_min_win_width_ratio = 0.25,
   docs_max_win_width_ratio = 0.55,
+  get_menu_position = function(preset)
+    return preset.offset
+  end,
   icon_resolver = (function()
     local ok, MiniIcons = pcall(require, 'mini.icons')
     local cache = {}
@@ -208,17 +263,17 @@ function DefaultView:show(matches, selection)
   end
 
   -- init columns.
-  ---@type { is_label?: boolean, display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', resolved: { [1]: string, [2]?: string }[] }[]
+  ---@type { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.core.DefaultView.MenuComponent }[]
   local columns = {}
   for _, component in ipairs(self._config.menu_components) do
     table.insert(columns, {
-      is_label = component.is_label,
       display_width = 0,
       byte_width = 0,
       padding_left = component.padding_left,
       padding_right = component.padding_right,
       align = component.align,
-      resolved = {},
+      texts = {},
+      component = component,
     })
   end
 
@@ -227,10 +282,10 @@ function DefaultView:show(matches, selection)
   for i, match in ipairs(self._matches) do
     min_offset = math.min(min_offset, match.item:get_offset())
     for j, component in ipairs(self._config.menu_components) do
-      local resolved = component.resolve(match.item, self._config)
-      columns[j].display_width = math.max(columns[j].display_width, get_strwidth(resolved[1]))
-      columns[j].byte_width = math.max(columns[j].byte_width, #resolved[1])
-      columns[j].resolved[i] = resolved
+      local text = component.get_text(match, self._config)
+      columns[j].display_width = math.max(columns[j].display_width, get_strwidth(text))
+      columns[j].byte_width = math.max(columns[j].byte_width, #text)
+      columns[j].texts[i] = text
     end
   end
 
@@ -253,27 +308,21 @@ function DefaultView:show(matches, selection)
         for _, column in ipairs(columns) do
           off = off + column.padding_left
 
-          local resolved = column.resolved[row + 1]
-          local column_byte_width = #resolved[1] + column.display_width - get_strwidth(resolved[1])
-          vim.api.nvim_buf_set_extmark(buf, self._ns, row, off, {
-            end_row = row,
-            end_col = off + column_byte_width,
-            hl_group = resolved[2],
-            hl_mode = 'combine',
-            ephemeral = true,
-          })
-          if column.is_label then
-            for _, pos in ipairs(self._matches[row + 1].match_positions) do
-              vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + pos.start_index - 1, {
-                end_row = row,
-                end_col = off + pos.end_index,
-                hl_group = pos.hl_group or 'CmpItemAbbrMatch',
-                hl_mode = 'combine',
-                ephemeral = true,
-              })
-            end
+          local text = column.texts[row + 1]
+          local space_width = column.display_width - get_strwidth(text)
+          local right_align_off = column.align == 'right' and space_width or 0
+          for _, extmark in ipairs(column.component.get_extmarks(self._matches[row + 1], self._config)) do
+            vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
+              end_row = row,
+              end_col = off + right_align_off + extmark.end_col,
+              hl_group = extmark.hl_group,
+              priority = extmark.priority,
+              conceal = extmark.conceal,
+              hl_mode = 'combine',
+              ephemeral = true,
+            })
           end
-          off = off + column_byte_width + column.padding_right + self._config.menu_gap
+          off = off + #text + space_width + column.padding_right + self._config.menu_gap
         end
       end
     end,
@@ -298,13 +347,13 @@ function DefaultView:show(matches, selection)
   for i in ipairs(self._matches) do
     local args = {}
     for _, column in ipairs(columns) do
-      local resolved = column.resolved[i]
+      local text = column.texts[i]
       if column.align == 'right' then
-        table.insert(args, (' '):rep(column.display_width - get_strwidth(resolved[1])))
-        table.insert(args, resolved[1])
+        table.insert(args, (' '):rep(column.display_width - get_strwidth(text)))
+        table.insert(args, text)
       else
-        table.insert(args, resolved[1])
-        table.insert(args, (' '):rep(column.display_width - get_strwidth(resolved[1])))
+        table.insert(args, text)
+        table.insert(args, (' '):rep(column.display_width - get_strwidth(text)))
       end
     end
     local line = formatting:format(unpack(args))
@@ -331,17 +380,6 @@ function DefaultView:show(matches, selection)
   -- setup default position offset.
   local row_off = 1
   local col_off = 0
-  do
-    local label_off = border_size.left + self._config.menu_padding_left
-    for i, column in ipairs(columns) do
-      if column.is_label then
-        break
-      end
-      local gap = i ~= 1 and self._config.menu_gap or 0
-      label_off = label_off + gap + column.padding_left + column.byte_width + column.padding_right
-    end
-    col_off = -label_off
-  end
   local anchor = 'NW'
 
   -- compute outer_height.
@@ -425,7 +463,6 @@ function DefaultView:_update_docs(item)
     end
 
     item:resolve():await()
-    Async.schedule()
 
     if item ~= self._selected_item then
       return

@@ -289,39 +289,37 @@ function Markdown.set(bufnr, ns_id, raw_contents)
           return { range }
         end)
         :totable())
-      for _, range in ipairs(ranges) do
-        parser:parse(range --[[@as any]])
-        parser:for_each_tree(function(tree, ltree)
-          local highlighter = vim.treesitter.highlighter.new(ltree, {})
-          local highlighter_query = highlighter:get_query(language)
-          for capture, node, metadata in highlighter_query:query():iter_captures(tree:root(), bufnr) do
-            ---@diagnostic disable-next-line: invisible
-            local hl_id = highlighter_query:get_hl_from_capture(capture)
-            if hl_id then
-              local start_row, start_col, end_row, end_col = node:range(false)
-              if end_row >= #contents then
-                end_col = #contents[end_row + 1]
-              end
-
-              -- TODO: hack for nvim's treesitter.
-              -- native treesitter highlights escaped-string and concealed-text but I don't expected it.
-              local conceal = metadata.conceal or metadata[capture] and metadata[capture].conceal
-              local capture_name = highlighter_query:query().captures[capture]
-              if conceal or vim.tbl_contains({ 'string.escape' }, capture_name) then
-                hl_id = nil
-              end
-
-              vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_row, start_col, {
-                end_row = end_row,
-                end_col = end_col,
-                hl_group = hl_id,
-                priority = tonumber(metadata.priority or metadata[capture] and metadata[capture].priority),
-                conceal = conceal,
-              })
+      parser:parse(true)
+      parser:for_each_tree(function(tree, ltree)
+        local highlighter = vim.treesitter.highlighter.new(ltree, {})
+        local highlighter_query = highlighter:get_query(language)
+        for capture, node, metadata in highlighter_query:query():iter_captures(tree:root(), bufnr) do
+          ---@diagnostic disable-next-line: invisible
+          local hl_id = highlighter_query:get_hl_from_capture(capture)
+          if hl_id then
+            local start_row, start_col, end_row, end_col = node:range(false)
+            if end_row >= #contents then
+              end_col = #contents[end_row + 1]
             end
+
+            -- TODO: hack for nvim's treesitter.
+            -- native treesitter highlights escaped-string and concealed-text but I don't expected it.
+            local conceal = metadata.conceal or metadata[capture] and metadata[capture].conceal
+            local capture_name = highlighter_query:query().captures[capture]
+            if conceal or vim.tbl_contains({ 'string.escape' }, capture_name) then
+              hl_id = nil
+            end
+
+            vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_row, start_col, {
+              end_row = end_row,
+              end_col = end_col,
+              hl_group = hl_id,
+              priority = tonumber(metadata.priority or metadata[capture] and metadata[capture].priority),
+              conceal = conceal,
+            })
           end
-        end)
-      end
+        end
+      end)
     end
   end
 

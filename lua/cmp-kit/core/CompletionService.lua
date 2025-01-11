@@ -3,6 +3,7 @@ local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
+local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local Character = require('cmp-kit.core.Character')
 local DefaultView = require('cmp-kit.core.DefaultView')
@@ -21,12 +22,13 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@field public provider cmp-kit.core.CompletionProvider
 
 ---@class cmp-kit.core.CompletionService.Config
+---@field public expand_snippet? cmp-kit.core.ExpandSnippet
+---@field public sync_mode? fun(): boolean
 ---@field public view cmp-kit.core.View
 ---@field public sorter cmp-kit.core.Sorter
 ---@field public matcher cmp-kit.core.Matcher
 ---@field public performance { fetching_timeout_ms: number }
----@field public sync_mode? fun(): boolean
----@field public expand_snippet? cmp-kit.core.ExpandSnippet
+---@field public default_keyword_pattern string
 
 ---@class cmp-kit.core.CompletionService.State
 ---@field public complete_trigger_context cmp-kit.core.TriggerContext
@@ -66,6 +68,7 @@ function CompletionService.new(config)
       performance = {
         fetching_timeout_ms = 200,
       },
+      default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
     }),
     _events = {},
     _provider_configurations = {},
@@ -143,6 +146,18 @@ function CompletionService.new(config)
   end, vim.api.nvim_create_namespace(('cmp-kit:%s'):format(self._id)), {})
 
   return self
+end
+
+---Set config.
+---@param config cmp-kit.core.CompletionService.Config
+function CompletionService:set_config(config)
+  self._config = config
+end
+
+---Get config.
+---@return cmp-kit.core.CompletionService.Config
+function CompletionService:get_config()
+  return self._config
 end
 
 ---Dispose completion service.
@@ -430,7 +445,25 @@ function CompletionService:update(option)
       -- group matches are found.
       if #self._state.matches > 0 then
         -- sort items.
-        self._state.matches = self._config.sorter(self._state.matches)
+        do
+          local locality_map = {}
+
+          -- In macro related context, the sorting should be stable.
+          if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
+            local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
+            local min_row = math.max(1, cur - 30)
+            local max_row = cur
+            for row = min_row, max_row do
+              for _, word in ipairs(Buffer.ensure(0):get_words([[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]], row)) do
+                locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
+              end
+            end
+          end
+
+          self._state.matches = self._config.sorter(self._state.matches, {
+            locality_map = locality_map,
+          })
+        end
 
         -- preselect index.
         local preselect_index = nil --[[@as integer?]]

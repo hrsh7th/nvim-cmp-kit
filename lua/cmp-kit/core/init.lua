@@ -8,7 +8,10 @@
 ---@field match_positions cmp-kit.core.MatchPosition[]
 
 ---@alias cmp-kit.core.Matcher fun(query: string, input: string): integer, cmp-kit.core.MatchPosition[]
----@alias cmp-kit.core.Sorter fun(matches: cmp-kit.core.Match[]): cmp-kit.core.Match[]
+
+---@alias cmp-kit.core.Sorter fun(matches: cmp-kit.core.Match[], context: cmp-kit.core.SorterContext): cmp-kit.core.Match[]
+---@class cmp-kit.core.SorterContext
+---@field public locality_map table<string, integer>
 
 ---@class cmp-kit.core.CompletionSource.Configuration
 ---@field public keyword_pattern? string
