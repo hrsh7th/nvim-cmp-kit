@@ -1,7 +1,9 @@
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
+local Range = require('cmp-kit.kit.LSP.Range')
 local Position = require('cmp-kit.kit.LSP.Position')
+local debugger = require('cmp-kit.core.debugger')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Character = require('cmp-kit.core.Character')
@@ -341,8 +343,8 @@ function CompletionItem:get_documentation()
       documentation = nil
     else
       documentation.value = documentation.value
-        :gsub('\r\n', '\n')
-        :gsub('\r', '\n')
+          :gsub('\r\n', '\n')
+          :gsub('\r', '\n')
     end
     self._cache[cache_key] = { output = documentation }
   end
@@ -383,6 +385,13 @@ function CompletionItem:commit(option)
   option = option or {}
   option.replace = option.replace or false
 
+  if debugger.enable() then
+    debugger.add('cmp-kit.core.CompletionItem:commit', {
+      item = self._item,
+      option = option,
+    })
+  end
+
   local bufnr = vim.api.nvim_get_current_buf()
   return Async.run(function()
     -- Try resolve item (this must be sync process for supporting macro).
@@ -417,7 +426,7 @@ function CompletionItem:commit(option)
         .iter(self._item.additionalTextEdits)
         :map(function(text_edit)
           return {
-            range = self:_convert_range_encoding(text_edit.range),
+            range = Range.to_buf(self._trigger_context.bufnr, text_edit.range),
             newText = text_edit.newText,
           }
         end)
@@ -468,7 +477,7 @@ function CompletionItem:commit(option)
                 .iter(self._item.additionalTextEdits)
                 :map(function(text_edit)
                   return {
-                    range = self:_convert_range_encoding(text_edit.range),
+                    range = Range.to_buf(self._trigger_context.bufnr, text_edit.range),
                     newText = text_edit.newText,
                   }
                 end)
@@ -517,7 +526,8 @@ function CompletionItem:get_insert_range()
     return self:_convert_range_encoding(range)
   else
     local default_range = self._provider:get_default_insert_range()
-    default_range.start.character = self:get_offset() - 1 -- in this branch, the item has no textEdit so this don't cause infinity loop.
+    default_range.start.character = self:get_offset() -
+    1                                                     -- in this branch, the item has no textEdit so this don't cause infinity loop.
     return default_range
   end
 end

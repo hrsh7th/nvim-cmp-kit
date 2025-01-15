@@ -1,5 +1,6 @@
 local Async = require('cmp-kit.kit.Async')
 local Buffer = require('cmp-kit.core.Buffer')
+local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 
 ---@class cmp-kit.ext.source.buffer.Option
 ---@field public keyword_pattern? string
@@ -45,6 +46,11 @@ return function(option)
   ---@type cmp-kit.core.CompletionSource
   return {
     name = 'buffer',
+    get_configuration = function()
+      return {
+        keyword_pattern = DefaultConfig.default_keyword_pattern,
+      }
+    end,
     complete = function()
       return Async.run(function()
         return get_items(get_bufnrs())

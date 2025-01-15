@@ -1,12 +1,13 @@
 ---@diagnostic disable: invisible
-local LSP = require('cmp-kit.kit.LSP')
-local Async = require('cmp-kit.kit.Async')
-local RegExp = require('cmp-kit.kit.Vim.RegExp')
-local CompletionItem = require('cmp-kit.core.CompletionItem')
+local LSP              = require('cmp-kit.kit.LSP')
+local Async            = require('cmp-kit.kit.Async')
+local RegExp           = require('cmp-kit.kit.Vim.RegExp')
+local CompletionItem   = require('cmp-kit.core.CompletionItem')
 local DocumentSelector = require('cmp-kit.kit.LSP.DocumentSelector')
+local DefaultConfig    = require('cmp-kit.core.DefaultConfig')
 
 ---@enum cmp-kit.core.CompletionProvider.RequestState
-local RequestState = {
+local RequestState     = {
   Waiting = 'Waiting',
   Fetching = 'Fetching',
   Completed = 'Completed',
@@ -57,7 +58,6 @@ end
 
 ---@class cmp-kit.core.CompletionProvider
 ---@field private _source cmp-kit.core.CompletionSource
----@field private _config cmp-kit.core.CompletionSource.Configuration
 ---@field private _state cmp-kit.core.CompletionProvider.State
 local CompletionProvider = {}
 CompletionProvider.__index = CompletionProvider
@@ -69,33 +69,11 @@ CompletionProvider.RequestState = RequestState
 function CompletionProvider.new(source)
   local self = setmetatable({
     _source = source,
-    _config = {
-      keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
-      position_encoding_kind = LSP.PositionEncodingKind.UTF16,
-      completion_options = {},
-    },
     _state = {
       request_state = RequestState.Waiting,
       request_revision = 0
     },
   }, CompletionProvider)
-
-  -- initialize source.
-  if source.initialize then
-    source:initialize({
-      configure = function(configuration)
-        if configuration.keyword_pattern ~= nil then
-          self._config.keyword_pattern = configuration.keyword_pattern
-        end
-        if configuration.position_encoding_kind ~= nil then
-          self._config.position_encoding_kind = configuration.position_encoding_kind
-        end
-        if configuration.completion_options ~= nil then
-          self._config.completion_options = configuration.completion_options
-        end
-      end,
-    })
-  end
 
   return self
 end
@@ -132,7 +110,7 @@ function CompletionProvider:complete(trigger_context)
       completion_context = {
         triggerKind = LSP.CompletionTriggerKind.Invoked,
       }
-      completion_offset = trigger_context.character + 1
+      completion_offset = keyword_offset
     else
       -- keyword based completion.
       if keyword_offset and keyword_offset < trigger_context.character + 1 then
@@ -243,20 +221,32 @@ end
 ---Return LSP.PositionEncodingKind.
 ---@return cmp-kit.kit.LSP.PositionEncodingKind
 function CompletionProvider:get_position_encoding_kind()
-  return self._config.position_encoding_kind
+  if not self._source.get_configuration then
+    return LSP.PositionEncodingKind.UTF16
+  end
+  local config = self._source:get_configuration()
+  return config.position_encoding_kind or LSP.PositionEncodingKind.UTF16
 end
 
 ---Return LSP.CompletionOptions
 ---TODO: should consider how to listen to the source's option changes.
 ---@return cmp-kit.kit.LSP.CompletionRegistrationOptions
 function CompletionProvider:get_completion_options()
-  return self._config.completion_options
+  if not self._source.get_configuration then
+    return {}
+  end
+  local config = self._source:get_configuration()
+  return config.completion_options or {}
 end
 
 ---TODO: We should decide how to get the default keyword pattern here.
 ---@return string
 function CompletionProvider:get_keyword_pattern()
-  return self._config.keyword_pattern
+  if not self._source.get_configuration then
+    return DefaultConfig.default_keyword_pattern
+  end
+  local config = self._source:get_configuration()
+  return config.keyword_pattern or DefaultConfig.default_keyword_pattern
 end
 
 ---Return request revision.

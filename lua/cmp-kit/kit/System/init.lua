@@ -298,8 +298,6 @@ function System.spawn(command, params)
   local process = vim.uv.spawn(vim.fn.exepath(cmd), {
     cwd = vim.fs.normalize(params.cwd),
     env = env_pairs,
-    gid = vim.uv.getgid(),
-    uid = vim.uv.getuid(),
     hide = true,
     args = args,
     stdio = { stdin, stdout, stderr },

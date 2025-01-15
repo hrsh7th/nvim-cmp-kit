@@ -6,11 +6,19 @@ local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local Character = require('cmp-kit.core.Character')
-local DefaultView = require('cmp-kit.core.DefaultView')
-local DefaultSorter = require('cmp-kit.core.DefaultSorter')
-local DefaultMatcher = require('cmp-kit.core.DefaultMatcher')
+local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
+
+---Emit events.
+---@generic T
+---@param events fun(payload: T)[]
+---@param payload T
+local function emit(events, payload)
+  for _, event in ipairs(events or {}) do
+    event(payload)
+  end
+end
 
 ---@class cmp-kit.core.CompletionService.ProviderConfiguration
 ---@field public index integer
@@ -39,13 +47,14 @@ local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 ---@class cmp-kit.core.CompletionService
 ---@field private _id integer
 ---@field private _ns integer
+---@field private _disposed boolean
 ---@field private _preventing integer
+---@field private _events table<string, function[]>
 ---@field private _state cmp-kit.core.CompletionService.State
 ---@field private _config cmp-kit.core.CompletionService.Config
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations cmp-kit.core.CompletionService.ProviderConfiguration[]
----@field private _debounced_update fun(): nil
 local CompletionService = {}
 CompletionService.__index = CompletionService
 
@@ -57,19 +66,9 @@ function CompletionService.new(config)
   local self = setmetatable({
     _id = id,
     _ns = vim.api.nvim_create_namespace(('cmp-kit:%s'):format(id)),
+    _disposed = false,
     _preventing = 0,
-    _config = kit.merge(config or {}, {
-      view = DefaultView.new(),
-      sorter = DefaultSorter.sorter,
-      matcher = DefaultMatcher.matcher,
-      sync_mode = function()
-        return vim.fn.reg_executing() ~= ''
-      end,
-      performance = {
-        fetching_timeout_ms = 120,
-      },
-      default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
-    }),
+    _config = kit.merge(config or {}, DefaultConfig),
     _events = {},
     _provider_configurations = {},
     _keys = {},
@@ -84,7 +83,7 @@ function CompletionService.new(config)
       },
       matches = {},
     },
-  }, CompletionService)
+  } --[[@as cmp-kit.core.CompletionService]], CompletionService)
 
   -- support macro.
   do
@@ -160,11 +159,49 @@ function CompletionService:get_config()
   return self._config
 end
 
+---Register on_menu_show event.
+---@param callback fun(payload: { service: cmp-kit.core.CompletionService })
+---@return fun()
+function CompletionService:on_menu_show(callback)
+  self._events = self._events or {}
+  self._events.on_menu_hide = self._events.on_menu_hide or {}
+  table.insert(self._events.on_menu_hide, callback)
+  return function()
+    for i, c in ipairs(self._events.on_menu_hide) do
+      if c == callback then
+        table.remove(self._events.on_menu_hide, i)
+        break
+      end
+    end
+  end
+end
+
+---Register on_menu_hide event.
+---@param callback fun(payload: { service: cmp-kit.core.CompletionService })
+---@return fun()
+function CompletionService:on_menu_hide(callback)
+  self._events = self._events or {}
+  self._events.on_menu_hide = self._events.on_menu_hide or {}
+  table.insert(self._events.on_menu_hide, callback)
+  return function()
+    for i, c in ipairs(self._events.on_menu_hide) do
+      if c == callback then
+        table.remove(self._events.on_menu_hide, i)
+        break
+      end
+    end
+  end
+end
+
 ---Dispose completion service.
 function CompletionService:dispose()
+  if self._disposed then
+    return
+  end
+  self._disposed = true
+
   self._config.view:dispose()
   vim.on_key(nil, self._ns, {})
-  vim.api.nvim_del_namespace(self._ns)
 end
 
 ---Register provider.
@@ -215,6 +252,7 @@ function CompletionService:clear()
   if not self._config.sync_mode() then
     self._config.view:hide(self._state.matches, self._state.selection)
   end
+  emit(self._events.on_menu_hide, { service = self })
 end
 
 ---Is menu visible.
@@ -454,7 +492,7 @@ function CompletionService:update(option)
             local min_row = math.max(1, cur - 30)
             local max_row = cur
             for row = min_row, max_row do
-              for _, word in ipairs(Buffer.ensure(0):get_words([[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]], row)) do
+              for _, word in ipairs(Buffer.ensure(0):get_words(self._config.default_keyword_pattern, row)) do
                 locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
               end
             end
@@ -480,6 +518,7 @@ function CompletionService:update(option)
         if not self._config.sync_mode() then
           self._config.view:show(self._state.matches, self._state.selection)
         end
+        emit(self._events.on_menu_show, { service = self })
 
         -- emit selection.
         if preselect_index then
@@ -508,6 +547,7 @@ function CompletionService:update(option)
   if not self._config.sync_mode() then
     self._config.view:hide(self._state.matches, self._state.selection)
   end
+  emit(self._events.on_menu_hide, { service = self })
 end
 
 ---Commit completion.

@@ -1,6 +1,7 @@
 ---@diagnostic disable: invisible
 
 local Async = require('cmp-kit.kit.Async')
+local debugger = require('cmp-kit.core.debugger')
 
 ---@type fun(regex: string): vim.regex
 local get_regex
@@ -186,13 +187,19 @@ end
 
 ---Finish indexing.
 function Indexer:_finish_index()
-  _G.debug_buffer_source = _G.debug_buffer_source or false
-  if _G.debug_buffer_source then
+  if debugger.enable() then
     for i, words in ipairs(self._words) do
       local text = vim.api.nvim_buf_get_lines(self._bufnr, i - 1, i, false)[1] or ''
       for _, word in ipairs(words) do
         if not text:match(vim.pesc(word)) then
-          error(('buffer is not synced collectly. #%s: %s vs %s'):format(i, text, table.concat(words, ', ')))
+          debugger.add('cmp-kit.core.Buffer.Indexer', {
+            desc = 'buffer is not synced collectly',
+            bufnr = self._bufnr,
+            regex = self._regex,
+            row = i,
+            text = text,
+            words = words,
+          })
         end
       end
     end

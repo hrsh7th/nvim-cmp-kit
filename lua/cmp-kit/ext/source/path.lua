@@ -81,13 +81,13 @@ return function(option)
   ---@type cmp-kit.core.CompletionSource
   return {
     name = 'path',
-    initialize = function(_, params)
-      params.configure({
+    get_configuration = function()
+      return {
         completion_options = {
           triggerCharacters = { '/' }
         },
         keyword_pattern = [=[[^/]*]=]
-      })
+      }
     end,
     complete = function()
       return Async.run(function()

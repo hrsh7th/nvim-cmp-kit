@@ -5,6 +5,7 @@ local Async = require('cmp-kit.kit.Async')
 local assert = select(2, pcall(require, 'luassert')) or _G.assert
 local LinePatch = require('cmp-kit.core.LinePatch')
 local CompletionService = require('cmp-kit.core.CompletionService')
+local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 
 local profiling = {}
 
@@ -60,13 +61,13 @@ function spec.setup(option)
   -- Create provider.
   local provider = CompletionProvider.new({
     name = 'dummy',
-    initialize = function(_, params)
-      params.configure({
-        keyword_pattern = option.keyword_pattern or [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
+    get_configuration = function()
+      return {
+        keyword_pattern = option.keyword_pattern or DefaultConfig.default_keyword_pattern,
         completion_options = {
           triggerCharacters = { '.' },
         },
-      })
+      }
     end,
     get_position_encoding_kind = function(_)
       return option.position_encoding_kind or LSP.PositionEncodingKind.UTF8

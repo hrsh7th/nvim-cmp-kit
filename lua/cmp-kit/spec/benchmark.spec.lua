@@ -1,5 +1,6 @@
 local tailwindcss_fixture = require('cmp-kit.spec.fixtures.tailwindcss')
 
+-- luacheck: ignore 511
 if false then
   ---@diagnostic disable-next-line: duplicate-set-field
   _G.describe = function(_, fn)

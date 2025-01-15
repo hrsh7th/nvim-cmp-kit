@@ -12,11 +12,11 @@ return function(option)
   ---@type cmp-kit.core.CompletionSource
   return {
     name = option.client.name,
-    initialize = function(_, params)
-      params.configure({
+    get_configuration = function()
+      return {
         position_encoding_kind = option.client.offset_encoding,
         completion_options = option.client.server_capabilities.completionProvider --[[@as any]]
-      })
+      }
     end,
     capable = function()
       return option.client.server_capabilities.completionProvider ~= nil

@@ -1,6 +1,7 @@
 local spec = require('cmp-kit.spec')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
+local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 
@@ -15,13 +16,13 @@ local function create_provider(option)
   local response ---@type cmp-kit.kit.LSP.CompletionList
   local provider = CompletionProvider.new({
     name = 'dummy',
-    initialize = function(_, params)
-      params.configure({
-        keyword_pattern = option.keyword_pattern or [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
+    get_configuration = function()
+      return {
         completion_options = {
           triggerCharacters = { '.' },
         },
-      })
+        keyword_pattern = option.keyword_pattern or DefaultConfig.default_keyword_pattern,
+      }
     end,
     complete = function(_)
       return Async.resolve(response)

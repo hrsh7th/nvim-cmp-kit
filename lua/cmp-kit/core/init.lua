@@ -20,7 +20,7 @@
 
 ---@class cmp-kit.core.CompletionSource
 ---@field public name string
----@field public initialize? fun(self: unknown, params: { configure: fun(configuration: cmp-kit.core.CompletionSource.Configuration) })
+---@field public get_configuration? fun(self: unknown): cmp-kit.core.CompletionSource.Configuration
 ---@field public resolve? fun(self: unknown, item: cmp-kit.kit.LSP.CompletionItem): cmp-kit.kit.Async.AsyncTask
 ---@field public execute? fun(self: unknown, command: cmp-kit.kit.LSP.Command): cmp-kit.kit.Async.AsyncTask
 ---@field public capable? fun(self: unknown, trigger_context: cmp-kit.core.TriggerContext): boolean

@@ -89,10 +89,10 @@ return function(option)
   ---@type cmp-kit.core.CompletionSource
   return {
     name = 'cmdline',
-    initialize = function(_, params)
-      params.configure({
+    get_configuration = function()
+      return {
         keyword_pattern = [=[[^[:blank:]]\+]=]
-      })
+      }
     end,
     capable = function()
       return vim.api.nvim_get_mode().mode == 'c'
