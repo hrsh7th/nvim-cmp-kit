@@ -13,7 +13,6 @@ if false then
 end
 
 local spec = require('cmp-kit.spec')
-local CompletionService = require('cmp-kit.core.CompletionService')
 
 local function run(name, fn)
   collectgarbage('collect')
@@ -35,7 +34,7 @@ describe('cmp-kit.misc.spec.benchmark', function()
   for _, isIncomplete in ipairs({ true, false }) do
     it(('isIncomplete=%s'):format(isIncomplete), function()
       local response = tailwindcss_fixture()
-      local _, provider = spec.setup({
+      local _, _, service = spec.setup({
         buffer_text = {
           '|',
         },
@@ -43,8 +42,6 @@ describe('cmp-kit.misc.spec.benchmark', function()
         is_incomplete = response.isIncomplete,
         items = response.items,
       })
-      local service = CompletionService.new({})
-      service:register_provider(provider)
       for i = 1, 3 do
         vim.cmd.enew()
         run(('isIncomplete=%s: %s'):format(isIncomplete, i), function()

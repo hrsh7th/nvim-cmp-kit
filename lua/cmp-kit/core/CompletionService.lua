@@ -204,23 +204,24 @@ function CompletionService:dispose()
   vim.on_key(nil, self._ns, {})
 end
 
----Register provider.
----@param provider cmp-kit.core.CompletionProvider
+---Register source.
+---@param source cmp-kit.core.CompletionSource
 ---@param config? cmp-kit.core.CompletionService.ProviderConfiguration|{ provider: nil }
 ---@return fun(): nil
-function CompletionService:register_provider(provider, config)
-  table.insert(self._provider_configurations, {
+function CompletionService:register_source(source, config)
+  local provider_configuration = {
     index = #self._provider_configurations + 1,
     group = config and config.group or 0,
     priority = config and config.priority or 0,
     item_count = config and config.item_count or math.huge,
     dedup = config and config.dedup or false,
     keyword_length = config and config.keyword_length or 1,
-    provider = provider,
-  })
+    provider = CompletionProvider.new(source),
+  }
+  table.insert(self._provider_configurations, provider_configuration)
   return function()
     for i, c in ipairs(self._provider_configurations) do
-      if c.provider == provider then
+      if c == provider_configuration then
         table.remove(self._provider_configurations, i)
         break
       end

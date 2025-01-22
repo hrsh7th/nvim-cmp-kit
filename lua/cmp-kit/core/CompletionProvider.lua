@@ -171,8 +171,17 @@ function CompletionProvider:_adopt_response(trigger_context, list)
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
   self._state.items = {}
+  local cursor = { line = trigger_context.line, character = trigger_context.character }
   for _, item in ipairs(list.items) do
-    self._state.items[#self._state.items + 1] = CompletionItem.new(trigger_context, self, list, item)
+    local completion_item = CompletionItem.new(trigger_context, self, list, item)
+
+    -- check insert range.
+    local r = completion_item:get_insert_range()
+    local s = (r.start.line == cursor.line and r.start.character <= cursor.character) or r.start.line < cursor.line
+    local e = (r['end'].line == cursor.line and r['end'].character >= cursor.character) or r['end'].line > cursor.line
+    if s and e then
+      self._state.items[#self._state.items + 1] = completion_item
+    end
   end
   self._state.matches = {}
   self._state.matches_items = {}
@@ -337,7 +346,6 @@ function CompletionProvider:get_matches(trigger_context, matcher)
 end
 
 ---Create default insert range from keyword pattern.
----NOTE: This method returns the range that always specifies to 0-line.
 ---@return cmp-kit.kit.LSP.Range utf8 byte index
 function CompletionProvider:get_default_insert_range()
   if not self._state.trigger_context then
@@ -350,11 +358,11 @@ function CompletionProvider:get_default_insert_range()
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
     self._state.trigger_context.cache[cache_key] = {
       start = {
-        line = 0,
+        line = self._state.trigger_context.line,
         character = r[1] - 1,
       },
       ['end'] = {
-        line = 0,
+        line = self._state.trigger_context.line,
         character = self._state.trigger_context.character,
       },
     }
@@ -363,7 +371,6 @@ function CompletionProvider:get_default_insert_range()
 end
 
 ---Create default replace range from keyword pattern.
----NOTE: This method returns the range that always specifies to 0-line.
 ---@return cmp-kit.kit.LSP.Range utf8 byte index
 function CompletionProvider:get_default_replace_range()
   if not self._state.trigger_context then
@@ -376,11 +383,11 @@ function CompletionProvider:get_default_replace_range()
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
     self._state.trigger_context.cache[cache_key] = {
       start = {
-        line = 0,
+        line = self._state.trigger_context.line,
         character = r[1] - 1,
       },
       ['end'] = {
-        line = 0,
+        line = self._state.trigger_context.line,
         character = r[2] - 1,
       },
     }

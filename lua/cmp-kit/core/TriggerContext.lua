@@ -15,6 +15,8 @@ local cache_keeper = {
 ---@field public time integer
 ---@field public force? boolean
 ---@field public before_character? string
+---@field public in_string boolean
+---@field public in_comment boolean
 ---@field public cache table<string, any>
 local TriggerContext = {}
 TriggerContext.__index = TriggerContext
@@ -49,6 +51,16 @@ end
 function TriggerContext.new(mode, line, character, text, bufnr, option)
   local text_before = text:sub(1, character)
 
+  local in_string = false
+  local in_comment = false
+  if mode == 'i' then
+    local captures = vim.treesitter.get_captures_at_cursor(0)
+    for _, capture in ipairs(captures) do
+      in_string = in_string or capture:match('.*string.*')
+      in_comment = in_comment or capture:match('.*comment.*')
+    end
+  end
+
   local self = setmetatable({
     mode = mode,
     line = line,
@@ -59,6 +71,8 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     time = vim.uv.now(),
     force = not not (option and option.force),
     before_character = text_before:gsub('%s*$', ''):match('(.)$'),
+    in_string = in_string,
+    in_comment = in_comment,
     cache = {},
   }, TriggerContext)
 

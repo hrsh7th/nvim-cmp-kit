@@ -1,5 +1,4 @@
 local LSP = require('cmp-kit.kit.LSP')
-local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Async = require('cmp-kit.kit.Async')
 local assert = select(2, pcall(require, 'luassert')) or _G.assert
@@ -32,7 +31,7 @@ end
 
 ---Setup for spec.
 ---@param option cmp-kit.core.spec.setup.Option
----@return cmp-kit.core.TriggerContext, cmp-kit.core.CompletionProvider, cmp-kit.core.CompletionService
+---@return cmp-kit.core.TriggerContext, cmp-kit.core.CompletionSource, cmp-kit.core.CompletionService
 function spec.setup(option)
   option.mode = option.mode or 'i'
 
@@ -58,8 +57,9 @@ function spec.setup(option)
 
   local target_items = option.items or { { label = 'dummy' } }
 
-  -- Create provider.
-  local provider = CompletionProvider.new({
+  ---Create source.
+  ---@type cmp-kit.core.CompletionSource
+  local source = {
     name = 'dummy',
     get_configuration = function()
       return {
@@ -85,13 +85,12 @@ function spec.setup(option)
         isIncomplete = option.is_incomplete or false,
       })
     end,
-  })
+  }
 
   -- Create service.
   local service = CompletionService.new({})
-  service:register_provider(provider, {
+  service:register_source(source, {
     group = 1,
-    item_count = math.huge,
   })
 
   service:complete({ force = true }):sync(5000)
@@ -101,8 +100,7 @@ function spec.setup(option)
     LinePatch.apply_by_func(vim.api.nvim_get_current_buf(), 0, 0, option.input):sync(5000)
   end
 
-  ---@diagnostic disable-next-line: invisible
-  return TriggerContext.create(), provider, service
+  return TriggerContext.create(), source, service
 end
 
 ---@param buffer_text string[]

@@ -56,6 +56,18 @@ local function create_expanded_range(ranges)
   return max
 end
 
+---Chop string by newline.
+---@param s string
+---@return string
+local function oneline(s)
+  for i = 1, #s do
+    if s:byte(i) == 10 then
+      return s:sub(1, i - 1)
+    end
+  end
+  return s
+end
+
 ---@alias cmp-kit.core.ExpandSnippet fun(s: string, option: { item: cmp-kit.core.CompletionItem })
 
 ---@class cmp-kit.core.CompletionItem
@@ -143,7 +155,11 @@ end
 ---Return label text.
 ---@return string
 function CompletionItem:get_label_text()
-  return self._item.label
+  local cache_key = 'get_label_text'
+  if not self._cache[cache_key] then
+    self._cache[cache_key] = oneline(self._item.label)
+  end
+  return self._cache[cache_key]
 end
 
 ---Return label details.
@@ -181,7 +197,13 @@ function CompletionItem:get_select_text()
       text = tostring(SnippetText.parse(text)) --[[@as string]]
     end
 
-    local select_text = SelectText.create(text)
+    -- NOTE: In string, we don't modify insert-text.
+    local select_text --[[@as string]]
+    if self._trigger_context.in_string then
+      select_text = oneline(text)
+    else
+      select_text = SelectText.create(text)
+    end
 
     -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
     local chars = {}
@@ -527,7 +549,7 @@ function CompletionItem:get_insert_range()
   else
     local default_range = self._provider:get_default_insert_range()
     default_range.start.character = self:get_offset() -
-    1                                                     -- in this branch, the item has no textEdit so this don't cause infinity loop.
+        1 -- in this branch, the item has no textEdit so this don't cause infinity loop.
     return default_range
   end
 end

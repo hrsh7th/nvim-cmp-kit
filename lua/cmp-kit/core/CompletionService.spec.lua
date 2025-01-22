@@ -4,7 +4,7 @@ local CompletionService = require('cmp-kit.core.CompletionService')
 describe('cmp-kit.core', function()
   describe('CompletionService', function()
     it('should work on basic case', function()
-      local trigger_context, provider = spec.setup({
+      local trigger_context, source = spec.setup({
         input = 'w',
         buffer_text = {
           'key|',
@@ -19,20 +19,19 @@ describe('cmp-kit.core', function()
         view = {
           show = function(_, matches)
             state.matches = matches
-            return true
           end,
           hide = function()
-            return false
           end,
           is_visible = function()
             return true
           end,
           select = function()
-            return true
+          end,
+          dispose = function()
           end,
         }
       })
-      service:register_provider(provider)
+      service:register_source(source)
       service:complete(trigger_context)
       assert.equals(#state.matches, 1)
       assert.equals(state.matches[1].item:get_insert_text(), 'keyword')

@@ -1,4 +1,5 @@
 local Async = require('cmp-kit.kit.Async')
+local TriggerContext = require('cmp-kit.core.TriggerContext')
 
 ---@param patterns string[]
 ---@return vim.regex
@@ -106,7 +107,7 @@ return function(option)
         --   - `1,$delete` -> `delete`
         -- - remove range only.
         --   - `'<,>'delete` -> `delete`
-        local cmdline = vim.fn.getcmdline():sub(1, vim.fn.getcmdpos() - 1)
+        local cmdline = TriggerContext.create().text_before
         while true do
           local prev = cmdline
           for _, regex in ipairs({ modifier_regex, count_range_regex, range_only_regex }) do

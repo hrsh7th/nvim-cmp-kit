@@ -1,5 +1,4 @@
 local Async = require('cmp-kit.kit.Async')
-local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 local CompletionService = require('cmp-kit.core.CompletionService')
 
 describe('cmp-kit.core', function()
@@ -8,7 +7,7 @@ describe('cmp-kit.core', function()
       vim.cmd.enew({ bang = true })
 
       local service = CompletionService.new({})
-      service:register_provider(CompletionProvider.new({
+      service:register_source({
         name = 'test',
         complete = function()
           return Async.run(function()
@@ -21,7 +20,7 @@ describe('cmp-kit.core', function()
             }
           end)
         end
-      }))
+      })
       vim.keymap.set('i', '<Plug>(complete)', function()
         service:complete({ force = true })
       end, { buffer = 0 })

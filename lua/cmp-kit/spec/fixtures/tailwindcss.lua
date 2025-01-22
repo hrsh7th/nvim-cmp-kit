@@ -9,11 +9,11 @@ return function()
       editRange = {
         ['end'] = {
           character = 21,
-          line = 2,
+          line = 0,
         },
         start = {
           character = 20,
-          line = 2,
+          line = 0,
         },
       },
     },

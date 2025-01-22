@@ -13,7 +13,7 @@ describe('cmp-kit.core', function()
           it('should apply the insert-range patch', function()
             Keymap.spec(function()
               Keymap.send(mode == 'i' and 'i' or ':'):await()
-              local trigger_context, provider = spec.setup({
+              local trigger_context, _, service = spec.setup({
                 mode = mode,
                 buffer_text = {
                   '(ins|ert)',
@@ -23,7 +23,7 @@ describe('cmp-kit.core', function()
                 } },
               })
               local bufnr = vim.api.nvim_get_current_buf()
-              local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+              local match = service:get_match_at(1)
               local range = match.item:get_insert_range()
               local before = trigger_context.character - range.start.character
               local after = range['end'].character - trigger_context.character
@@ -38,7 +38,7 @@ describe('cmp-kit.core', function()
           it('should apply the replace-range patch', function()
             Keymap.spec(function()
               Keymap.send(mode == 'i' and 'i' or ':'):await()
-              local trigger_context, provider = spec.setup({
+              local trigger_context, _, service = spec.setup({
                 mode = mode,
                 buffer_text = {
                   '(ins|ert)',
@@ -48,7 +48,7 @@ describe('cmp-kit.core', function()
                 } },
               })
               local bufnr = vim.api.nvim_get_current_buf()
-              local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+              local match = service:get_match_at(1)
               local range = (match.item:get_replace_range() or match.item._provider:get_default_replace_range())
               local before = trigger_context.character - range.start.character
               local after = range['end'].character - trigger_context.character

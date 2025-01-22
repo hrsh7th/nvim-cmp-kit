@@ -2,7 +2,6 @@ local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
-local DefaultMatcher = require('cmp-kit.core.DefaultMatcher')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
 ---@return cmp-kit.kit.LSP.Range
@@ -25,7 +24,7 @@ describe('cmp-kit.core', function()
       it('should support dot-to-arrow completion (clangd)', function()
         Keymap.spec(function()
           Keymap.send('i'):await()
-          local _, provider = spec.setup({
+          local _, _, service = spec.setup({
             input = 'p',
             buffer_text = { 'obj.|for' },
             items = { {
@@ -37,7 +36,7 @@ describe('cmp-kit.core', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+          local match = service:get_match_at(1)
           assert.equals(match.item:get_offset(), #'obj' + 1)
           assert.equals(trigger_context:get_query(match.item:get_offset()), '.p')
           assert.equals(match.item:get_filter_text(), '.prop')
@@ -51,7 +50,7 @@ describe('cmp-kit.core', function()
       it('should support symbol reference completion (typescript-language-server)', function()
         Keymap.spec(function()
           Keymap.send('i'):await()
-          local _, provider = spec.setup({
+          local _, _, service = spec.setup({
             input = 'S',
             buffer_text = { '[].|foo' },
             items = { {
@@ -64,7 +63,7 @@ describe('cmp-kit.core', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+          local match = service:get_match_at(1)
           assert.equals(match.item:get_offset(), #'[]' + 1)
           assert.equals(trigger_context:get_query(match.item:get_offset()), '.S')
           assert.equals(match.item:get_filter_text(), '.Symbol')
@@ -78,24 +77,24 @@ describe('cmp-kit.core', function()
       it('should support indent fixing completion (vscode-html-language-server)', function()
         Keymap.spec(function()
           Keymap.send('i'):await()
-          local _, provider = spec.setup({
+          local _, _, service = spec.setup({
             input = 'd',
             buffer_text = {
               '<div>',
-              '  </|foo>',
+              '\t</|foo>',
             },
             items = { {
               label = '/div',
               filterText = '\t</div',
               textEdit = {
                 newText = '</div',
-                range = range(0, 0, 0, 3),
+                range = range(1, 0, 1, 3),
               },
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
-          assert.equals(match.item:get_offset(), #'  ' + 1)
+          local match = service:get_match_at(1)
+          assert.equals(match.item:get_offset(), #'\t' + 1)
           assert.equals(trigger_context:get_query(match.item:get_offset()), '</d')
           assert.equals(match.item:get_select_text(), '</div')
           assert.equals(match.item:get_filter_text(), '</div')
@@ -112,7 +111,7 @@ describe('cmp-kit.core', function()
       it('should support extreme additionalTextEdits completion (rust-analyzer)', function()
         Keymap.spec(function()
           Keymap.send('i'):await()
-          local _, provider = spec.setup({
+          local _, _, service = spec.setup({
             input = 'd',
             buffer_text = {
               'fn main() {',
@@ -142,7 +141,7 @@ describe('cmp-kit.core', function()
             end,
           })
           local trigger_context = TriggerContext.create()
-          local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+          local match = service:get_match_at(1)
           assert.equals(match.item:get_offset(), #'    .' + 1)
           assert.equals(trigger_context:get_query(match.item:get_offset()), 'd')
           assert.equals(match.item:get_select_text(), 'dbg!')
@@ -161,7 +160,7 @@ describe('cmp-kit.core', function()
         -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
         Keymap.spec(function()
           Keymap.send('i'):await()
-          local _, provider = spec.setup({
+          local _, _, service = spec.setup({
             input = '',
             buffer_text = {
               '---@param a cmp-kit.|',
@@ -184,9 +183,9 @@ describe('cmp-kit.core', function()
             },
           })
           local trigger_context = TriggerContext.create()
-          local matches = provider:get_matches(trigger_context, DefaultMatcher.matcher)
-          assert.equals(#matches, 1)
-          local match = matches[1]
+          assert.are_not.is_nil(service:get_match_at(1))
+          assert.are.is_nil(service:get_match_at(2))
+          local match = service:get_match_at(1)
           assert.equals(match.item:get_offset(), #'---@param a ' + 1)
           assert.equals(trigger_context:get_query(match.item:get_offset()), 'cmp-kit.')
           assert.equals(match.item:get_select_text(), 'cmp-kit.kit.LSP.CompletionItemLabelDetails')
@@ -204,7 +203,7 @@ describe('cmp-kit.core', function()
       -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
       Keymap.spec(function()
         Keymap.send('i'):await()
-        local _, provider = spec.setup({
+        local _, _, service = spec.setup({
           input = 'd',
           buffer_text = {
             '\\|',
@@ -217,7 +216,7 @@ describe('cmp-kit.core', function()
           },
         })
         local trigger_context = TriggerContext.create()
-        local match = provider:get_matches(trigger_context, DefaultMatcher.matcher)[1]
+        local match = service:get_match_at(1)
         assert.equals(match.item:get_offset(), #'' + 1)
         assert.equals(trigger_context:get_query(match.item:get_offset()), '\\d')
         assert.equals(match.item:get_select_text(), '2024-12-25')

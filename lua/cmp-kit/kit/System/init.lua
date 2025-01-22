@@ -46,7 +46,7 @@ function System.LineBuffering:create(callback)
         buffer = texts[#texts] ~= '' and { table.remove(texts) } or {}
         for _, text in ipairs(texts) do
           if self.ignore_empty then
-            if text:gsub('^%s*', ''):gsub('%s*$', '') ~= '' then
+            if not text:match('^%s*$') then
               callback(text)
             end
           else
