@@ -1,6 +1,6 @@
 ---@diagnostic disable: invisible
 
-local Async = require('cmp-kit.kit.Async')
+local ScheduledTimer = require('cmp-kit.kit.Async.ScheduledTimer')
 local debugger = require('cmp-kit.core.debugger')
 
 ---@type fun(regex: string): vim.regex
@@ -19,10 +19,9 @@ end
 ---@field private _bufnr integer
 ---@field private _regex string
 ---@field private _words string[][]
----@field private _indxing integer
+---@field private _timer cmp-kit.kit.Async.ScheduledTimer
 ---@field private _s_idx integer?
 ---@field private _e_idx integer?
----@field private _rev integer
 ---@field private _disposed boolean
 local Indexer = {}
 Indexer.__index = Indexer
@@ -34,7 +33,7 @@ function Indexer.new(bufnr, regex)
     _bufnr = bufnr,
     _regex = regex,
     _words = {},
-    _indexing = 0,
+    _timer = ScheduledTimer.new(),
     _s_idx = nil,
     _e_idx = nil,
     _rev = 0,
@@ -79,7 +78,7 @@ end
 ---Return is indexing or not.
 ---@return boolean
 function Indexer:is_indexing()
-  return self._indexing > 0
+  return self._timer:is_running()
 end
 
 ---Dispose.
@@ -123,7 +122,6 @@ function Indexer:_update(toprow, botrow, botrow_updated)
   end
   self._s_idx = self._s_idx and math.min(self._s_idx, s) or s
   self._e_idx = self._e_idx and math.max(self._e_idx, e) or e
-  self._rev = self._rev + 1
   if self._s_idx and self._e_idx then
     self:_index()
   end
@@ -131,58 +129,61 @@ end
 
 ---Start indexing.
 function Indexer:_index()
-  self._indexing = self._indexing + 1
-  self._rev = self._rev + 1
-  local rev = self._rev
-  Async.run(function()
-    self:_run_index(rev)
-  end):catch(function() end):next(function()
-    self:_finish_index()
+  self._timer:stop()
+  self._timer:start(0, 0, function()
+    self:_run_index()
   end)
 end
 
 ---Run indexing.
 ---NOTE: Extract anonymous functions because they impact LuaJIT performance.
----@param rev integer
-function Indexer:_run_index(rev)
+function Indexer:_run_index()
+  local s = vim.uv.hrtime() / 1e6
+  local c = 0
   local regex = get_regex(self._regex)
-
   for i = self._s_idx, self._e_idx do
     if self._words[i] == nil then
       self._words[i] = {}
       local text = vim.api.nvim_buf_get_lines(self._bufnr, i - 1, i, false)[1] or ''
       local off = 0
       while true do
-        local s, e = regex:match_str(text)
-        if s and e then
+        local sidx, eidx = regex:match_str(text)
+        if sidx and eidx then
           local cursor = vim.api.nvim_win_get_cursor(0)
           local is_inserting = vim.api.nvim_get_mode().mode == 'i'
-          if not is_inserting or cursor[1] ~= i or cursor[2] < (off + s) or (off + e) < cursor[2] then
-            table.insert(self._words[i], text:sub(s + 1, e))
+          if not is_inserting or cursor[1] ~= i or cursor[2] < (off + sidx) or (off + eidx) < cursor[2] then
+            table.insert(self._words[i], text:sub(sidx + 1, eidx))
           end
-          off = off + e
+          off = off + eidx
 
           local prev = text
-          text = text:sub(e + 1)
+          text = text:sub(eidx + 1)
           if text == prev then
             break
           end
         else
           break
         end
-        Async.interrupt(16, 16)
-        if self._rev ~= rev then
+      end
+      self._s_idx = i + 1
+
+      c = c + 1
+      if c >= 100 then
+        c = 0
+        local n = vim.uv.hrtime() / 1e6
+        if n - s > 10 then
+          self._timer:start(16, 0, function()
+            self:_run_index()
+          end)
           return
         end
       end
-      self._s_idx = i + 1
     end
   end
 
-  if self._rev == rev then
-    self._s_idx = nil
-    self._e_idx = nil
-  end
+  self._s_idx = nil
+  self._e_idx = nil
+  self:_finish_index()
 end
 
 ---Finish indexing.
@@ -204,7 +205,6 @@ function Indexer:_finish_index()
       end
     end
   end
-  self._indexing = self._indexing - 1
 end
 
 ---@class cmp-kit.core.Buffer

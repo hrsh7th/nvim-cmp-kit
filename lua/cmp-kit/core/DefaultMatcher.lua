@@ -117,9 +117,11 @@ end
 ---@param label_index integer
 ---@return cmp-kit.core.DefaultMatcher.MatchData | nil
 local function find_match_region(query, query_start_index, query_end_index, label, label_index)
-  -- determine query position ( woroff -> label_offset )
+  -- determine query position ( woroff -> word_offset )
   while query_start_index < query_end_index do
-    if Character.match_ignorecase(string.byte(query, query_end_index), string.byte(label, label_index)) then
+    local q = string.byte(query, query_end_index)
+    local l = string.byte(label, label_index)
+    if Character.match_ignorecase(q, l) then
       break
     end
     query_end_index = query_end_index - 1

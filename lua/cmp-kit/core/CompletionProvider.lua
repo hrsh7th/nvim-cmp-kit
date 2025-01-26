@@ -1,4 +1,5 @@
 ---@diagnostic disable: invisible
+local kit              = require('cmp-kit.kit')
 local LSP              = require('cmp-kit.kit.LSP')
 local Async            = require('cmp-kit.kit.Async')
 local RegExp           = require('cmp-kit.kit.Vim.RegExp')
@@ -56,8 +57,12 @@ end
 ---@field public matches_items? cmp-kit.core.CompletionItem[]
 ---@field public matches_before_text? string
 
+---@class cmp-kit.core.CompletionProvider.Config
+---@field public keyword_length integer
+
 ---@class cmp-kit.core.CompletionProvider
 ---@field private _source cmp-kit.core.CompletionSource
+---@field private _config cmp-kit.core.CompletionProvider.Config
 ---@field private _state cmp-kit.core.CompletionProvider.State
 local CompletionProvider = {}
 CompletionProvider.__index = CompletionProvider
@@ -65,10 +70,14 @@ CompletionProvider.RequestState = RequestState
 
 ---Create new CompletionProvider.
 ---@param source cmp-kit.core.CompletionSource
+---@param config? cmp-kit.core.CompletionProvider.Config
 ---@return cmp-kit.core.CompletionProvider
-function CompletionProvider.new(source)
+function CompletionProvider.new(source, config)
   local self = setmetatable({
     _source = source,
+    _config = kit.merge(config or {}, {
+      keyword_length = 1,
+    }),
     _state = {
       request_state = RequestState.Waiting,
       request_revision = 0
@@ -113,7 +122,7 @@ function CompletionProvider:complete(trigger_context)
       completion_offset = keyword_offset
     else
       -- keyword based completion.
-      if keyword_offset and keyword_offset < trigger_context.character + 1 then
+      if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self._config.keyword_length then
         local prev_keyword_offset = self._state.completion_offset
         local is_incomplete = self._state and self._state.is_incomplete
 
