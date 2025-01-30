@@ -4,7 +4,7 @@ local CompletionService = require('cmp-kit.core.CompletionService')
 describe('cmp-kit.core', function()
   describe('CompletionService', function()
     it('should work on basic case', function()
-      local trigger_context, source = spec.setup({
+      local _, source = spec.setup({
         input = 'w',
         buffer_text = {
           'key|',
@@ -32,9 +32,42 @@ describe('cmp-kit.core', function()
         }
       })
       service:register_source(source)
-      service:complete(trigger_context)
-      assert.equals(#state.matches, 1)
-      assert.equals(state.matches[1].item:get_insert_text(), 'keyword')
+      service:complete()
+      assert.are.equals(#state.matches, 1)
+      assert.are.equals(state.matches[1].item:get_insert_text(), 'keyword')
+    end)
+
+    it('should update view on new response', function()
+      local _, source = spec.setup({
+        input = 'w',
+        buffer_text = {
+          'key|',
+        },
+        items = {
+          { label = 'keyword' },
+        },
+      })
+      local state = {}
+      local service = CompletionService.new({
+        view = {
+          show = function()
+            state.show_count = (state.show_count or 0) + 1
+          end,
+          hide = function()
+          end,
+          is_visible = function()
+            return true
+          end,
+          select = function()
+          end,
+          dispose = function()
+          end,
+        }
+      })
+      service:register_source(source)
+      service:complete()
+      service:complete({ force =true })
+      assert.are.equals(state.show_count, 2)
     end)
   end)
 end)

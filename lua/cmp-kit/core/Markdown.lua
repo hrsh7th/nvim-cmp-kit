@@ -49,6 +49,14 @@ local Markdown = {}
 
 local escaped_characters = { '\\', '`', '*', '_', '{', '}', '[', ']', '<', '>', '(', ')', '#', '+', '-', '.', '!', '|' }
 
+local special_highlights = {
+  {
+    s = '%*%*',
+    e = '%*%*',
+    hl_group = 'CmpKitMarkdownAnnotate01',
+  }
+}
+
 ---Trim empty lines.
 ---@param contents string[]
 ---@return string[]
@@ -320,6 +328,36 @@ function Markdown.set(bufnr, ns_id, raw_contents)
           end
         end
       end)
+    end
+  end
+
+  -- special highlights.
+  for i, text in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
+    for _, highlight in ipairs(special_highlights) do
+      local s_idx1, s_idx2 = text:find(highlight.s, 1, true)
+      if s_idx1 and s_idx2 then
+        local e_idx1, e_idx2 = text:find(highlight.e, s_idx2 + 1, true)
+        if e_idx1 and e_idx2 then
+          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, s_idx1 - 1, {
+            end_row = i - 1,
+            end_col = s_idx2,
+            conceal = '',
+            priority = 10000,
+          })
+          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, s_idx2 - 1, {
+            end_row = i - 1,
+            end_col = e_idx1 - 1,
+            hl_group = highlight.hl_group,
+            priority = 10000,
+          })
+          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, e_idx1 - 1, {
+            end_row = i - 1,
+            end_col = e_idx2,
+            conceal = '',
+            priority = 10000,
+          })
+        end
+      end
     end
   end
 

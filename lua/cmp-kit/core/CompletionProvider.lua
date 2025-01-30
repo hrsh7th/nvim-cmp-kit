@@ -159,10 +159,12 @@ function CompletionProvider:complete(trigger_context)
     -- invoke completion.
     local raw_response = self._source:complete(completion_context):await()
 
+
     -- ignore obsolete response.
     if self._state.trigger_context ~= trigger_context then
       return
     end
+
 
     -- adopt response.
     self:_adopt_response(trigger_context, to_completion_list(raw_response))

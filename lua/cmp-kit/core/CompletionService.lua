@@ -3,6 +3,7 @@ local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
+local ScheduledTimer = require('cmp-kit.kit.Async.ScheduledTimer')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local Character = require('cmp-kit.core.Character')
@@ -46,6 +47,7 @@ end
 ---@field private _ns integer
 ---@field private _disposed boolean
 ---@field private _preventing integer
+---@field private _matching_timer cmp-kit.kit.Async.ScheduledTimer
 ---@field private _events table<string, function[]>
 ---@field private _state cmp-kit.core.CompletionService.State
 ---@field private _config cmp-kit.core.CompletionService.Config
@@ -65,11 +67,8 @@ function CompletionService.new(config)
     _ns = vim.api.nvim_create_namespace(('cmp-kit:%s'):format(id)),
     _disposed = false,
     _preventing = 0,
-    _config = kit.merge(config or {}, DefaultConfig),
+    _matching_timer = ScheduledTimer.new(),
     _events = {},
-    _provider_configurations = {},
-    _keys = {},
-    _macro_completion = {},
     _state = {
       complete_trigger_context = TriggerContext.create_empty_context(),
       matching_trigger_context = TriggerContext.create_empty_context(),
@@ -80,6 +79,10 @@ function CompletionService.new(config)
       },
       matches = {},
     },
+    _config = kit.merge(config or {}, DefaultConfig),
+    _provider_configurations = {},
+    _keys = {},
+    _macro_completion = {},
   } --[[@as cmp-kit.core.CompletionService]], CompletionService)
 
   -- support macro.
@@ -119,9 +122,8 @@ function CompletionService.new(config)
               break
             end
           end
-          match.item:commit({
+          self:commit(match.item, {
             replace = false,
-            expand_snippet = self._config.expand_snippet,
           }):next(function()
             -- NOTE: cmp-kit's specific implementation.
             -- after commit character, send canceled key if possible.
@@ -340,11 +342,17 @@ do
       for _, provider_configuration in ipairs(provider_group) do
         if provider_configuration.provider:capable(trigger_context) then
           local prev_item_count = #provider_configuration.provider:get_items()
+          local prev_request_revision = provider_configuration.provider:get_request_revision()
           table.insert(
             tasks,
             provider_configuration.provider:complete(trigger_context):next(function()
               local next_item_count = #provider_configuration.provider:get_items()
-              if next_item_count ~= prev_item_count then
+              local next_request_revision = provider_configuration.provider:get_request_revision()
+
+              local should_update = false
+              should_update = should_update or next_item_count ~= prev_item_count
+              should_update = should_update or (next_item_count ~= 0 and next_request_revision ~= prev_request_revision)
+              if should_update then
                 self._state.matching_trigger_context = TriggerContext.create_empty_context()
                 self:matching()
               end

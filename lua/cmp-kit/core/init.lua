@@ -38,3 +38,9 @@
 ---@field public select fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
 ---@field public dispose fun(self: cmp-kit.core.View)
 
+vim.api.nvim_set_hl(0, 'CmpKitMarkdownAnnotate01', {
+  default = true,
+  italic = true,
+  underline = true,
+  undercurl = true,
+})

@@ -3,7 +3,7 @@ local CompletionService = require('cmp-kit.core.CompletionService')
 
 describe('cmp-kit.core', function()
   describe('init', function()
-    it('should work on basic case', function()
+    it('should work with macro', function()
       vim.cmd.enew({ bang = true })
 
       local service = CompletionService.new({})

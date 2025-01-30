@@ -514,7 +514,7 @@ function CompletionItem:commit(option)
     end
 
     -- Execute command.
-    self:execute():await()
+    self:execute()
   end)
 end
 
