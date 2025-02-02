@@ -55,15 +55,6 @@ local function strcharpart(str, start, finish)
   return vim.fn.strcharpart(str, start, finish)
 end
 
----Debounced redraw.
-local debounced_redraw = kit.debounce(function()
-  vim.schedule(function()
-    if vim.api.nvim_get_mode().mode == 'c' then
-      vim.cmd.redraw()
-    end
-  end)
-end, 8)
-
 ---@type { clear_cache: fun() }|fun(text: string): integer
 local get_strwidth
 do
@@ -409,7 +400,9 @@ function DefaultView:show(matches, selection)
   })
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
 
-  debounced_redraw()
+  if vim.fn.mode(1):sub(1, 1) == 'c' then
+    vim.cmd.redraw()
+  end
 end
 
 ---Hide window.
@@ -540,7 +533,9 @@ function DefaultView:_update_docs(item)
       style = 'minimal',
     })
   end):next(function()
-    debounced_redraw()
+    if vim.fn.mode(1):sub(1, 1) == 'c' then
+      vim.cmd.redraw()
+    end
   end)
 end
 
