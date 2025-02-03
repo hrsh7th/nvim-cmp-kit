@@ -8,7 +8,7 @@ local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 ---@field public get_bufnrs? fun(): integer[]
 ---@param option? cmp-kit.ext.source.buffer.Option
 return function(option)
-  local keyword_pattern = option and option.keyword_pattern or [[\k\+]]
+  local keyword_pattern = option and option.keyword_pattern or DefaultConfig.default_keyword_pattern
   local min_keyword_length = option and option.min_keyword_length or 3
   local get_bufnrs = option and option.get_bufnrs or function()
     return vim.iter(vim.api.nvim_list_wins()):map(vim.api.nvim_win_get_buf):totable()
@@ -48,7 +48,7 @@ return function(option)
     name = 'buffer',
     get_configuration = function()
       return {
-        keyword_pattern = DefaultConfig.default_keyword_pattern,
+        keyword_pattern = keyword_pattern,
       }
     end,
     complete = function()
