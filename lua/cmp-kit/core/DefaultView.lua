@@ -57,7 +57,7 @@ local function redraw_for_cmdline(win)
     if vim.tbl_contains({ '/', '?' }, vim.fn.getcmdtype()) and vim.o.incsearch then
       vim.api.nvim_feedkeys(vim.keycode('<Cmd>redraw<CR><C-r>=""<CR>'), 'ni', true)
     else
-      vim.api.nvim__redraw({ valid = true, win = win })
+      pcall(vim.api.nvim__redraw, { valid = true, win = win })
     end
   end
 end

@@ -82,11 +82,6 @@ local remove_last_arg_regex = vim.regex([=[[^[:blank:]]\+$]=])
 return function(option)
   option = option or {}
 
-  local cache = {
-    cmdline = '',
-    items = {},
-  }
-
   ---@type cmp-kit.core.CompletionSource
   return {
     name = 'cmdline',
@@ -159,7 +154,6 @@ return function(option)
 
         -- convert to LSP items.
         local items = {}
-        local label_map = {}
         for _, completion in ipairs(completions) do
           local label = completion
 
@@ -168,34 +162,16 @@ return function(option)
             label = label:find(last_arg, 1, true) and label or last_arg .. label
           end
 
-          label_map[label] = true
           table.insert(items, {
             label = label,
           })
 
           -- add `no` prefix for boolean options.
           if set_option_cmd_regex:match_str(cmd) and is_boolean_option(label) then
-            label_map['no' .. completion] = true
             table.insert(items, {
               label = 'no' .. completion,
               filterText = completion,
             })
-          end
-        end
-
-        -- append or discard cache.
-        do
-          local prev_leading_text = remove_regex(cache.cmdline, remove_last_arg_regex)
-          local next_leading_text = remove_regex(cmdline, remove_last_arg_regex)
-          if prev_leading_text == next_leading_text then
-            for _, item in ipairs(cache.items) do
-              if not label_map[item.label] then
-                table.insert(items, item)
-              end
-            end
-          else
-            cache.cmdline = cmdline
-            cache.items = items
           end
         end
 

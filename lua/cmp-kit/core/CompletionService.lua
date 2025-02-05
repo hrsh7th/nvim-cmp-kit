@@ -471,10 +471,11 @@ function CompletionService:matching(option)
         -- 3. check dedup.
         local preselect_index = nil --[[@as integer?]]
         do
-          local provider_item_count = vim.iter(provider_configurations):fold({}, function(acc, provider_configuration)
-            acc[provider_configuration.provider] = provider_configuration.item_count
-            return acc
-          end) --[[@as table<cmp-kit.core.CompletionProvider, integer>]]
+          local provider_item_count_map = vim.iter(provider_configurations):fold({},
+            function(acc, provider_configuration)
+              acc[provider_configuration.provider] = provider_configuration.item_count
+              return acc
+            end) --[[@as table<cmp-kit.core.CompletionProvider, integer>]]
           local provider_dedup_map = vim.iter(provider_configurations):fold({}, function(acc, provider_configuration)
             acc[provider_configuration.provider] = provider_configuration.dedup
             return acc
@@ -487,13 +488,13 @@ function CompletionService:matching(option)
               preselect_index = j
             end
 
-            local ok_count = provider_item_count[match.provider] >= 0
-            local ok_dedup = not provider_dedup_map[match.provider] or not dedup_map[match.item:get_select_text()]
-            if ok_count and ok_dedup then
+            local is_count_ok = provider_item_count_map[match.provider] >= 0
+            local is_dedup_ok = not provider_dedup_map[match.provider] or not dedup_map[match.item:get_label_text()]
+            if is_count_ok and is_dedup_ok then
               table.insert(limited_matches, match)
-              provider_item_count[match.provider] = provider_item_count[match.provider] - 1
+              provider_item_count_map[match.provider] = provider_item_count_map[match.provider] - 1
             end
-            dedup_map[match.item:get_select_text()] = true
+            dedup_map[match.item:get_label_text()] = true
           end
           self._state.matches = limited_matches
         end

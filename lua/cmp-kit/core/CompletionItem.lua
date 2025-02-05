@@ -495,8 +495,7 @@ function CompletionItem:commit(option)
             end) > 0
             if not should_skip then
               vim.lsp.util.apply_text_edits(
-                kit
-                .iter(self._item.additionalTextEdits)
+                vim.iter(self._item.additionalTextEdits)
                 :map(function(text_edit)
                   return {
                     range = Range.to_buf(self._trigger_context.bufnr, text_edit.range),

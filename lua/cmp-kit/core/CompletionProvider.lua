@@ -126,8 +126,15 @@ function CompletionProvider:complete(trigger_context)
         local prev_keyword_offset = self._state.completion_offset
         local is_incomplete = self._state and self._state.is_incomplete
 
-        if is_incomplete and keyword_offset == prev_keyword_offset then
-          -- invoke completion if previous response specifies the `isIncomplete=true` and offset is not changed.
+        -- TODO: is this nvim-cmp-kit specific implementation?
+        local forward = (function()
+          local prev_trigger_context = self._state.trigger_context or trigger_context
+          local next_trigger_context = trigger_context
+          return prev_trigger_context.character < next_trigger_context.character
+        end)()
+
+        if is_incomplete and keyword_offset == prev_keyword_offset and forward then
+          -- invoke completion if previous response specifies the `isIncomplete=true` and offset is not changed and forwarding cursor.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.TriggerForIncompleteCompletions,
           }
@@ -167,7 +174,7 @@ function CompletionProvider:complete(trigger_context)
 
 
     -- adopt response.
-    self:_adopt_response(trigger_context, to_completion_list(raw_response))
+    self:_adopt_response(trigger_context, completion_context, to_completion_list(raw_response))
     if #self._state.items == 0 then
       self:clear()
     end
@@ -177,11 +184,16 @@ function CompletionProvider:complete(trigger_context)
 end
 
 ---Accept completion response.
+---@param trigger_context cmp-kit.core.TriggerContext
+---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
-function CompletionProvider:_adopt_response(trigger_context, list)
+function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
+  local prev_items = { unpack(self._state.items or {}) }
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
   self._state.items = {}
+
+  local dedup_map = {} ---@type table<string, boolean>
   local cursor = { line = trigger_context.line, character = trigger_context.character }
   for _, item in ipairs(list.items) do
     local completion_item = CompletionItem.new(trigger_context, self, list, item)
@@ -192,8 +204,20 @@ function CompletionProvider:_adopt_response(trigger_context, list)
     local e = (r['end'].line == cursor.line and r['end'].character >= cursor.character) or r['end'].line > cursor.line
     if s and e then
       self._state.items[#self._state.items + 1] = completion_item
+      dedup_map[completion_item:get_label_text()] = true
     end
   end
+
+  -- add prev items for incomplete.
+  -- TODO: is this nvim-cmp-kit specific implementation?
+  if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
+    for _, item in ipairs(prev_items) do
+      if not dedup_map[item:get_label_text()] then
+        self._state.items[#self._state.items + 1] = item
+      end
+    end
+  end
+
   self._state.matches = {}
   self._state.matches_items = {}
   self._state.matches_before_text = nil
