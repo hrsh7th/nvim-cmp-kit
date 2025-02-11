@@ -44,6 +44,8 @@ for k, v in pairs(LSP.CompletionItemKind) do
 end
 
 ---Create winhighlight.
+---@param map table<string, string>
+---@return string
 local function winhighlight(map)
   return vim.iter(pairs(map)):map(function(k, v)
     return ('%s:%s'):format(k, v)

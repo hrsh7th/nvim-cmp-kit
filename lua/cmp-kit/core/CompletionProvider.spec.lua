@@ -44,35 +44,35 @@ describe('cmp-kit.core', function()
       local provider, ctx = create_provider()
       Keymap.spec(function()
         Keymap.send('i'):await()
-        assert.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- no_completion.
         Keymap.send(' '):await()
-        assert.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- no_completion -> keyword_pattern & incmp-kit.
         Keymap.send('f'):await()
         ctx.set_response({ isIncomplete = true, items = {} })
-        assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.are_not.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- keyword_pattern & incomplete -> keyword_pattern.
         Keymap.send('o'):await()
         ctx.set_response({ isIncomplete = false, items = {} })
-        assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.are_not.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- keyword_pattern -> force.
         Keymap.send('o'):await()
         ctx.set_response({ isIncomplete = false, items = {} })
-        assert.are_not.is_nil(provider:complete(TriggerContext.create({ force = true })):await())
+        assert.are_not.is_nil(provider:complete(TriggerContext.create({ force = true }), DefaultConfig):await())
 
         -- keyword_pattern & force -> keyword_pattern
         Keymap.send('o'):await()
         ctx.set_response({ isIncomplete = false, items = {} })
-        assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.are_not.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- keyword_pattern -> trigger_character
         Keymap.send('.'):await()
-        assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
+        assert.are_not.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
       end)
     end)
   end)

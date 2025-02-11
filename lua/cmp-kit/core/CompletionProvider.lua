@@ -52,6 +52,7 @@ end
 ---@field public completion_offset? integer
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
+---@field public is_trigger_character_completion boolean
 ---@field public items? cmp-kit.core.CompletionItem[]
 ---@field public matches? cmp-kit.core.Match[]
 ---@field public matches_items? cmp-kit.core.CompletionItem[]
@@ -79,9 +80,10 @@ function CompletionProvider.new(source, config)
       keyword_length = 1,
     }),
     _state = {
+      is_trigger_character_completion = false,
       request_state = RequestState.Waiting,
       request_revision = 0
-    },
+    } --[[@as cmp-kit.core.CompletionProvider.State]],
   }, CompletionProvider)
 
   return self
@@ -95,8 +97,9 @@ end
 
 ---Completion (textDocument/completion).
 ---@param trigger_context cmp-kit.core.TriggerContext
+---@param config cmp-kit.core.CompletionService.Config
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
-function CompletionProvider:complete(trigger_context)
+function CompletionProvider:complete(trigger_context, config)
   return Async.run(function()
     local completion_options = self:get_completion_options()
     local trigger_characters = completion_options.triggerCharacters or {}
@@ -108,7 +111,6 @@ function CompletionProvider:complete(trigger_context)
     local completion_offset ---@type integer?
     if vim.tbl_contains(trigger_characters, trigger_context.before_character) then
       -- trigger character based completion.
-      -- TODO: VSCode does not show completion for `const a = |` case on the @vtsls/language-server even if language-server tells `<Space>` as trigger_character.
       completion_context = {
         triggerKind = LSP.CompletionTriggerKind.TriggerCharacter,
         triggerCharacter = trigger_context.before_character,
@@ -124,23 +126,15 @@ function CompletionProvider:complete(trigger_context)
       -- keyword based completion.
       if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self._config.keyword_length then
         local prev_keyword_offset = self._state.completion_offset
-        local is_incomplete = self._state and self._state.is_incomplete
-
-        -- TODO: is this nvim-cmp-kit specific implementation?
-        local forward = (function()
-          local prev_trigger_context = self._state.trigger_context or trigger_context
-          local next_trigger_context = trigger_context
-          return prev_trigger_context.character < next_trigger_context.character
-        end)()
-
-        if is_incomplete and keyword_offset == prev_keyword_offset and forward then
-          -- invoke completion if previous response specifies the `isIncomplete=true` and offset is not changed and forwarding cursor.
+        local prev_is_incomplete = self._state.is_incomplete
+        if prev_is_incomplete and keyword_offset == prev_keyword_offset then
+          -- keyword completion for incomplete completion.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.TriggerForIncompleteCompletions,
           }
           completion_offset = keyword_offset
         elseif keyword_offset and keyword_offset ~= prev_keyword_offset then
-          -- invoke completion if keyword_offset is changed.
+          -- keyword completion for new keyword offset.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.Invoked,
           }
@@ -149,14 +143,30 @@ function CompletionProvider:complete(trigger_context)
       end
     end
 
+    local in_trigger_character_completion = self:in_trigger_character_completion(trigger_context, config)
+
     -- do not invoke new completion.
     if not completion_context then
-      if not keyword_offset then
+      if not keyword_offset and not in_trigger_character_completion then
         self:clear()
       end
       return
     end
 
+    -- skip simple keyword completion if current completion is triggered by character and still matching.
+    if in_trigger_character_completion then
+      if not trigger_context.force and completion_context.triggerKind == LSP.CompletionTriggerKind.Invoked then
+        return
+      end
+    end
+
+    local is_trigger_char = false
+    is_trigger_char = is_trigger_char or (completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter)
+    is_trigger_char = is_trigger_char or (
+      self._state.is_trigger_character_completion and
+      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions
+    )
+    self._state.is_trigger_character_completion = is_trigger_char
     self._state.request_revision = self._state.request_revision + 1
     self._state.request_state = RequestState.Fetching
     self._state.trigger_context = trigger_context
@@ -166,12 +176,10 @@ function CompletionProvider:complete(trigger_context)
     -- invoke completion.
     local raw_response = self._source:complete(completion_context):await()
 
-
     -- ignore obsolete response.
     if self._state.trigger_context ~= trigger_context then
       return
     end
-
 
     -- adopt response.
     self:_adopt_response(trigger_context, completion_context, to_completion_list(raw_response))
@@ -188,7 +196,7 @@ end
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
-  local prev_items = { unpack(self._state.items or {}) }
+  local prev_items = kit.concat({}, self._state.items or {})
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
   self._state.items = {}
@@ -320,6 +328,7 @@ end
 ---Clear completion state.
 function CompletionProvider:clear()
   self._state = {
+    is_trigger_character_completion = false,
     request_state = RequestState.Waiting,
     request_revision = self._state.request_revision,
   }
@@ -331,11 +340,19 @@ function CompletionProvider:get_items()
   return self._state.items or {}
 end
 
+---Return current completion is triggered by character or not.
+---@param trigger_context cmp-kit.core.TriggerContext
+---@param config cmp-kit.core.CompletionService.Config
+---@return boolean
+function CompletionProvider:in_trigger_character_completion(trigger_context, config)
+  return self._state.is_trigger_character_completion and #self:get_matches(trigger_context, config) > 0
+end
+
 ---Return matches.
 ---@param trigger_context cmp-kit.core.TriggerContext
----@param matcher cmp-kit.core.Matcher
+---@param config cmp-kit.core.CompletionService.Config
 ---@return cmp-kit.core.Match[]
-function CompletionProvider:get_matches(trigger_context, matcher)
+function CompletionProvider:get_matches(trigger_context, config)
   local is_acceptable = not not self._state.trigger_context
   is_acceptable = is_acceptable and self._state.trigger_context.bufnr == trigger_context.bufnr
   is_acceptable = is_acceptable and self._state.trigger_context.line == trigger_context.line
@@ -364,16 +381,20 @@ function CompletionProvider:get_matches(trigger_context, matcher)
   for i, item in ipairs(target_items) do
     local query_text = trigger_context:get_query(item:get_offset())
     local filter_text = item:get_filter_text()
-    local score, match_positions = matcher(query_text, filter_text)
+    local score, match_positions = config.matcher(query_text, filter_text)
     if score > 0 then
       local label_text = item:get_label_text()
+      if label_text ~= filter_text then
+        query_text = trigger_context:get_query(self._state.completion_offset)
+        _, match_positions = config.matcher(query_text, label_text)
+      end
       self._state.matches_items[#self._state.matches_items + 1] = item
       self._state.matches[#self._state.matches + 1] = {
         provider = self,
         item = item,
         score = score,
         index = i,
-        match_positions = label_text ~= filter_text and select(2, matcher(query_text, label_text)) or match_positions,
+        match_positions = match_positions,
       }
     end
   end

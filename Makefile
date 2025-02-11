@@ -16,9 +16,14 @@ format:
 test:
 	vusted --output=gtest --pattern=.spec ./lua
 
+.PHONY: typecheck
+typecheck:
+	rm -Rf $(pwd)/tmp/typecheck; $(LUA_LS_PATH) --check $(pwd)/lua --configpath=$(pwd)/.luarc.typecheck.json --logpath=$(pwd)/tmp/typecheck
+
 .PHONY: check
 check:
 	make lint
 	make format
 	make test
+	make typecheck
 

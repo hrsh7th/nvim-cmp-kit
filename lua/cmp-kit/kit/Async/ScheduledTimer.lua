@@ -39,8 +39,10 @@ function ScheduledTimer:start(ms, repeat_ms, callback)
         callback()
         self:start(repeat_ms, repeat_ms, callback)
       else
-        self._running = false
         callback()
+        if revision == self._revision then
+          self._running = false
+        end
       end
     end
     if vim.in_fast_event() then

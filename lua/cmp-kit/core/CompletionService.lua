@@ -275,6 +275,7 @@ function CompletionService:select(index, preselect)
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
+    self:matching()
   end
 
   local prev_index = self._state.selection.index
@@ -311,6 +312,7 @@ function CompletionService:get_selection()
     local tasks = self._macro_completion
     self._macro_completion = {}
     Async.all(tasks):sync(2 * 1000)
+    self:matching()
   end
   return kit.clone(self._state.selection)
 end
@@ -345,16 +347,17 @@ do
           local prev_request_revision = provider_configuration.provider:get_request_revision()
           table.insert(
             tasks,
-            provider_configuration.provider:complete(trigger_context):next(function()
+            provider_configuration.provider:complete(trigger_context, self._config):next(function()
               local next_item_count = #provider_configuration.provider:get_items()
+              if prev_item_count == 0 and next_item_count == 0 then
+                return
+              end
               local next_request_revision = provider_configuration.provider:get_request_revision()
-
-              local should_update = false
-              should_update = should_update or next_item_count ~= prev_item_count
-              should_update = should_update or (next_item_count ~= 0 and next_request_revision ~= prev_request_revision)
-              if should_update then
+              if prev_request_revision ~= next_request_revision then
                 self._state.matching_trigger_context = TriggerContext.create_empty_context()
-                self:matching()
+                if not self._config.sync_mode() then
+                  self:matching()
+                end
               end
             end)
           )
@@ -369,7 +372,7 @@ do
       else
         vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
       end
-      self:matching()
+      self:matching() -- if in sync_mode, matching will be done in `select` method.
     end
 
     return Async.all(tasks)
@@ -411,22 +414,24 @@ function CompletionService:matching(option)
 
   self._state.matches = {}
 
-  local has_trigger_chars = false
+  local has_trigger_character_providers = false
   for _, provider_group in ipairs(self:_get_provider_groups()) do
     local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
     for _, provider_configuration in ipairs(provider_group) do
       if provider_configuration.provider:capable(trigger_context) then
-        -- check the provider was triggered by triggerCharacters.
-        local completion_context = provider_configuration.provider:get_completion_context()
-        if completion_context and completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter then
-          has_trigger_chars = has_trigger_chars or #provider_configuration.provider:get_items() > 0
+        -- check the provider was triggered by characters.
+        if not has_trigger_character_providers then
+          has_trigger_character_providers = provider_configuration.provider:in_trigger_character_completion(
+            trigger_context,
+            self._config
+          )
         end
         table.insert(provider_configurations, provider_configuration)
       end
     end
 
-    -- if trigger character is found, remove non-trigger character providers (for UX).
-    if has_trigger_chars then
+    -- if trigger character completion is found, remove non-trigger character providers.
+    if has_trigger_character_providers then
       for j = #provider_configurations, 1, -1 do
         local completion_context = provider_configurations[j].provider:get_completion_context()
         if not (completion_context and completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter) then
@@ -440,7 +445,7 @@ function CompletionService:matching(option)
       -- gather items.
       for _, provider_configuration in ipairs(provider_configurations) do
         local score_boost = self:_get_score_boost(provider_configuration.provider)
-        for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._config.matcher)) do
+        for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._config)) do
           match.score = match.score + score_boost
           self._state.matches[#self._state.matches + 1] = match
         end
@@ -450,7 +455,7 @@ function CompletionService:matching(option)
       if #self._state.matches > 0 then
         local locality_map = {}
 
-        -- In macro related context, the sorting should be stable.
+        -- For macro, the sorting should be stable.
         if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
           local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
           local min_row = math.max(1, cur - 30)
@@ -466,7 +471,7 @@ function CompletionService:matching(option)
           locality_map = locality_map,
         })
 
-        -- 1. find preselect_index.
+        -- 1. search preselect_index.
         -- 2. check item_count.
         -- 3. check dedup.
         local preselect_index = nil --[[@as integer?]]
@@ -519,10 +524,10 @@ function CompletionService:matching(option)
 
   -- no completion found.
   local is_visible = self._config.view:is_visible()
-  if not self._config.sync_mode() then
-    self._config.view:hide(self._state.matches, self._state.selection)
-  end
   if is_visible then
+    if not self._config.sync_mode() then
+      self._config.view:hide(self._state.matches, self._state.selection)
+    end
     emit(self._events.on_menu_hide, { service = self })
   end
 end

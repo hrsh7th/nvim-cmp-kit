@@ -70,7 +70,7 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     bufnr = bufnr,
     time = vim.uv.now(),
     force = not not (option and option.force),
-    before_character = text_before:gsub('%s*$', ''):match('(.)$'),
+    before_character = text_before:gsub('%s*$', ''):match('(.)$'), -- ignore <Space> for trigger characters, TODO: is it correct?
     in_string = in_string,
     in_comment = in_comment,
     cache = {},
