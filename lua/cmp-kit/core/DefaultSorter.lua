@@ -10,6 +10,12 @@ local function compare(a, b, context)
     return offset_a < offset_b
   end
 
+  local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
+  local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
+  if exact_a ~= exact_b then
+    return exact_a
+  end
+
   local preselect_a = a.item:is_preselect()
   local preselect_b = b.item:is_preselect()
   if preselect_a ~= preselect_b then

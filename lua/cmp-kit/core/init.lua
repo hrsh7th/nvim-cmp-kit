@@ -12,6 +12,7 @@
 ---@alias cmp-kit.core.Sorter fun(matches: cmp-kit.core.Match[], context: cmp-kit.core.SorterContext): cmp-kit.core.Match[]
 ---@class cmp-kit.core.SorterContext
 ---@field public locality_map table<string, integer>
+---@field public trigger_context cmp-kit.core.TriggerContext
 
 ---@class cmp-kit.core.CompletionSource.Configuration
 ---@field public keyword_pattern? string

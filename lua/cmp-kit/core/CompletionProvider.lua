@@ -53,6 +53,7 @@ end
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
+---@field public dedup_map? table<string, boolean>
 ---@field public items? cmp-kit.core.CompletionItem[]
 ---@field public matches? cmp-kit.core.Match[]
 ---@field public matches_items? cmp-kit.core.CompletionItem[]
@@ -121,7 +122,7 @@ function CompletionProvider:complete(trigger_context, config)
       completion_context = {
         triggerKind = LSP.CompletionTriggerKind.Invoked,
       }
-      completion_offset = keyword_offset
+      completion_offset = keyword_offset or (trigger_context.character + 1)
     else
       -- keyword based completion.
       if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self._config.keyword_length then
@@ -196,12 +197,14 @@ end
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
-  local prev_items = kit.concat({}, self._state.items or {})
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
-  self._state.items = {}
 
-  local dedup_map = {} ---@type table<string, boolean>
+  if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
+    self._state.dedup_map = {}
+    self._state.items = {}
+  end
+
   local cursor = { line = trigger_context.line, character = trigger_context.character }
   for _, item in ipairs(list.items) do
     local completion_item = CompletionItem.new(trigger_context, self, list, item)
@@ -210,19 +213,17 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     local r = completion_item:get_insert_range()
     local s = (r.start.line == cursor.line and r.start.character <= cursor.character) or r.start.line < cursor.line
     local e = (r['end'].line == cursor.line and r['end'].character >= cursor.character) or r['end'].line > cursor.line
-    if s and e then
-      self._state.items[#self._state.items + 1] = completion_item
-      dedup_map[completion_item:get_label_text()] = true
-    end
-  end
+    local is_valid_range = s and e
 
-  -- add prev items for incomplete.
-  -- TODO: is this nvim-cmp-kit specific implementation?
-  if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
-    for _, item in ipairs(prev_items) do
-      if not dedup_map[item:get_label_text()] then
-        self._state.items[#self._state.items + 1] = item
-      end
+    -- check dedup.
+    local is_deduped = false
+    if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
+      is_deduped = self._state.dedup_map[completion_item:get_label_text()]
+    else
+      self._state.dedup_map[completion_item:get_label_text()] = true
+    end
+    if is_valid_range and not is_deduped then
+      self._state.items[#self._state.items + 1] = completion_item
     end
   end
 
@@ -356,6 +357,7 @@ function CompletionProvider:get_matches(trigger_context, config)
   local is_acceptable = not not self._state.trigger_context
   is_acceptable = is_acceptable and self._state.trigger_context.bufnr == trigger_context.bufnr
   is_acceptable = is_acceptable and self._state.trigger_context.line == trigger_context.line
+  is_acceptable = is_acceptable and self._state.completion_offset ~= nil
   if not is_acceptable then
     return {}
   end

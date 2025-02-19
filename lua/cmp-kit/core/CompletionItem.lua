@@ -465,8 +465,6 @@ function CompletionItem:commit(option)
         LinePatch.apply_by_func(bufnr, before, after, ''):await()
         option.expand_snippet(self:get_insert_text(), { item = self })
       else
-        --
-        -- Snippet: fallback to insert select_text (if `expand_snippet` wasn't provided).
         ---NOTE: This is cmp-kit's specific implementation. if user doesn't provide `expand_snippet`, cmp-kit will fallback to insert `select_text`.
         local parsed_insert_text = tostring(SnippetText.parse(self:get_insert_text()))
         if parsed_insert_text == self:get_insert_text() then

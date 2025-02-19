@@ -392,7 +392,7 @@ function IO.normalize(path)
   end
 
   -- remove trailing slash.
-  if path:sub(-1) == '/' then
+  if #path > 1 and path:sub(-1) == '/' then
     path = path:sub(1, -2)
   end
 

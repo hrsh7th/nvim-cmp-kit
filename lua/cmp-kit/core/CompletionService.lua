@@ -414,30 +414,26 @@ function CompletionService:matching(option)
 
   self._state.matches = {}
 
-  local has_trigger_character_providers = false
+  local trigger_character_providers = {}
   for _, provider_group in ipairs(self:_get_provider_groups()) do
     local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
     for _, provider_configuration in ipairs(provider_group) do
       if provider_configuration.provider:capable(trigger_context) then
         -- check the provider was triggered by characters.
-        if not has_trigger_character_providers then
-          has_trigger_character_providers = provider_configuration.provider:in_trigger_character_completion(
+        local in_trigger_character_completion = provider_configuration.provider:in_trigger_character_completion(
             trigger_context,
             self._config
           )
+        if in_trigger_character_completion then
+          table.insert(trigger_character_providers, provider_configuration)
         end
         table.insert(provider_configurations, provider_configuration)
       end
     end
 
     -- if trigger character completion is found, remove non-trigger character providers.
-    if has_trigger_character_providers then
-      for j = #provider_configurations, 1, -1 do
-        local completion_context = provider_configurations[j].provider:get_completion_context()
-        if not (completion_context and completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter) then
-          table.remove(provider_configurations, j)
-        end
-      end
+    if #trigger_character_providers > 0 then
+      provider_configurations = trigger_character_providers
     end
 
     -- group providers are capable.
@@ -469,6 +465,7 @@ function CompletionService:matching(option)
 
         local sorted_matches = self._config.sorter(self._state.matches, {
           locality_map = locality_map,
+          trigger_context = trigger_context,
         })
 
         -- 1. search preselect_index.
@@ -534,8 +531,12 @@ end
 
 ---Commit completion.
 ---@param item cmp-kit.core.CompletionItem
----@param option? { replace?: boolean }
+---@param option? { replace?: boolean, no_snippet?: boolean }
 function CompletionService:commit(item, option)
+  option = option or {}
+  option.replace = option.replace or false
+  option.no_snippet = option.no_snippet or false
+
   if self._config.sync_mode() then
     local tasks = self._macro_completion
     self._macro_completion = {}
@@ -546,7 +547,7 @@ function CompletionService:commit(item, option)
   return item
       :commit({
         replace = option and option.replace,
-        expand_snippet = self._config.expand_snippet,
+        expand_snippet = not option.no_snippet and self._config.expand_snippet or nil,
       })
       :next(self:prevent())
       :next(function()

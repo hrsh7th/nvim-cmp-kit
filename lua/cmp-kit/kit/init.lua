@@ -10,6 +10,30 @@ kit.clear = require('table.clear') or function(tbl)
   end
 end
 
+---Check shallow equals.
+---@param a any
+---@param b any
+---@return boolean
+function kit.shallow_equals(a, b)
+  if type(a) ~= type(b) then
+    return false
+  end
+  if type(a) ~= 'table' then
+    return a == b
+  end
+  for k, v in pairs(a) do
+    if v ~= b[k] then
+      return false
+    end
+  end
+  for k, v in pairs(b) do
+    if v ~= a[k] then
+      return false
+    end
+  end
+  return true
+end
+
 ---Create gabage collection detector.
 ---@param callback fun(...: any): any
 ---@return userdata
