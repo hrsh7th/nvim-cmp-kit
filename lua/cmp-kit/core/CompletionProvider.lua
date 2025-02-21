@@ -144,17 +144,16 @@ function CompletionProvider:complete(trigger_context, config)
       end
     end
 
-    local in_trigger_character_completion = self:in_trigger_character_completion(trigger_context, config)
-
     -- do not invoke new completion.
     if not completion_context then
-      if not keyword_offset and not in_trigger_character_completion then
+      if not keyword_offset then
         self:clear()
       end
       return
     end
 
     -- skip simple keyword completion if current completion is triggered by character and still matching.
+    local in_trigger_character_completion = self:in_trigger_character_completion(trigger_context, config)
     if in_trigger_character_completion then
       if not trigger_context.force and completion_context.triggerKind == LSP.CompletionTriggerKind.Invoked then
         return
@@ -219,9 +218,8 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     local is_deduped = false
     if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
       is_deduped = self._state.dedup_map[completion_item:get_label_text()]
-    else
-      self._state.dedup_map[completion_item:get_label_text()] = true
     end
+    self._state.dedup_map[completion_item:get_label_text()] = true
     if is_valid_range and not is_deduped then
       self._state.items[#self._state.items + 1] = completion_item
     end
