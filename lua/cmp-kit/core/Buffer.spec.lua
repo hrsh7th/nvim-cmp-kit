@@ -16,7 +16,7 @@ describe('cmp-kit.core', function()
       local buffer = Buffer.new(bufnr)
       vim.wait(16)
       vim.wait(1000, function() return not buffer:is_indexing([[\k\+]]) end, 1)
-      assert.are.equals(false, buffer:is_indexing([[\k\+]]))
+      assert.are.equal(false, buffer:is_indexing([[\k\+]]))
       return buffer
     end
 
@@ -38,7 +38,7 @@ describe('cmp-kit.core', function()
       vim.api.nvim_buf_set_lines(buffer:get_buf(), 120, 121, false, {})
       vim.wait(16)
       vim.wait(1000, function() return not buffer:is_indexing([[\k\+]]) end, 1)
-      assert.are.equals(false, buffer:is_indexing([[\k\+]]))
+      assert.are.equal(false, buffer:is_indexing([[\k\+]]))
 
       for i = 1, vim.api.nvim_buf_line_count(buffer:get_buf()) do
         assert.are.same({
@@ -56,7 +56,7 @@ describe('cmp-kit.core', function()
       vim.api.nvim_buf_set_lines(buffer:get_buf(), 120, 120, false, { 'add' })
       vim.wait(16)
       vim.wait(1000, function() return not buffer:is_indexing([[\k\+]]) end, 1)
-      assert.are.equals(false, buffer:is_indexing([[\k\+]]))
+      assert.are.equal(false, buffer:is_indexing([[\k\+]]))
 
       for i = 1, vim.api.nvim_buf_line_count(buffer:get_buf()) do
         if i == 121 then
@@ -78,7 +78,7 @@ describe('cmp-kit.core', function()
       vim.api.nvim_buf_set_lines(buffer:get_buf(), 120, 121, false, { 'modify' })
       vim.wait(16)
       vim.wait(1000, function() return not buffer:is_indexing([[\k\+]]) end, 1)
-      assert.are.equals(false, buffer:is_indexing([[\k\+]]))
+      assert.are.equal(false, buffer:is_indexing([[\k\+]]))
 
       for i = 1, vim.api.nvim_buf_line_count(buffer:get_buf()) do
         if i == 121 then
