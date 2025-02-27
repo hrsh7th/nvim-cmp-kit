@@ -1,8 +1,6 @@
 local uv = vim.uv
 local Async = require('cmp-kit.kit.Async')
 
-local is_windows = uv.os_uname().sysname:lower() == 'windows'
-
 ---@see https://github.com/luvit/luvit/blob/master/deps/fs.lua
 local IO = {}
 
@@ -54,49 +52,40 @@ IO.WalkStatus = {
 }
 
 ---@type fun(path: string): cmp-kit.kit.Async.AsyncTask
-IO.fs_stat = Async.promisify(uv.fs_stat)
+local uv_fs_stat = Async.promisify(uv.fs_stat)
 
 ---@type fun(path: string): cmp-kit.kit.Async.AsyncTask
-IO.fs_unlink = Async.promisify(uv.fs_unlink)
+local uv_fs_unlink = Async.promisify(uv.fs_unlink)
 
 ---@type fun(path: string): cmp-kit.kit.Async.AsyncTask
-IO.fs_rmdir = Async.promisify(uv.fs_rmdir)
+local uv_fs_rmdir = Async.promisify(uv.fs_rmdir)
 
 ---@type fun(path: string, mode: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_mkdir = Async.promisify(uv.fs_mkdir)
+local uv_fs_mkdir = Async.promisify(uv.fs_mkdir)
 
 ---@type fun(from: string, to: string, option?: { excl?: boolean, ficlone?: boolean, ficlone_force?: boolean }): cmp-kit.kit.Async.AsyncTask
-IO.fs_copyfile = Async.promisify(uv.fs_copyfile)
+local uv_fs_copyfile = Async.promisify(uv.fs_copyfile)
 
 ---@type fun(path: string, flags: cmp-kit.kit.IO.UV.AccessMode, mode: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_open = Async.promisify(uv.fs_open)
+local uv_fs_open = Async.promisify(uv.fs_open)
 
 ---@type fun(fd: userdata): cmp-kit.kit.Async.AsyncTask
-IO.fs_close = Async.promisify(uv.fs_close)
+local uv_fs_close = Async.promisify(uv.fs_close)
 
 ---@type fun(fd: userdata, chunk_size: integer, offset?: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_read = Async.promisify(uv.fs_read)
+local uv_fs_read = Async.promisify(uv.fs_read)
 
 ---@type fun(fd: userdata, content: string, offset?: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_write = Async.promisify(uv.fs_write)
+local uv_fs_write = Async.promisify(uv.fs_write)
 
 ---@type fun(fd: userdata, offset: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_ftruncate = Async.promisify(uv.fs_ftruncate)
-
----@type fun(path: string, chunk_size?: integer): cmp-kit.kit.Async.AsyncTask
-IO.fs_opendir = Async.promisify(uv.fs_opendir, { callback = 2 })
-
----@type fun(fd: userdata): cmp-kit.kit.Async.AsyncTask
-IO.fs_closedir = Async.promisify(uv.fs_closedir)
-
----@type fun(fd: userdata): cmp-kit.kit.Async.AsyncTask
-IO.fs_readdir = Async.promisify(uv.fs_readdir)
+local uv_fs_ftruncate = Async.promisify(uv.fs_ftruncate)
 
 ---@type fun(path: string): cmp-kit.kit.Async.AsyncTask
-IO.fs_scandir = Async.promisify(uv.fs_scandir)
+local uv_fs_scandir = Async.promisify(uv.fs_scandir)
 
 ---@type fun(path: string): cmp-kit.kit.Async.AsyncTask
-IO.fs_realpath = Async.promisify(uv.fs_realpath)
+local uv_fs_realpath = Async.promisify(uv.fs_realpath)
 
 ---Return if the path is directory.
 ---@param path string
@@ -104,11 +93,11 @@ IO.fs_realpath = Async.promisify(uv.fs_realpath)
 function IO.is_directory(path)
   path = IO.normalize(path)
   return Async.run(function()
-    return IO.fs_stat(path)
-      :catch(function()
-        return {}
-      end)
-      :await().type == 'directory'
+    return uv_fs_stat(path)
+        :catch(function()
+          return {}
+        end)
+        :await().type == 'directory'
   end)
 end
 
@@ -118,14 +107,31 @@ end
 function IO.exists(path)
   path = IO.normalize(path)
   return Async.run(function()
-    return IO.fs_stat(path)
-      :next(function()
-        return true
-      end)
-      :catch(function()
-        return false
-      end)
-      :await()
+    return uv_fs_stat(path)
+        :next(function()
+          return true
+        end)
+        :catch(function()
+          return false
+        end)
+        :await()
+  end)
+end
+
+function IO.realpath(path)
+  path = IO.normalize(path)
+  return Async.run(function()
+    return uv_fs_realpath(path):await()
+  end)
+end
+
+---Return file stats or throw error.
+---@param path string
+---@return cmp-kit.kit.Async.AsyncTask
+function IO.stat(path)
+  path = IO.normalize(path)
+  return Async.run(function()
+    return uv_fs_stat(path):await()
   end)
 end
 
@@ -134,15 +140,16 @@ end
 ---@param chunk_size? integer
 ---@return cmp-kit.kit.Async.AsyncTask
 function IO.read_file(path, chunk_size)
+  path = IO.normalize(path)
   chunk_size = chunk_size or 1024
   return Async.run(function()
-    local stat = IO.fs_stat(path):await()
-    local fd = IO.fs_open(path, IO.AccessMode.r, tonumber('755', 8)):await()
+    local stat = uv_fs_stat(path):await()
+    local fd = uv_fs_open(path, IO.AccessMode.r, tonumber('755', 8)):await()
     local ok, res = pcall(function()
       local chunks = {}
       local offset = 0
       while offset < stat.size do
-        local chunk = IO.fs_read(fd, math.min(chunk_size, stat.size - offset), offset):await()
+        local chunk = uv_fs_read(fd, math.min(chunk_size, stat.size - offset), offset):await()
         if not chunk then
           break
         end
@@ -151,7 +158,7 @@ function IO.read_file(path, chunk_size)
       end
       return table.concat(chunks, ''):sub(1, stat.size - 1) -- remove EOF.
     end)
-    IO.fs_close(fd):await()
+    uv_fs_close(fd):await()
     if not ok then
       error(res)
     end
@@ -164,19 +171,20 @@ end
 ---@param content string
 ---@param chunk_size? integer
 function IO.write_file(path, content, chunk_size)
-  chunk_size = chunk_size or 1024
+  path = IO.normalize(path)
   content = content .. '\n' -- add EOF.
+  chunk_size = chunk_size or 1024
   return Async.run(function()
-    local fd = IO.fs_open(path, IO.AccessMode.w, tonumber('755', 8)):await()
+    local fd = uv_fs_open(path, IO.AccessMode.w, tonumber('755', 8)):await()
     local ok, err = pcall(function()
       local offset = 0
       while offset < #content do
         local chunk = content:sub(offset + 1, offset + chunk_size)
-        offset = offset + IO.fs_write(fd, chunk, offset):await()
+        offset = offset + uv_fs_write(fd, chunk, offset):await()
       end
-      IO.fs_ftruncate(fd, offset):await()
+      uv_fs_ftruncate(fd, offset):await()
     end)
-    IO.fs_close(fd):await()
+    uv_fs_close(fd):await()
     if not ok then
       error(err)
     end
@@ -193,12 +201,12 @@ function IO.mkdir(path, mode, option)
   option.recursive = option.recursive or false
   return Async.run(function()
     if not option.recursive then
-      IO.fs_mkdir(path, mode):await()
+      uv_fs_mkdir(path, mode):await()
     else
       local not_exists = {}
       local current = path
       while current ~= '/' do
-        local stat = IO.fs_stat(current):catch(function() end):await()
+        local stat = uv_fs_stat(current):catch(function() end):await()
         if stat then
           break
         end
@@ -206,7 +214,7 @@ function IO.mkdir(path, mode, option)
         current = IO.dirname(current)
       end
       for _, dir in ipairs(not_exists) do
-        IO.fs_mkdir(dir, mode):await()
+        uv_fs_mkdir(dir, mode):await()
       end
     end
   end)
@@ -220,7 +228,7 @@ function IO.rm(start_path, option)
   option = option or {}
   option.recursive = option.recursive or false
   return Async.run(function()
-    local stat = IO.fs_stat(start_path):await()
+    local stat = uv_fs_stat(start_path):await()
     if stat.type == 'directory' then
       local children = IO.scandir(start_path):await()
       if not option.recursive and #children > 0 then
@@ -231,13 +239,13 @@ function IO.rm(start_path, option)
           error('IO.rm: ' .. tostring(err))
         end
         if entry.type == 'directory' then
-          IO.fs_rmdir(entry.path):await()
+          uv_fs_rmdir(entry.path):await()
         else
-          IO.fs_unlink(entry.path):await()
+          uv_fs_unlink(entry.path):await()
         end
       end, { postorder = true }):await()
     else
-      IO.fs_unlink(start_path):await()
+      uv_fs_unlink(start_path):await()
     end
   end)
 end
@@ -253,7 +261,7 @@ function IO.cp(from, to, option)
   option = option or {}
   option.recursive = option.recursive or false
   return Async.run(function()
-    local stat = IO.fs_stat(from):await()
+    local stat = uv_fs_stat(from):await()
     if stat.type == 'directory' then
       if not option.recursive then
         error(('IO.cp: `%s` is a directory.'):format(from))
@@ -266,11 +274,11 @@ function IO.cp(from, to, option)
         if entry.type == 'directory' then
           IO.mkdir(new_path, tonumber(stat.mode, 10), { recursive = true }):await()
         else
-          IO.fs_copyfile(entry.path, new_path):await()
+          uv_fs_copyfile(entry.path, new_path):await()
         end
       end):await()
     else
-      IO.fs_copyfile(from, to):await()
+      uv_fs_copyfile(from, to):await()
     end
   end)
 end
@@ -298,6 +306,7 @@ function IO.walk(start_path, callback, option)
         return status
       end
       for entry in iter_entries do
+        entry.path = IO.normalize(entry.path)
         if entry.type == 'directory' then
           if walk_pre(entry) == IO.WalkStatus.Break then
             return IO.WalkStatus.Break
@@ -318,6 +327,7 @@ function IO.walk(start_path, callback, option)
         return callback(iter_entries, dir)
       end
       for entry in iter_entries do
+        entry.path = IO.normalize(entry.path)
         if entry.type == 'directory' then
           if walk_post(entry) == IO.WalkStatus.Break then
             return IO.WalkStatus.Break
@@ -348,7 +358,7 @@ end
 function IO.scandir(path)
   path = IO.normalize(path)
   return Async.run(function()
-    local fd = IO.fs_scandir(path):await()
+    local fd = uv_fs_scandir(path):await()
     local entries = {}
     while true do
       local name, type = uv.fs_scandir_next(fd)
@@ -370,7 +380,7 @@ end
 function IO.iter_scandir(path)
   path = IO.normalize(path)
   return Async.run(function()
-    local fd = IO.fs_scandir(path):await()
+    local fd = uv_fs_scandir(path):await()
     return function()
       local name, type = uv.fs_scandir_next(fd)
       if name then
@@ -387,9 +397,7 @@ end
 ---@param path string
 ---@return string
 function IO.normalize(path)
-  if is_windows then
-    path = path:gsub('\\', '/')
-  end
+  path = path:gsub('\\', '/')
 
   -- remove trailing slash.
   if #path > 1 and path:sub(-1) == '/' then
@@ -412,7 +420,7 @@ function IO.normalize(path)
   end
 
   -- resolve relative path.
-  local up = assert(uv.cwd())
+  local up = assert(uv.cwd()):gsub('\\', '/')
   up = up:sub(-1) == '/' and up:sub(1, -2) or up
   while true do
     if path:sub(1, 3) == '../' then
@@ -432,36 +440,28 @@ end
 ---@param path string
 ---@return string
 function IO.join(base, path)
-  if base:sub(-1) == '/' then
-    base = base:sub(1, -2)
-  end
-  return base .. '/' .. path
+  base = base:gsub('\\', '/')
+  path = path:gsub('\\', '/')
+  return (vim.fs.joinpath(base, path):gsub('\\', '/'))
 end
 
 ---Return the path of the current working directory.
 ---@param path string
 ---@return string
 function IO.dirname(path)
+  path = path:gsub('\\', '/')
   if path:sub(-1) == '/' then
     path = path:sub(1, -2)
   end
   return (path:gsub('/[^/]+$', ''))
 end
 
-if is_windows then
-  ---Return the path is absolute or not.
-  ---@param path string
-  ---@return boolean
-  function IO.is_absolute(path)
-    return path:sub(1, 1) == '/' or path:match('^%a://')
-  end
-else
-  ---Return the path is absolute or not.
-  ---@param path string
-  ---@return boolean
-  function IO.is_absolute(path)
-    return path:sub(1, 1) == '/'
-  end
+---Return the path is absolute or not.
+---@param path string
+---@return boolean
+function IO.is_absolute(path)
+  path = path:gsub('\\', '/')
+  return path:sub(1, 1) == '/' or path:match('^%a://')
 end
 
 return IO

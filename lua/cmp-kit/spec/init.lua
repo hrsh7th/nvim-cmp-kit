@@ -64,9 +64,7 @@ function spec.setup(option)
     get_configuration = function()
       return {
         keyword_pattern = option.keyword_pattern or DefaultConfig.default_keyword_pattern,
-        completion_options = {
-          triggerCharacters = { '.' },
-        },
+        trigger_characters = { '.' },
       }
     end,
     get_position_encoding_kind = function(_)

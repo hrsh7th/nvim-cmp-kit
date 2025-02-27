@@ -1,3 +1,4 @@
+local kit = require('cmp-kit.kit')
 local Client = require('cmp-kit.kit.LSP.Client')
 local Async = require('cmp-kit.kit.Async')
 
@@ -15,11 +16,21 @@ return function(option)
     get_configuration = function()
       return {
         position_encoding_kind = option.client.offset_encoding,
-        completion_options = option.client.server_capabilities.completionProvider --[[@as any]]
+        trigger_characters = kit.get(option.client, {
+          'server_capabilities',
+          'completionProvider',
+          'triggerCharacters'
+        }, {}),
       }
     end,
-    capable = function()
-      return option.client.server_capabilities.completionProvider ~= nil
+    capable = function(_, trigger_context)
+      if not option.client.server_capabilities then
+        return false
+      end
+      if not option.client.server_capabilities.completionProvider then
+        return false
+      end
+      return option.client:supports_method('textDocument/completion', trigger_context.bufnr)
     end,
     resolve = function(_, item)
       return Async.run(function()

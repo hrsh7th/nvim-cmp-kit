@@ -247,7 +247,7 @@ function CompletionService:clear()
       preselect = true,
       text_before = '',
     },
-    matches = {},
+    matches = kit.clear(self._state.matches),
   }
 
   -- reset menu.
@@ -411,7 +411,7 @@ function CompletionService:matching(option)
     return
   end
 
-  self._state.matches = {}
+  kit.clear(self._state.matches)
 
   local trigger_character_providers = {}
   local fetching_providers = {}
@@ -431,7 +431,8 @@ function CompletionService:matching(option)
         end
         -- check the fetching prodier.
         do
-          local is_fetching = provider_configuration.provider:get_request_state() == CompletionProvider.RequestState.Fetching
+          local is_fetching = provider_configuration.provider:get_request_state() ==
+              CompletionProvider.RequestState.Fetching
           if is_fetching then
             local elapsed_time = math.max(0, vim.uv.hrtime() / 1e6 - provider_configuration.provider:get_request_time())
             local is_timeout = elapsed_time > (self._config.performance.fetching_timeout_ms or 0)
@@ -583,8 +584,7 @@ function CompletionService:commit(item, option)
               end
             end
             for _, provider_configuration in ipairs(provider_configurations) do
-              local completion_options = provider_configuration.provider:get_completion_options()
-              if vim.tbl_contains(completion_options.triggerCharacters or {}, trigger_context.before_character) then
+              if vim.tbl_contains(provider_configuration.provider:get_trigger_characters(), trigger_context.before_character) then
                 return self:complete()
               end
             end

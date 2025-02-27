@@ -4,7 +4,6 @@ local LSP              = require('cmp-kit.kit.LSP')
 local Async            = require('cmp-kit.kit.Async')
 local RegExp           = require('cmp-kit.kit.Vim.RegExp')
 local CompletionItem   = require('cmp-kit.core.CompletionItem')
-local DocumentSelector = require('cmp-kit.kit.LSP.DocumentSelector')
 local DefaultConfig    = require('cmp-kit.core.DefaultConfig')
 
 ---@enum cmp-kit.core.CompletionProvider.RequestState
@@ -53,10 +52,10 @@ end
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
----@field public dedup_map? table<string, boolean>
----@field public items? cmp-kit.core.CompletionItem[]
----@field public matches? cmp-kit.core.Match[]
----@field public matches_items? cmp-kit.core.CompletionItem[]
+---@field public dedup_map table<string, boolean>
+---@field public items cmp-kit.core.CompletionItem[]
+---@field public matches cmp-kit.core.Match[]
+---@field public matches_items cmp-kit.core.CompletionItem[]
 ---@field public matches_before_text? string
 
 ---@class cmp-kit.core.CompletionProvider.Config
@@ -83,7 +82,12 @@ function CompletionProvider.new(source, config)
     _state = {
       is_trigger_character_completion = false,
       request_state = RequestState.Waiting,
-      request_revision = 0
+      request_revision = 0,
+      dedup_map = {},
+      items = {},
+      matches = {},
+      matches_items = {},
+      matches_before_text = nil,
     } --[[@as cmp-kit.core.CompletionProvider.State]],
   }, CompletionProvider)
 
@@ -102,8 +106,7 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
 function CompletionProvider:complete(trigger_context, config)
   return Async.run(function()
-    local completion_options = self:get_completion_options()
-    local trigger_characters = completion_options.triggerCharacters or {}
+    local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
 
@@ -200,8 +203,8 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
   self._state.is_incomplete = list.isIncomplete or false
 
   if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
-    self._state.dedup_map = {}
-    self._state.items = {}
+    kit.clear(self._state.dedup_map)
+    kit.clear(self._state.items)
   end
 
   local cursor = { line = trigger_context.line, character = trigger_context.character }
@@ -225,8 +228,8 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     end
   end
 
-  self._state.matches = {}
-  self._state.matches_items = {}
+  kit.clear(self._state.matches)
+  kit.clear(self._state.matches_items)
   self._state.matches_before_text = nil
 end
 
@@ -254,18 +257,9 @@ end
 ---@param trigger_context cmp-kit.core.TriggerContext
 ---@return boolean
 function CompletionProvider:capable(trigger_context)
-  -- check source.capable function.
   if self._source.capable and not self._source:capable(trigger_context) then
     return false
   end
-
-  -- check LSP.CompletionOptions
-  local completion_options = self:get_completion_options()
-  if completion_options.documentSelector then
-    return DocumentSelector.score(trigger_context.bufnr, completion_options.documentSelector) ~= 0
-  end
-
-  -- default is true.
   return true
 end
 
@@ -279,18 +273,7 @@ function CompletionProvider:get_position_encoding_kind()
   return config.position_encoding_kind or LSP.PositionEncodingKind.UTF16
 end
 
----Return LSP.CompletionOptions
----TODO: should consider how to listen to the source's option changes.
----@return cmp-kit.kit.LSP.CompletionRegistrationOptions
-function CompletionProvider:get_completion_options()
-  if not self._source.get_configuration then
-    return {}
-  end
-  local config = self._source:get_configuration()
-  return config.completion_options or {}
-end
-
----TODO: We should decide how to get the default keyword pattern here.
+---Return keyword pattern.
 ---@return string
 function CompletionProvider:get_keyword_pattern()
   if not self._source.get_configuration then
@@ -298,6 +281,15 @@ function CompletionProvider:get_keyword_pattern()
   end
   local config = self._source:get_configuration()
   return config.keyword_pattern or DefaultConfig.default_keyword_pattern
+end
+
+---Return trigger characters.
+---@return string[]
+function CompletionProvider:get_trigger_characters()
+  if not self._source.get_configuration then
+    return {}
+  end
+  return self._source:get_configuration().trigger_characters or {}
 end
 
 ---Return request revision.
@@ -330,6 +322,10 @@ function CompletionProvider:clear()
     is_trigger_character_completion = false,
     request_state = RequestState.Waiting,
     request_revision = self._state.request_revision,
+    dedup_map = kit.clear(self._state.dedup_map),
+    items = kit.clear(self._state.items),
+    matches = kit.clear(self._state.matches),
+    matches_items = kit.clear(self._state.matches_items),
   }
 end
 
@@ -369,13 +365,14 @@ function CompletionProvider:get_matches(trigger_context, config)
     return self._state.matches
   end
 
-  -- filter target items (all items by default).
+  -- determine target items (whole items by default).
   local target_items = self._state.items or {}
   if prev_before_text and prev_before_text == next_before_text:sub(1, #prev_before_text) then
-    -- re-use already filtered items for new filter text.
+    -- re-use already filtered items for next filtering.
     target_items = self._state.matches_items or {}
   end
 
+  -- filtering items.
   self._state.matches = {}
   self._state.matches_items = {}
   for i, item in ipairs(target_items) do

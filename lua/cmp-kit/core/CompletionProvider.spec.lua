@@ -18,10 +18,8 @@ local function create_provider(option)
     name = 'dummy',
     get_configuration = function()
       return {
-        completion_options = {
-          triggerCharacters = { '.' },
-        },
         keyword_pattern = option.keyword_pattern or DefaultConfig.default_keyword_pattern,
+        trigger_characters = { '.' },
       }
     end,
     complete = function(_)

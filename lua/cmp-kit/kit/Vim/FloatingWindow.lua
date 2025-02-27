@@ -365,7 +365,7 @@ function FloatingWindow:show(win_config)
   })
 
   vim.api.nvim_clear_autocmds({ group = self._augroup })
-  vim.api.nvim_create_autocmd({ 'WinResized', 'WinScrolled'  }, {
+  vim.api.nvim_create_autocmd({ 'WinResized', 'WinScrolled' }, {
     group = self._augroup,
     callback = function()
       self:_update_scrollbar()

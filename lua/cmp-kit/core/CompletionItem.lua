@@ -210,7 +210,7 @@ function CompletionItem:get_select_text()
     for _, c in ipairs(self:get_commit_characters()) do
       chars[c] = true
     end
-    for _, c in ipairs(self._provider:get_completion_options().triggerCharacters or {}) do
+    for _, c in ipairs(self._provider:get_trigger_characters()) do
       chars[c] = true
     end
     if chars[select_text:sub(-1, -1)] then
@@ -297,9 +297,6 @@ function CompletionItem:get_commit_characters()
   if not self._cache[cache_key] then
     local commit_characters = {}
     for _, c in ipairs(self._item.commitCharacters or {}) do
-      table.insert(commit_characters, c)
-    end
-    for _, c in ipairs(self._provider:get_completion_options().allCommitCharacters or {}) do
       table.insert(commit_characters, c)
     end
     self._cache[cache_key] = commit_characters

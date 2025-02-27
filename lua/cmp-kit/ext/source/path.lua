@@ -83,10 +83,8 @@ return function(option)
     name = 'path',
     get_configuration = function()
       return {
-        completion_options = {
-          triggerCharacters = { '/' }
-        },
-        keyword_pattern = [=[[^/]*]=]
+        keyword_pattern = [=[[^/]*]=],
+        trigger_characters = { '/' },
       }
     end,
     complete = function()
