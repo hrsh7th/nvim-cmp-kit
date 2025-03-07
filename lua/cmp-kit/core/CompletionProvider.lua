@@ -1,13 +1,13 @@
 ---@diagnostic disable: invisible
-local kit              = require('cmp-kit.kit')
-local LSP              = require('cmp-kit.kit.LSP')
-local Async            = require('cmp-kit.kit.Async')
-local RegExp           = require('cmp-kit.kit.Vim.RegExp')
-local CompletionItem   = require('cmp-kit.core.CompletionItem')
-local DefaultConfig    = require('cmp-kit.core.DefaultConfig')
+local kit            = require('cmp-kit.kit')
+local LSP            = require('cmp-kit.kit.LSP')
+local Async          = require('cmp-kit.kit.Async')
+local RegExp         = require('cmp-kit.kit.Vim.RegExp')
+local CompletionItem = require('cmp-kit.core.CompletionItem')
+local DefaultConfig  = require('cmp-kit.core.DefaultConfig')
 
 ---@enum cmp-kit.core.CompletionProvider.RequestState
-local RequestState     = {
+local RequestState   = {
   Waiting = 'Waiting',
   Fetching = 'Fetching',
   Completed = 'Completed',
@@ -90,7 +90,6 @@ function CompletionProvider.new(source, config)
       matches_before_text = nil,
     } --[[@as cmp-kit.core.CompletionProvider.State]],
   }, CompletionProvider)
-
   return self
 end
 
@@ -365,17 +364,10 @@ function CompletionProvider:get_matches(trigger_context, config)
     return self._state.matches
   end
 
-  -- determine target items (whole items by default).
-  local target_items = self._state.items or {}
-  if prev_before_text and prev_before_text == next_before_text:sub(1, #prev_before_text) then
-    -- re-use already filtered items for next filtering.
-    target_items = self._state.matches_items or {}
-  end
-
   -- filtering items.
-  self._state.matches = {}
-  self._state.matches_items = {}
-  for i, item in ipairs(target_items) do
+  kit.clear(self._state.matches)
+  kit.clear(self._state.matches_items)
+  for i, item in ipairs(self._state.items) do
     local query_text = trigger_context:get_query(item:get_offset())
     local filter_text = item:get_filter_text()
     local score, match_positions = config.matcher(query_text, filter_text)
