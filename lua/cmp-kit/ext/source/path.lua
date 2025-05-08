@@ -32,32 +32,30 @@ local function parse_components(before_text)
     return vim.fn.nr2char(n, true)
   end):totable()
 
-  local path_components = {}
-  local name_components = {}
+  local path_parts = {}
+  local name_chars = {}
   local i = #chars
   while i > 0 do
-    local prev = chars[i - 1] or ''
-    local curr = chars[i]
-    if curr == '/' then
-      table.insert(path_components, 1, table.concat(name_components))
-      name_components = {}
-    elseif escape_chars[curr] then
-      if prev == '\\' then
-        table.insert(name_components, 1, curr)
-        table.insert(name_components, 1, '\\')
+    local prev_char = chars[i - 1] or ''
+    local curr_char = chars[i]
+    if curr_char == '/' then
+      table.insert(path_parts, 1, table.concat(name_chars))
+      name_chars = {}
+    elseif escape_chars[curr_char] then
+      if prev_char == '\\' then
+        table.insert(name_chars, 1, curr_char)
+        table.insert(name_chars, 1, '\\')
         i = i - 1
       else
         break
       end
     else
-      table.insert(name_components, 1, curr)
+      table.insert(name_chars, 1, curr_char)
     end
     i = i - 1
   end
-  if #name_components ~= 0 then
-    table.insert(path_components, 1, table.concat(name_components))
-  end
-  return path_components, table.concat(kit.slice(chars, 1, i), '')
+  table.insert(path_parts, 1, table.concat(name_chars))
+  return path_parts, table.concat(kit.slice(chars, 1, i), '')
 end
 
 ---@class cmp-kit.ext.source.path.Option
@@ -96,27 +94,38 @@ return function(option)
           return {}
         end
 
+        -- parse path components.
         local path_components, prefix = parse_components(trigger_context.text_before)
-
-        if #path_components <= 1 then
+        if #path_components <= 0 then
           return {}
         end
+        local dirname = table.concat(kit.slice(path_components, 1, #path_components - 1), '/') .. '/'
 
-        -- ignore by remaining prefix pattern.
+        -- ignore by condition.
         do
-          -- protocol scheme.
-          if prefix:match('://$') then
-            return {}
-          end
           -- html tag.
           if prefix:match('<$') then
             return {}
           end
+          -- comment (absolute path with no prefix).
+          if dirname:match('^/') and prefix:match('^%s*$') then
+            return {}
+          end
+          -- math expression.
+          if dirname:match('^/') and prefix:match('[)%d]%s*$') then
+            return {}
+          end
+          -- protocol scheme except file://.
+          if dirname:match('^%a[%w+.-]*:') then
+            if dirname:match('^file://') then
+              dirname = dirname:sub(8)
+            else
+              return {}
+            end
+          end
         end
 
-
-        -- relative paths.
-        local dirname = table.concat(kit.slice(path_components, 1, #path_components - 1), '/') .. '/'
+        -- normalize dirname.
         if dirname:match('^%./') or dirname:match('^%.%./') then
           dirname = vim.fn.fnamemodify(option.get_cwd() .. '/' .. dirname, ':p')
         end

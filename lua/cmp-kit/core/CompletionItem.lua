@@ -197,7 +197,7 @@ function CompletionItem:get_select_text()
       text = tostring(SnippetText.parse(text)) --[[@as string]]
     end
 
-    -- NOTE: In string, we don't modify insert-text.
+    -- NOTE: In string syntax, We use row insertText.
     local select_text --[[@as string]]
     if self._trigger_context.in_string then
       select_text = oneline(text)
@@ -208,10 +208,14 @@ function CompletionItem:get_select_text()
     -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
     local chars = {}
     for _, c in ipairs(self:get_commit_characters()) do
-      chars[c] = true
+      if Character.is_symbol(c:byte(1)) then
+        chars[c] = true
+      end
     end
     for _, c in ipairs(self._provider:get_trigger_characters()) do
-      chars[c] = true
+      if Character.is_symbol(c:byte(1)) then
+        chars[c] = true
+      end
     end
     if chars[select_text:sub(-1, -1)] then
       select_text = select_text:sub(1, -2)
@@ -456,6 +460,7 @@ function CompletionItem:commit(option)
     end
 
     -- Expansion (Snippet / PlainText).
+    vim.cmd.undojoin()
     if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
       if option.expand_snippet then
         -- Snippet: remove range of text and expand snippet.
@@ -489,6 +494,7 @@ function CompletionItem:commit(option)
               return text_edit.range.start.line >= next_trigger_context.line
             end) > 0
             if not should_skip then
+              vim.cmd.undojoin()
               vim.lsp.util.apply_text_edits(
                 vim.iter(self._item.additionalTextEdits)
                 :map(function(text_edit)
@@ -523,29 +529,33 @@ end
 ---NOTE: This range is utf-8 byte length based.
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_insert_range()
-  ---@type cmp-kit.kit.LSP.Range
-  local range
-  if self._item.textEdit then
-    if self._item.textEdit.insert then
-      range = self._item.textEdit.insert
-    else
-      range = self._item.textEdit.range
+  local cache_key = 'get_insert_range'
+  if not self._cache[cache_key] then
+    ---@type cmp-kit.kit.LSP.Range
+    local range
+    if self._item.textEdit then
+      if self._item.textEdit.insert then
+        range = self._item.textEdit.insert
+      else
+        range = self._item.textEdit.range
+      end
+    elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
+      if self._completion_list.itemDefaults.editRange.insert then
+        range = self._completion_list.itemDefaults.editRange.insert
+      else
+        range = self._completion_list.itemDefaults.editRange --[[@as cmp-kit.kit.LSP.Range]]
+      end
     end
-  elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
-    if self._completion_list.itemDefaults.editRange.insert then
-      range = self._completion_list.itemDefaults.editRange.insert
+    if range then
+      self._cache[cache_key] = self:_convert_range_encoding(range)
     else
-      range = self._completion_list.itemDefaults.editRange --[[@as cmp-kit.kit.LSP.Range]]
+      -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
+      local default_range = kit.clone(self._provider:get_default_insert_range())
+      default_range.start.character = self:get_offset() - 1
+      self._cache[cache_key] = default_range
     end
   end
-  if range then
-    return self:_convert_range_encoding(range)
-  else
-    local default_range = self._provider:get_default_insert_range()
-    default_range.start.character = self:get_offset() -
-        1 -- in this branch, the item has no textEdit so this don't cause infinity loop.
-    return default_range
-  end
+  return self._cache[cache_key]
 end
 
 ---Return replace range.
@@ -553,18 +563,22 @@ end
 ---NOTE: This range is utf-8 byte length based.
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_replace_range()
-  local range --[[@as cmp-kit.kit.LSP.Range]]
-  if self._item.textEdit then
-    if self._item.textEdit.replace then
-      range = self._item.textEdit.replace
+  local cache_key = 'get_replace_range'
+  if not self._cache[cache_key] then
+    local range --[[@as cmp-kit.kit.LSP.Range]]
+    if self._item.textEdit then
+      if self._item.textEdit.replace then
+        range = self._item.textEdit.replace
+      end
+    elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
+      if self._completion_list.itemDefaults.editRange.replace then
+        range = self._completion_list.itemDefaults.editRange.replace
+      end
     end
-  elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
-    if self._completion_list.itemDefaults.editRange.replace then
-      range = self._completion_list.itemDefaults.editRange.replace
-    end
+    range = range or self:get_insert_range()
+    self._cache[cache_key] = create_expanded_range({ self._provider:get_default_replace_range(), range })
   end
-  range = range or self:get_insert_range()
-  return create_expanded_range({ self._provider:get_default_replace_range(), range })
+  return self._cache[cache_key]
 end
 
 ---Convert range encoding to LSP.PositionEncodingKind.UTF8.

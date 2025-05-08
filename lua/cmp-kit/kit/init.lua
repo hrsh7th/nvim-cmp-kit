@@ -1,24 +1,196 @@
 -- luacheck: ignore 512
 
+---@class cmp-kit.kit.buffer.Buffer
+---@field put fun(data: string)
+---@field get fun(byte_size?: integer): string
+---@field len integer
+---@field skip fun(byte_size: integer)
+---@field peek fun(index: integer): integer?
+---@field clear fun()
+---@field reserve fun(byte_size: integer)
+---@field iter_bytes fun(): fun(): integer, integer
+
 local kit = {}
 
----Clear table.
----@generic T: table
----@param tbl T
----@return T
-local clear = require('table.clear')
-kit.clear = function(tbl)
-  if type(tbl) ~= 'table' then
-    return tbl
-  end
-  if clear then   
-    clear(tbl)
-  else
-    for k, _ in pairs(tbl) do
-      tbl[k] = nil
+do
+  local buffer = package.preload['string.buffer'] and require('string.buffer')
+  if buffer then
+    ---Create buffer object.
+    ---@return cmp-kit.kit.buffer.Buffer
+    function kit.buffer_jit()
+      local buf = buffer.new()
+      local ptr, len = buf:ref()
+      ---@type cmp-kit.kit.buffer.Buffer
+      return setmetatable({
+        put = function(data)
+          buf:put(data)
+          ptr, len = buf:ref()
+        end,
+        get = function(byte_size)
+          local o = buf:get(byte_size)
+          ptr, len = buf:ref()
+          return o
+        end,
+        len = function()
+          return len
+        end,
+        skip = function(byte_size)
+          buf:skip(byte_size)
+          ptr, len = buf:ref()
+        end,
+        clear = function()
+          buf:reset()
+          ptr, len = buf:ref()
+        end,
+        peek = function(index)
+          if index < 1 or index > len then
+            return nil
+          end
+          return ptr[index - 1]
+        end,
+        reserve = function(byte_size)
+          buf:reserve(byte_size)
+        end,
+        iter_bytes = function()
+          local i = 0
+          return function()
+            if i < len then
+              local byte = ptr[i]
+              i = i + 1
+              return i, byte
+            end
+          end
+        end,
+      }, {
+        __tostring = function()
+          return buf:tostring()
+        end,
+      })
     end
   end
-  return tbl
+end
+
+---Create buffer object.
+---@return cmp-kit.kit.buffer.Buffer
+function kit.buffer_tbl()
+  local tmp_get = {}
+  local buf = {}
+  ---@type cmp-kit.kit.buffer.Buffer
+  local buffer
+  buffer = setmetatable({
+    put = function(data)
+      table.insert(buf, data)
+    end,
+    get = function(byte_size)
+      if byte_size == nil then
+        local data = table.concat(buf, '')
+        kit.clear(buf)
+        return data
+      end
+      if byte_size == 0 then
+        return ''
+      end
+
+      kit.clear(tmp_get)
+      local off = 0
+      local i = 1
+      while i <= #buf do
+        local b = buf[i]
+        if off + #b >= byte_size then
+          local data_size = byte_size - off
+          if #b <= data_size then
+            table.insert(tmp_get, b)
+            table.remove(buf, i)
+          else
+            table.insert(tmp_get, b:sub(1, data_size))
+            buf[i] = b:sub(data_size + 1)
+          end
+          break
+        end
+        i = i + 1
+        off = off + #b
+      end
+      return table.concat(tmp_get, '')
+    end,
+    len = function()
+      local len = 0
+      for _, data in ipairs(buf) do
+        len = len + #data
+      end
+      return len
+    end,
+    skip = function(byte_size)
+      buffer.get(byte_size)
+    end,
+    peek = function(index)
+      local i = 1
+      while i <= #buf do
+        if index <= #buf[i] then
+          return buf[i]:byte(index)
+        end
+        index = index - #buf[i]
+        i = i + 1
+      end
+    end,
+    clear = function()
+      kit.clear(buf)
+    end,
+    reserve = function()
+      -- noop
+    end,
+    iter_bytes = function()
+      local i = 1
+      local j = 1
+      local c = 1
+      return function()
+        while i <= #buf do
+          local data = buf[i]
+          if j <= #data then
+            local byte = data:byte(j)
+            j = j + 1
+            c = c + 1
+            return (c - 1), byte
+          end
+          i = i + 1
+          j = 1
+        end
+        return nil
+      end
+    end,
+  }, {
+    __tostring = function()
+      return table.concat(buf)
+    end,
+  })
+  return buffer
+end
+
+---Create buffer object.
+---@return cmp-kit.kit.buffer.Buffer
+kit.buffer = function()
+  return kit.buffer_jit and kit.buffer_jit() or kit.buffer_tbl()
+end
+
+do
+  local clear = package.preload['table.clear'] and require('table.clear')
+
+  ---Clear table.
+  ---@generic T: table
+  ---@param tbl T
+  ---@return T
+  kit.clear = function(tbl)
+    if type(tbl) ~= 'table' then
+      return tbl
+    end
+    if clear then
+      clear(tbl)
+    else
+      for k, _ in pairs(tbl) do
+        tbl[k] = nil
+      end
+    end
+    return tbl
+  end
 end
 
 ---Check shallow equals.
@@ -117,6 +289,7 @@ end
 ---Find up directory.
 ---@param path string
 ---@param markers string[]
+---@return string?
 function kit.findup(path, markers)
   path = vim.fs.normalize(path)
   if vim.fn.filereadable(path) == 1 then

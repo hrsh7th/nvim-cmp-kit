@@ -1,15 +1,19 @@
 local Async = require('cmp-kit.kit.Async')
 local Buffer = require('cmp-kit.core.Buffer')
 local DefaultConfig = require('cmp-kit.core.DefaultConfig')
+local TriggerContext = require('cmp-kit.core.TriggerContext')
 
 ---@class cmp-kit.ext.source.buffer.Option
 ---@field public keyword_pattern? string
----@field public min_keyword_length? integer
+---@field public required_keyword_length? integer
+---@field public gather_keyword_length? integer
 ---@field public get_bufnrs? fun(): integer[]
+---@field public label_details? cmp-kit.kit.LSP.CompletionItemLabelDetails
 ---@param option? cmp-kit.ext.source.buffer.Option
 return function(option)
   local keyword_pattern = option and option.keyword_pattern or DefaultConfig.default_keyword_pattern
-  local min_keyword_length = option and option.min_keyword_length or 3
+  local gather_keyword_length = option and option.gather_keyword_length or 3
+  local required_keyword_length = option and option.required_keyword_length or 1
   local get_bufnrs = option and option.get_bufnrs or function()
     return vim.iter(vim.api.nvim_list_wins()):map(vim.api.nvim_win_get_buf):totable()
   end
@@ -27,10 +31,11 @@ return function(option)
         for _, word in ipairs(Buffer.ensure(buf):get_words(keyword_pattern, i)) do
           if not uniq[word] then
             uniq[word] = true
-            if #word >= min_keyword_length then
+            if #word >= gather_keyword_length then
               table.insert(items, {
-                label = word
-              })
+                label = word,
+                labelDetails = option and option.label_details
+              } --[[@as cmp-kit.kit.LSP.CompletionItem]])
             end
             Async.interrupt(8, 16)
           end
@@ -53,6 +58,17 @@ return function(option)
     end,
     complete = function()
       return Async.run(function()
+        local ctx = TriggerContext.create()
+
+        -- check required_keyword_length.
+        local keyword_offset = ctx:get_keyword_offset(keyword_pattern)
+        if not keyword_offset or (ctx.character + 1 - keyword_offset) < required_keyword_length then
+          return {
+            isIncomplete = false,
+            items = {},
+          }
+        end
+
         return get_items(get_bufnrs())
       end)
     end

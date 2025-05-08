@@ -201,6 +201,7 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
+  -- do not keep previous state if completion is not incomplete.
   if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
     kit.clear(self._state.dedup_map)
     kit.clear(self._state.items)
@@ -351,6 +352,7 @@ function CompletionProvider:get_matches(trigger_context, config)
   is_acceptable = is_acceptable and self._state.trigger_context.bufnr == trigger_context.bufnr
   is_acceptable = is_acceptable and self._state.trigger_context.line == trigger_context.line
   is_acceptable = is_acceptable and self._state.completion_offset ~= nil
+  is_acceptable = is_acceptable and self._state.completion_offset <= trigger_context.character + 1
   if not is_acceptable then
     return {}
   end

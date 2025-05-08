@@ -1,6 +1,30 @@
 local uv = vim.uv
 local Async = require('cmp-kit.kit.Async')
 
+local bytes = {
+  backslash = string.byte('\\'),
+  slash = string.byte('/'),
+  tilde = string.byte('~'),
+  dot = string.byte('.'),
+}
+
+---@param path string
+---@return string
+local function sep(path)
+  for i = 1, #path do
+    local c = path:byte(i)
+    if c == bytes.slash then
+      return path
+    end
+    if c == bytes.backslash then
+      return (path:gsub('\\', '/'))
+    end
+  end
+  return path
+end
+
+local home = sep(assert(vim.uv.os_homedir()))
+
 ---@see https://github.com/luvit/luvit/blob/master/deps/fs.lua
 local IO = {}
 
@@ -118,10 +142,13 @@ function IO.exists(path)
   end)
 end
 
+---Get realpath.
+---@param path string
+---@return cmp-kit.kit.Async.AsyncTask
 function IO.realpath(path)
   path = IO.normalize(path)
   return Async.run(function()
-    return uv_fs_realpath(path):await()
+    return IO.normalize(uv_fs_realpath(path):await())
   end)
 end
 
@@ -266,11 +293,12 @@ function IO.cp(from, to, option)
       if not option.recursive then
         error(('IO.cp: `%s` is a directory.'):format(from))
       end
+      local from_pat = ('^%s'):format(vim.pesc(from))
       IO.walk(from, function(err, entry)
         if err then
           error('IO.cp: ' .. tostring(err))
         end
-        local new_path = entry.path:gsub(vim.pesc(from), to)
+        local new_path = entry.path:gsub(from_pat, to)
         if entry.type == 'directory' then
           IO.mkdir(new_path, tonumber(stat.mode, 10), { recursive = true }):await()
         else
@@ -306,7 +334,6 @@ function IO.walk(start_path, callback, option)
         return status
       end
       for entry in iter_entries do
-        entry.path = IO.normalize(entry.path)
         if entry.type == 'directory' then
           if walk_pre(entry) == IO.WalkStatus.Break then
             return IO.WalkStatus.Break
@@ -327,7 +354,6 @@ function IO.walk(start_path, callback, option)
         return callback(iter_entries, dir)
       end
       for entry in iter_entries do
-        entry.path = IO.normalize(entry.path)
         if entry.type == 'directory' then
           if walk_post(entry) == IO.WalkStatus.Break then
             return IO.WalkStatus.Break
@@ -397,71 +423,118 @@ end
 ---@param path string
 ---@return string
 function IO.normalize(path)
-  path = path:gsub('\\', '/')
+  path = sep(path)
 
   -- remove trailing slash.
-  if #path > 1 and path:sub(-1) == '/' then
+  if #path > 1 and path:byte(-1) == bytes.slash then
     path = path:sub(1, -2)
   end
 
-  -- skip if the path already absolute.
-  if IO.is_absolute(path) then
-    return path
-  end
-
   -- homedir.
-  if path:sub(1, 1) == '~' then
-    path = IO.join(uv.os_homedir() or vim.fs.normalize('~'), path:sub(2))
+  if path:byte(1) == bytes.tilde and path:byte(2) == bytes.slash then
+    path = (path:gsub('^~/', home))
   end
 
   -- absolute.
   if IO.is_absolute(path) then
-    return path:sub(-1) == '/' and path:sub(1, -2) or path
+    return path
   end
 
   -- resolve relative path.
-  local up = assert(uv.cwd()):gsub('\\', '/')
-  up = up:sub(-1) == '/' and up:sub(1, -2) or up
-  while true do
-    if path:sub(1, 3) == '../' then
-      path = path:sub(4)
-      up = IO.dirname(up)
-    elseif path:sub(1, 2) == './' then
-      path = path:sub(3)
-    else
-      break
-    end
-  end
-  return IO.join(up, path)
+  return IO.join(IO.cwd(), path)
 end
 
----Join the paths.
----@param base string
----@param path string
----@return string
-function IO.join(base, path)
-  base = base:gsub('\\', '/')
-  path = path:gsub('\\', '/')
-  return (vim.fs.joinpath(base, path):gsub('\\', '/'))
+do
+  local cache = {
+    raw = nil,
+    fix = nil
+  }
+
+  ---Return the current working directory.
+  ---@return string
+  function IO.cwd()
+    local cwd = assert(uv.cwd())
+    if cache.raw == cwd then
+      return cache.fix
+    end
+    cache.raw = cwd
+    cache.fix = sep(cwd)
+    return cache.fix
+  end
+end
+
+do
+  local cache_pat = {}
+
+  ---Join the paths.
+  ---@param base string
+  ---@vararg string
+  ---@return string
+  function IO.join(base, ...)
+    base = sep(base)
+
+    -- remove trailing slash.
+    -- ./   → ./
+    -- aaa/ → aaa
+    if not (base == './' or base == '../') and base:byte(-1) == bytes.slash then
+      base = base:sub(1, -2)
+    end
+
+    for i = 1, select('#', ...) do
+      local path = sep(select(i, ...))
+      local path_s = 1
+      if path:byte(path_s) == bytes.dot and path:byte(path_s + 1) == bytes.slash then
+        path_s = path_s + 2
+      end
+      local up_count = 0
+      while path:byte(path_s) == bytes.dot and path:byte(path_s + 1) == bytes.dot and path:byte(path_s + 2) == bytes.slash do
+        up_count = up_count + 1
+        path_s = path_s + 3
+      end
+      if path_s > 1 then
+        cache_pat[path_s] = cache_pat[path_s] or ('^%s'):format(('.'):rep(path_s - 2))
+      end
+
+      -- optimize for avoiding new string creation.
+      if path_s == 1 then
+        base = ('%s/%s'):format(IO.dirname(base, up_count), path)
+      else
+        base = path:gsub(cache_pat[path_s], IO.dirname(base, up_count))
+      end
+    end
+    return base
+  end
 end
 
 ---Return the path of the current working directory.
 ---@param path string
+---@param level? integer
 ---@return string
-function IO.dirname(path)
-  path = path:gsub('\\', '/')
-  if path:sub(-1) == '/' then
-    path = path:sub(1, -2)
+function IO.dirname(path, level)
+  path = sep(path)
+  level = level or 1
+
+  if level == 0 then
+    return path
   end
-  return (path:gsub('/[^/]+$', ''))
+
+  for i = #path - 1, 1, -1 do
+    if path:byte(i) == bytes.slash then
+      if level == 1 then
+        return path:sub(1, i - 1)
+      end
+      level = level - 1
+    end
+  end
+  return path
 end
 
 ---Return the path is absolute or not.
 ---@param path string
 ---@return boolean
 function IO.is_absolute(path)
-  path = path:gsub('\\', '/')
-  return path:sub(1, 1) == '/' or path:match('^%a://')
+  path = sep(path)
+  return path:byte(1) == bytes.slash or path:match('^%a:/')
 end
 
 return IO

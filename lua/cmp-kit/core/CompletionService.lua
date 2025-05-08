@@ -10,6 +10,10 @@ local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.core.CompletionProvider')
 
+local tmp_tbls = {
+  dedup_map = {},
+}
+
 ---Emit events.
 ---@generic T
 ---@param events fun(payload: T)[]
@@ -390,19 +394,13 @@ do
 end
 
 ---Match completion items.
----@param option? { force?: boolean }
-function CompletionService:matching(option)
-  option = option or {}
-  option.force = option.force or false
-
+function CompletionService:matching()
   local trigger_context = TriggerContext.create()
 
   -- check prev matching_trigger_context.
-  if not option.force then
-    local changed = self._state.matching_trigger_context:changed(trigger_context)
-    if not changed then
-      return
-    end
+  local changed = self._state.matching_trigger_context:changed(trigger_context)
+  if not changed then
+    return
   end
   self._state.matching_trigger_context = trigger_context
 
@@ -413,43 +411,53 @@ function CompletionService:matching(option)
 
   kit.clear(self._state.matches)
 
-  local trigger_character_providers = {}
-  local fetching_providers = {}
+  -- split provider groups by trigger characters or not.
+  local trigger_character_groups = {} --[=[@as cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+  local trigger_keyword_groups = {} --[=[@as cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
   for _, provider_group in ipairs(self:_get_provider_groups()) do
-    local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+    local has_trigger_character = false
     for _, provider_configuration in ipairs(provider_group) do
       if provider_configuration.provider:capable(trigger_context) then
-        -- check the provider was triggered by characters.
-        do
-          local in_trigger_character_completion = provider_configuration.provider:in_trigger_character_completion(
-            trigger_context,
-            self._config
-          )
-          if in_trigger_character_completion then
-            table.insert(trigger_character_providers, provider_configuration)
-          end
-        end
-        -- check the fetching prodier.
-        do
-          local is_fetching = provider_configuration.provider:get_request_state() ==
-              CompletionProvider.RequestState.Fetching
-          if is_fetching then
-            local elapsed_time = math.max(0, vim.uv.hrtime() / 1e6 - provider_configuration.provider:get_request_time())
-            local is_timeout = elapsed_time > (self._config.performance.fetching_timeout_ms or 0)
-            if not is_timeout then
-              table.insert(fetching_providers, provider_configuration)
-            end
-          end
-        end
-        if #provider_configuration.provider:get_items() > 0 then
-          table.insert(provider_configurations, provider_configuration)
-        end
+        local is_trigger_character = provider_configuration.provider:in_trigger_character_completion(
+          trigger_context,
+          self._config
+        )
+        has_trigger_character = has_trigger_character or is_trigger_character
       end
     end
+    if has_trigger_character then
+      table.insert(trigger_character_groups, provider_group)
+    else
+      table.insert(trigger_keyword_groups, provider_group)
+    end
+  end
 
-    -- if trigger character completion is found, remove non-trigger character providers.
-    if #trigger_character_providers > 0 then
-      provider_configurations = trigger_character_providers
+  -- prefer trigger_character_groups.
+  local target_groups = trigger_keyword_groups
+  if #trigger_character_groups > 0 then
+    target_groups = trigger_character_groups
+  end
+
+  -- matching and show.
+  local fetching_providers = {}
+  for _, provider_group in ipairs(target_groups) do
+    local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+    for _, provider_configuration in ipairs(provider_group) do
+      -- check the fetching prodier.
+      do
+        local is_fetching = provider_configuration.provider:get_request_state() ==
+            CompletionProvider.RequestState.Fetching
+        if is_fetching then
+          local elapsed_time = math.max(0, vim.uv.hrtime() / 1e6 - provider_configuration.provider:get_request_time())
+          local is_timeout = elapsed_time > (self._config.performance.fetching_timeout_ms or 0)
+          if not is_timeout then
+            table.insert(fetching_providers, provider_configuration)
+          end
+        end
+      end
+      if #provider_configuration.provider:get_items() > 0 then
+        table.insert(provider_configurations, provider_configuration)
+      end
     end
 
     if #fetching_providers > 0 and #provider_configurations == 0 then
@@ -503,7 +511,7 @@ function CompletionService:matching(option)
             return acc
           end) --[[@as table<cmp-kit.core.CompletionProvider, boolean>]]
 
-          local dedup_map = {}
+          local dedup_map = kit.clear(tmp_tbls.dedup_map)
           local limited_matches = {}
           for j, match in ipairs(sorted_matches) do
             if not preselect_index and match.item:is_preselect() then

@@ -217,11 +217,8 @@ function DefaultMatcher.matcher(query, label)
     label_bound_index = label_bound_index + 1
   end
 
-  -- full fuzzy matching.
+  -- no match
   if #matches == 0 then
-    if fuzzy(query, label, matches) then
-      return 1, convert_matches(matches)
-    end
     return 0, {}
   end
 
@@ -251,9 +248,9 @@ function DefaultMatcher.matcher(query, label)
 
   -- remaining fuzzy matching.
   if matches[#matches].query_match_end < #query then
-    if fuzzy(query, label, matches) then
-      return score, convert_matches(matches)
-    end
+    -- if fuzzy(query, label, matches) then
+    --   return score, convert_matches(matches)
+    -- end
     return 0, {}
   end
 

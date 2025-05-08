@@ -5,6 +5,13 @@ local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 
+local tmp_tbls = {
+  columns = {},
+  parts = {},
+  formatting_args = {},
+  rendering_lines = {},
+}
+
 ---@class cmp-kit.core.DefaultView.WindowPosition
 ---@field public row integer
 ---@field public col integer
@@ -25,7 +32,7 @@ local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 ---@field get_extmarks fun(match: cmp-kit.core.Match, config: cmp-kit.core.DefaultView.Config): cmp-kit.core.DefaultView.Extmark[]
 
 ---@class cmp-kit.core.DefaultView.Config
----@field border string
+---@field border string|false
 ---@field menu_components cmp-kit.core.DefaultView.MenuComponent[]
 ---@field menu_padding_left integer
 ---@field menu_padding_right integer
@@ -75,7 +82,7 @@ do
   local cache = {}
   get_strwidth = setmetatable({
     clear_cache = function()
-      cache = {}
+      cache = kit.clear(cache)
     end,
   }, {
     __call = function(_, text)
@@ -92,7 +99,7 @@ local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 
 ---@type cmp-kit.core.DefaultView.Config
 local default_config = {
-  border = 'rounded',
+  border = false,
   menu_components = {
     {
       padding_left = 0,
@@ -185,6 +192,7 @@ local default_config = {
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _docs_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _matches cmp-kit.core.Match[]
+---@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.core.DefaultView.MenuComponent }[]
 ---@field private _selected_item? cmp-kit.core.CompletionItem
 local DefaultView = {}
 DefaultView.__index = DefaultView
@@ -193,12 +201,24 @@ DefaultView.__index = DefaultView
 ---@param config? cmp-kit.core.DefaultView.Config|{}
 ---@return cmp-kit.core.DefaultView
 function DefaultView.new(config)
+  config = kit.merge(config or {}, default_config) --[[@as cmp-kit.core.DefaultView.Config]]
   local self = setmetatable({
     _ns = vim.api.nvim_create_namespace(('cmp-kit.core.DefaultView.%s'):format(vim.uv.now())),
-    _config = kit.merge(config or {}, default_config) --[[@as cmp-kit.core.DefaultView.Config]],
+    _config = config,
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
     _matches = {},
+    _columns = vim.iter(config.menu_components):map(function(component)
+      return {
+        display_width = 0,
+        byte_width = 0,
+        padding_left = component.padding_left,
+        padding_right = component.padding_right,
+        align = component.align,
+        texts = {},
+        component = component,
+      }
+    end):totable(),
   }, DefaultView)
 
   -- common window config.
@@ -222,9 +242,9 @@ function DefaultView.new(config)
       }))
     else
       win:set_win_option('winhighlight', winhighlight({
-        NormalFloat = 'Normal',
-        Normal = 'Normal',
-        FloatBorder = 'Normal',
+        NormalFloat = 'Pmenu',
+        Normal = 'Pmenu',
+        FloatBorder = 'Pmenu',
         CursorLine = 'PmenuSel',
         Search = 'None',
       }))
@@ -267,19 +287,15 @@ function DefaultView:show(matches, selection)
     return
   end
 
-  -- init columns.
-  ---@type { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.core.DefaultView.MenuComponent }[]
-  local columns = {}
-  for _, component in ipairs(self._config.menu_components) do
-    table.insert(columns, {
-      display_width = 0,
-      byte_width = 0,
-      padding_left = component.padding_left,
-      padding_right = component.padding_right,
-      align = component.align,
-      texts = {},
-      component = component,
-    })
+  -- reset columns.
+  for _, column in ipairs(self._columns) do
+    column.display_width = 0
+    column.byte_width = 0
+    column.texts = kit.clear(column.texts)
+  end
+  local columns = kit.clear(tmp_tbls.columns)
+  for i, column in ipairs(self._columns) do
+    columns[i] = column
   end
 
   -- compute columns.
@@ -334,7 +350,7 @@ function DefaultView:show(matches, selection)
   })
 
   -- create formatting (padding and gap is reoslved here).
-  local parts = {}
+  local parts = kit.clear(tmp_tbls.parts)
   table.insert(parts, (' '):rep(self._config.menu_padding_left or 1))
   for i, column in ipairs(columns) do
     table.insert(parts, (' '):rep(column.padding_left or 0))
@@ -348,24 +364,24 @@ function DefaultView:show(matches, selection)
 
   -- draw lines.
   local max_content_width = 0
-  local lines = {}
+  local rendering_lines = kit.clear(tmp_tbls.rendering_lines)
   for i in ipairs(self._matches) do
-    local args = {}
+    local formatting_args = kit.clear(tmp_tbls.formatting_args)
     for _, column in ipairs(columns) do
       local text = column.texts[i]
       if column.align == 'right' then
-        table.insert(args, (' '):rep(column.display_width - get_strwidth(text)))
-        table.insert(args, text)
+        table.insert(formatting_args, (' '):rep(column.display_width - get_strwidth(text)))
+        table.insert(formatting_args, text)
       else
-        table.insert(args, text)
-        table.insert(args, (' '):rep(column.display_width - get_strwidth(text)))
+        table.insert(formatting_args, text)
+        table.insert(formatting_args, (' '):rep(column.display_width - get_strwidth(text)))
       end
     end
-    local line = formatting:format(unpack(args))
-    table.insert(lines, line)
+    local line = formatting:format(unpack(formatting_args))
+    table.insert(rendering_lines, line)
     max_content_width = math.max(max_content_width, get_strwidth(line))
   end
-  vim.api.nvim_buf_set_lines(self._menu_window:get_buf(), 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(self._menu_window:get_buf(), 0, -1, false, rendering_lines)
 
   local border_size = FloatingWindow.get_border_size(self._config.border)
   local trigger_context = TriggerContext.create()
@@ -409,7 +425,6 @@ function DefaultView:show(matches, selection)
     height = outer_height - border_size.v,
     anchor = anchor,
     style = 'minimal',
-
     border = self._config.border,
   })
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
@@ -492,7 +507,7 @@ function DefaultView:_update_docs(item)
     local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
     local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
     local menu_viewport = self._menu_window:get_viewport()
-    local docs_border = menu_viewport.border and menu_viewport.border or border_padding_side
+    local docs_border = self._config.border and self._config.border or border_padding_side
     local border_size = FloatingWindow.get_border_size(docs_border)
     local content_size = FloatingWindow.get_content_size({
       bufnr = self._docs_window:get_buf(),

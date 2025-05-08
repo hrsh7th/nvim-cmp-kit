@@ -132,7 +132,7 @@ function TriggerContext:changed(new_trigger_context)
 end
 
 ---Get keyword offset.
----@param pattern string
+---@param pattern string # does not need '$' at the end
 ---@return integer? 1-origin utf8 byte index
 function TriggerContext:get_keyword_offset(pattern)
   local cache_key = string.format('%s:%s', 'get_keyword_offset', pattern)
