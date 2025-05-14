@@ -99,29 +99,39 @@ return function(option)
         if #path_components <= 0 then
           return {}
         end
+
+        -- check path_components is valid.
+        local is_valid_path = false
+        is_valid_path = is_valid_path or path_components[1] == ''
+        is_valid_path = is_valid_path or path_components[1] == 'file:'
+        is_valid_path = is_valid_path or path_components[1]:match('%$[%w_]+')
+        is_valid_path = is_valid_path or path_components[1]:match('%${[%w_]}+')
+        is_valid_path = is_valid_path or path_components[1] == '.'
+        is_valid_path = is_valid_path or path_components[1] == '..'
+        is_valid_path = is_valid_path or path_components[1] == '~'
+        if not is_valid_path then
+          return {}
+        end
+
         local dirname = table.concat(kit.slice(path_components, 1, #path_components - 1), '/') .. '/'
 
-        -- ignore by condition.
+        -- skip or convert by condition.
         do
           -- html tag.
           if prefix:match('<$') then
             return {}
           end
-          -- comment (absolute path with no prefix).
-          if dirname:match('^/') and prefix:match('^%s*$') then
+          -- comment
+          if prefix:match('^%s*$') and dirname:match('^/') and (vim.o.commentstring:gsub('^%s*', '')):sub(1, 1) == '/' then
             return {}
           end
           -- math expression.
-          if dirname:match('^/') and prefix:match('[)%d]%s*$') then
+          if prefix:match('[)%d]%s*$') and dirname:match('^/') then
             return {}
           end
-          -- protocol scheme except file://.
-          if dirname:match('^%a[%w+.-]*:') then
-            if dirname:match('^file://') then
-              dirname = dirname:sub(8)
-            else
-              return {}
-            end
+          -- fix file://.
+          if dirname:match('^file://') then
+            dirname = dirname:sub(8)
           end
         end
 

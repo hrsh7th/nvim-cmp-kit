@@ -35,80 +35,6 @@ end
 ---@field strict_ratio integer
 ---@field fuzzy boolean
 
----fuzzy
----@param query string
----@param label string
----@param matches cmp-kit.core.DefaultMatcher.MatchData[]
----@return cmp-kit.core.DefaultMatcher.MatchData[] | nil
-local function fuzzy(query, label, matches)
-  local query_index = matches[#matches] and (matches[#matches].query_match_end + 1) or 1
-
-  -- lately specified middle of text.
-  for i = 1, #matches - 1 do
-    local curr_match = matches[i]
-    local next_match = matches[i + 1]
-    local label_offset = 0
-    local label_index = Character.get_next_semantic_index(label, curr_match.label_match_end)
-    while label_offset + label_index < next_match.label_match_start and query_index <= #query do
-      if Character.match_ignorecase(string.byte(label, label_index + label_offset), string.byte(query, query_index)) then
-        query_index = query_index + 1
-        label_offset = label_offset + 1
-      else
-        label_index = Character.get_next_semantic_index(label, label_index + label_offset)
-        label_offset = 0
-      end
-    end
-  end
-
-  local matched = false
-  local label_offset = 0
-  local label_index = matches[#matches] and (matches[#matches].label_match_end + 1) or 1
-  local query_match_start = -1
-  local query_match_end = -1
-  local label_match_start = -1
-  local strict_count = 0
-  local match_count = 0
-  while label_offset + label_index <= #label and query_index <= #query do
-    local c1, c2 = string.byte(label, label_index + label_offset), string.byte(query, query_index)
-    if Character.match_ignorecase(c1, c2) then
-      if not matched then
-        query_match_start = query_index
-        label_match_start = label_index + label_offset
-      end
-      matched = true
-      query_index = query_index + 1
-      strict_count = strict_count + (c1 == c2 and 1 or 0)
-      match_count = match_count + 1
-    else
-      if matched then
-        matches[#matches + 1] = {
-          query_match_start = query_match_start,
-          query_match_end = query_index - 1,
-          label_match_start = label_match_start,
-          label_match_end = label_index + label_offset - 1,
-          strict_ratio = strict_count / match_count,
-          fuzzy = true,
-        }
-      end
-      matched = false
-    end
-    label_offset = label_offset + 1
-  end
-
-  if matched and query_index > #query then
-    matches[#matches + 1] = {
-      query_match_start = query_match_start,
-      query_match_end = query_match_end,
-      label_match_start = label_match_start,
-      label_match_end = label_index + label_offset - 1,
-      strict_ratio = strict_count / match_count,
-      fuzzy = true,
-    }
-    return matches
-  end
-  return nil
-end
-
 ---find_match_region
 ---@param query string
 ---@param query_start_index integer
@@ -246,11 +172,8 @@ function DefaultMatcher.matcher(query, label)
     end
   end
 
-  -- remaining fuzzy matching.
+  -- remain unmatched query.
   if matches[#matches].query_match_end < #query then
-    -- if fuzzy(query, label, matches) then
-    --   return score, convert_matches(matches)
-    -- end
     return 0, {}
   end
 

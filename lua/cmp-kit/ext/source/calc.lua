@@ -1,7 +1,9 @@
 local Async = require('cmp-kit.kit.Async')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local PATTERN = [=[\s*\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+-]\)\+]=]
+local PATTERN = [=[\s*\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+-,]\)\+\s*]=]
+
+local DIGIT_ONLY = [=[^\s*\d\+\%(\.\d\+\)\?\s*$]=]
 
 local INVALID = {
   isIncomplete = false,
@@ -16,7 +18,7 @@ return function()
     get_configuration = function()
       return {
         keyword_pattern = PATTERN,
-        trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.' },
+        trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ' },
       }
     end,
     complete = function()
@@ -47,6 +49,12 @@ return function()
         local program = candidate_text
         if #stack > 0 then
           program = candidate_text:sub(stack[#stack].idx)
+        end
+
+        program = (program:gsub('^%s*', ''))
+
+        if vim.regex(DIGIT_ONLY):match_str(program) then
+          return INVALID
         end
 
         local output = assert(loadstring(('return %s'):format(program), 'calc'))()

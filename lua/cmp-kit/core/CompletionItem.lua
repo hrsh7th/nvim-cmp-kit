@@ -13,7 +13,7 @@ local SnippetText = require('cmp-kit.core.SnippetText')
 ---Trim whitespace.
 ---@param text string
 ---@return string
-local function trim_white(text)
+local function trim_prewhite(text)
   local s = 1
   for i = 1, #text do
     if not Character.is_white(text:byte(i)) then
@@ -21,15 +21,8 @@ local function trim_white(text)
       break
     end
   end
-  local e = #text
-  for i = #text, 1, -1 do
-    if not Character.is_white(text:byte(i)) then
-      e = i
-      break
-    end
-  end
-  if s ~= 1 or e ~= #text then
-    return text:sub(s, e)
+  if s ~= 1 then
+    return text:sub(s)
   end
   return text
 end
@@ -229,7 +222,7 @@ end
 function CompletionItem:get_filter_text()
   local cache_key = 'get_filter_text'
   if not self._cache[cache_key] then
-    local text = trim_white(self._item.filterText or self._item.label)
+    local text = trim_prewhite(self._item.filterText or self._item.label)
 
     -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
     -- Fix filter_text for non-VSCode compliant servers such as clangd.

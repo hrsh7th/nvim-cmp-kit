@@ -11,6 +11,7 @@ local cache_keeper = {
 ---@field public character integer 0-origin utf8 byte index
 ---@field public text string
 ---@field public text_before string
+---@field public text_after string
 ---@field public bufnr integer
 ---@field public time integer
 ---@field public force? boolean
@@ -50,6 +51,7 @@ end
 ---@return cmp-kit.core.TriggerContext
 function TriggerContext.new(mode, line, character, text, bufnr, option)
   local text_before = text:sub(1, character)
+  local text_after = text:sub(character + 1)
 
   local in_string = false
   local in_comment = false
@@ -67,6 +69,7 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     character = character,
     text = text,
     text_before = text_before,
+    text_after = text_after,
     bufnr = bufnr,
     time = vim.uv.now(),
     force = not not (option and option.force),
