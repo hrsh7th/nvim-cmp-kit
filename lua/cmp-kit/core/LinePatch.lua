@@ -3,6 +3,31 @@ local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Position = require('cmp-kit.kit.LSP.Position')
 
+local BS = Keymap.termcodes('<C-g>U<Left><Del>')
+local DEL = Keymap.termcodes('<Del>')
+
+local wrap_keys
+do
+  local set_options = Keymap.termcodes(table.concat({
+    '<Cmd>setlocal backspace=2<CR>',
+    '<Cmd>setlocal textwidth=0<CR>',
+  }, ''))
+  local reset_options = Keymap.termcodes(table.concat({
+    '<Cmd>setlocal textwidth=%s<CR>',
+    '<Cmd>setlocal backspace=%s<CR>',
+  }, ''))
+  wrap_keys = function(keys)
+    return table.concat({
+      set_options,
+      keys,
+      reset_options:format(
+        vim.bo.textwidth or 0,
+        vim.go.backspace or 2
+      )
+    }, '')
+  end
+end
+
 ---Move position by delta with consider buffer text and line changes.
 ---@param bufnr integer
 ---@param position cmp-kit.kit.LSP.Position
@@ -96,17 +121,11 @@ function LinePatch.apply_by_keys(bufnr, before, after, insert_text)
   local before_text = line:sub(1 + character - before, character)
   local after_text = line:sub(character + 1, character + after)
 
-  return Keymap.send({
-    Keymap.termcodes('<Cmd>setlocal backspace=2<CR>'),
-    Keymap.termcodes('<Cmd>setlocal textwidth=0<CR>'),
-    Keymap.termcodes('<Cmd>setlocal lazyredraw<CR>'),
-    Keymap.termcodes('<C-g>U<Left><Del>'):rep(vim.fn.strchars(before_text, true)),
-    Keymap.termcodes('<Del>'):rep(vim.fn.strchars(after_text, true)),
-    insert_text,
-    Keymap.termcodes(('<Cmd>setlocal backspace=%s<CR>'):format(vim.go.backspace or 2)),
-    Keymap.termcodes(('<Cmd>setlocal textwidth=%s<CR>'):format(vim.bo.textwidth or 0)),
-    Keymap.termcodes(('<Cmd>setlocal %slazyredraw<CR>'):format(vim.o.lazyredraw and '' or 'no')),
-  })
+  return Keymap.send(wrap_keys(table.concat({
+    BS:rep(vim.fn.strchars(before_text, true)),
+    DEL:rep(vim.fn.strchars(after_text, true)),
+    insert_text
+  }, '')))
 end
 
 return LinePatch

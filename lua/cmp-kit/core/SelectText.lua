@@ -38,8 +38,9 @@ SelectText.Pairs = {
 
 ---Create select text.
 ---@param insert_text string
+---@param after_char string
 ---@return string
-function SelectText.create(insert_text)
+function SelectText.create(insert_text, after_char)
   local is_alnum_consumed = false
   local pairs_stack = {}
   for i = 1, #insert_text do
@@ -48,6 +49,10 @@ function SelectText.create(insert_text)
       return insert_text:sub(1, i - 1)
     end
     local alnum = Character.is_alnum(byte)
+
+    if is_alnum_consumed and after_char:byte(1) == byte then
+      return insert_text:sub(1, i - 1)
+    end
 
     if byte == pairs_stack[#pairs_stack] then
       table.remove(pairs_stack, #pairs_stack)

@@ -199,6 +199,47 @@ describe('cmp-kit.core', function()
       end)
     end)
 
+    it('should support vscode-json-language-server', function()
+      Keymap.spec(function()
+        Keymap.send('i'):await()
+        local _, _, service = spec.setup({
+          input = 'repo',
+          buffer_text = {
+            '"|"',
+          },
+          items = {
+            {
+              filterText = '"repository"',
+              insertText = '"repository": {$1},',
+              insertTextFormat = 2,
+              kind = 10,
+              label = "repository",
+              textEdit = {
+                newText = '"repository": {$1},',
+                range = range(0, 0, 0, 3)
+              }
+            }
+          },
+        })
+        local trigger_context = TriggerContext.create()
+        local match = service:get_match_at(1)
+        assert.are.equal(match.item:get_offset(), #'' + 1)
+        assert.are.equal(trigger_context:get_query(match.item:get_offset()), '"repo')
+        assert.are.equal(match.item:get_select_text(), '"repository')
+        assert.are.equal(match.item:get_filter_text(), '"repository"')
+        match.item:commit({
+          replace = true,
+          expand_snippet = function(s)
+            return vim.snippet.expand(s)
+          end
+        }):await()
+        spec.assert({
+          '"repository": {|},',
+        })
+        Keymap.send(Keymap.termcodes('<Esc>')):await()
+      end)
+    end)
+
     it('should support symbolic keyword completion (special feature)', function()
       -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
       Keymap.spec(function()

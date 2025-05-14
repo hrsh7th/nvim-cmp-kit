@@ -194,6 +194,7 @@ local default_config = {
 ---@field private _matches cmp-kit.core.Match[]
 ---@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.core.DefaultView.MenuComponent }[]
 ---@field private _selected_item? cmp-kit.core.CompletionItem
+---@field private _resolving cmp-kit.kit.Async.AsyncTask
 local DefaultView = {}
 DefaultView.__index = DefaultView
 
@@ -219,6 +220,8 @@ function DefaultView.new(config)
         component = component,
       }
     end):totable(),
+    _selected_item = nil,
+    _resolving = Async.resolve(),
   }, DefaultView)
 
   -- common window config.
@@ -476,91 +479,100 @@ end
 function DefaultView:_update_docs(item)
   self._selected_item = item
 
-  Async.run(function()
-    if not item then
-      self._docs_window:hide()
-      return
-    end
-
-    item:resolve():await()
-
-    if item ~= self._selected_item then
-      return
-    end
-
-    if not self._menu_window:is_visible() then
-      self._docs_window:hide()
-      return
-    end
-
-    local documentation = item:get_documentation()
-    if not documentation then
-      self._docs_window:hide()
-      return
-    end
-
-    -- set buffer contents.
-    Markdown.set(self._docs_window:get_buf(), self._ns, vim.split(documentation.value, '\n', { plain = true }))
-
-    -- prepare some sizes.
-    local min_width = math.floor(vim.o.columns * self._config.docs_min_win_width_ratio)
-    local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
-    local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
-    local menu_viewport = self._menu_window:get_viewport()
-    local docs_border = self._config.border and self._config.border or border_padding_side
-    local border_size = FloatingWindow.get_border_size(docs_border)
-    local content_size = FloatingWindow.get_content_size({
-      bufnr = self._docs_window:get_buf(),
-      wrap = self._docs_window:get_win_option('wrap'),
-      max_inner_width = max_width - border_size.h,
-      markdown = self._docs_window:get_config().markdown,
-    })
-
-    -- compute restricted size for directions.
-    local restricted_size --[[@as { outer_width: integer, outer_height: integer, inner_width: integer, inner_height: integer }]]
-    do
-      local possible_scrollbar_space = 1
-      local left_space = menu_viewport.col - 1 - possible_scrollbar_space
-      local right_space = (vim.o.columns - (menu_viewport.col + menu_viewport.outer_width)) - possible_scrollbar_space
-      if right_space > min_width then
-        restricted_size = FloatingWindow.compute_restricted_size({
-          border_size = border_size,
-          content_size = content_size,
-          max_outer_width = math.min(right_space, max_width),
-          max_outer_height = max_height,
-        })
-      elseif left_space > min_width then
-        restricted_size = FloatingWindow.compute_restricted_size({
-          border_size = border_size,
-          content_size = content_size,
-          max_outer_width = math.min(left_space, max_width),
-          max_outer_height = max_height,
-        })
-      else
+  self._resolving = self._resolving:next(function()
+    return Async.run(function()
+      if not item then
         self._docs_window:hide()
         return
       end
-    end
 
-    local row = menu_viewport.row
-    local col = menu_viewport.col + menu_viewport.outer_width
-    if row + restricted_size.outer_height > vim.o.lines then
-      row = vim.o.lines - restricted_size.outer_height
-    end
-    if col + restricted_size.outer_width > vim.o.columns then
-      col = menu_viewport.col - restricted_size.outer_width
-    end
+      if item ~= self._selected_item then
+        return
+      end
+      if not self._menu_window:is_visible() then
+        self._docs_window:hide()
+        return
+      end
 
-    self._docs_window:show({
-      row = row, --[[@as integer]]
-      col = col,
-      width = restricted_size.inner_width,
-      height = restricted_size.inner_height,
-      border = docs_border,
-      style = 'minimal',
-    })
-  end):next(function()
-    redraw_for_cmdline(self._docs_window:get_win())
+      item:resolve():await()
+
+      if item ~= self._selected_item then
+        return
+      end
+      if not self._menu_window:is_visible() then
+        self._docs_window:hide()
+        return
+      end
+
+      local documentation = item:get_documentation()
+      if not documentation then
+        self._docs_window:hide()
+        return
+      end
+
+      -- set buffer contents.
+      Markdown.set(self._docs_window:get_buf(), self._ns, vim.split(documentation.value, '\n', { plain = true }))
+
+      -- prepare some sizes.
+      local min_width = math.floor(vim.o.columns * self._config.docs_min_win_width_ratio)
+      local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
+      local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
+      local menu_viewport = self._menu_window:get_viewport()
+      local docs_border = self._config.border and self._config.border or border_padding_side
+      local border_size = FloatingWindow.get_border_size(docs_border)
+      local content_size = FloatingWindow.get_content_size({
+        bufnr = self._docs_window:get_buf(),
+        wrap = self._docs_window:get_win_option('wrap'),
+        max_inner_width = max_width - border_size.h,
+        markdown = self._docs_window:get_config().markdown,
+      })
+
+      -- compute restricted size for directions.
+      local restricted_size --[[@as { outer_width: integer, outer_height: integer, inner_width: integer, inner_height: integer }]]
+      do
+        local possible_scrollbar_space = 1
+        local left_space = menu_viewport.col - 1 - possible_scrollbar_space
+        local right_space = (vim.o.columns - (menu_viewport.col + menu_viewport.outer_width)) - possible_scrollbar_space
+        if right_space > min_width then
+          restricted_size = FloatingWindow.compute_restricted_size({
+            border_size = border_size,
+            content_size = content_size,
+            max_outer_width = math.min(right_space, max_width),
+            max_outer_height = max_height,
+          })
+        elseif left_space > min_width then
+          restricted_size = FloatingWindow.compute_restricted_size({
+            border_size = border_size,
+            content_size = content_size,
+            max_outer_width = math.min(left_space, max_width),
+            max_outer_height = max_height,
+          })
+        else
+          self._docs_window:hide()
+          return
+        end
+      end
+
+      local row = menu_viewport.row
+      local col = menu_viewport.col + menu_viewport.outer_width
+      if row + restricted_size.outer_height > vim.o.lines then
+        row = vim.o.lines - restricted_size.outer_height
+      end
+      if col + restricted_size.outer_width > vim.o.columns then
+        col = menu_viewport.col - restricted_size.outer_width
+      end
+
+      self._docs_window:show({
+        row = row, --[[@as integer]]
+        col = col,
+        width = restricted_size.inner_width,
+        height = restricted_size.inner_height,
+        border = docs_border,
+        style = 'minimal',
+      })
+    end):next(function()
+      redraw_for_cmdline(self._docs_window:get_win())
+    end)
   end)
 end
 

@@ -2,22 +2,8 @@ local path_source = require('cmp-kit.ext.source.path')
 local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
 
-local project_dir = (function()
-  local p = vim.fs.abspath(debug.getinfo(1, 'S').source:match('^@?(.*/)'))
-  p = vim.fs.dirname(p)
-  p = vim.fs.dirname(p)
-  p = vim.fs.dirname(p)
-  p = vim.fs.dirname(p)
-  p = vim.fs.dirname(p)
-  return p
-end)()
-
 describe('cmp-kit.ext.source.path', function()
-  local source = path_source({
-    get_cwd = function()
-      return project_dir
-    end
-  })
+  local source = path_source()
 
   describe('skip absolute path', function()
     it('protocol scheme', function()

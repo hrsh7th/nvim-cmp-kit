@@ -281,7 +281,8 @@ end
 ---@param ns_id integer
 ---@param raw_contents string[]
 function Markdown.set(bufnr, ns_id, raw_contents)
-  vim.treesitter.stop(bufnr)
+  vim.b[bufnr].cmp_kit_markdown_revision = vim.b[bufnr].cmp_kit_markdown_revision or 0
+  vim.b[bufnr].cmp_kit_markdown_revision = vim.b[bufnr].cmp_kit_markdown_revision + 1
 
   local contents, languages, extmarks = prepare_markdown_contents(raw_contents)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
@@ -291,42 +292,53 @@ function Markdown.set(bufnr, ns_id, raw_contents)
     local ok, parser = pcall(vim.treesitter.languagetree.new, bufnr, language)
     if ok then
       ---@diagnostic disable-next-line: invisible
-      parser:set_included_regions(vim
-        .iter(ranges)
-        :map(function(range)
-          return { range }
-        end)
-        :totable())
-      parser:parse(true)
-      parser:for_each_tree(function(tree, ltree)
-        local highlighter = vim.treesitter.highlighter.new(ltree, {})
-        local highlighter_query = highlighter:get_query(language)
-        for capture, node, metadata in highlighter_query:query():iter_captures(tree:root(), bufnr) do
-          ---@diagnostic disable-next-line: invisible
-          local hl_id = highlighter_query:get_hl_from_capture(capture)
-          if hl_id then
-            local start_row, start_col, end_row, end_col = node:range(false)
-            if end_row >= #contents then
-              end_col = #contents[end_row + 1]
-            end
-
-            -- TODO: hack for nvim's treesitter.
-            -- native treesitter highlights escaped-string and concealed-text but I don't expected it.
-            local conceal = metadata.conceal or metadata[capture] and metadata[capture].conceal
-            local capture_name = highlighter_query:query().captures[capture]
-            if conceal or vim.tbl_contains({ 'string.escape' }, capture_name) then
-              hl_id = nil
-            end
-
-            vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_row, start_col, {
-              end_row = end_row,
-              end_col = end_col,
-              hl_group = hl_id,
-              priority = tonumber(metadata.priority or metadata[capture] and metadata[capture].priority),
-              conceal = conceal,
-            })
-          end
+      parser:set_included_regions(
+        vim
+          .iter(ranges)
+          :map(function(range)
+            return { range }
+          end)
+          :totable()
+      )
+      parser:parse(true, function(err)
+        if vim.b[bufnr].cmp_kit_markdown_revision ~= vim.b[bufnr].cmp_kit_markdown_revision then
+          parser:destroy()
+          return
         end
+        if err then
+          return
+        end
+        parser:for_each_tree(function(tree, ltree)
+          local highlighter = vim.treesitter.highlighter.new(ltree, {})
+          local highlighter_query = highlighter:get_query(language)
+          for capture, node, metadata in highlighter_query:query():iter_captures(tree:root(), bufnr) do
+            ---@diagnostic disable-next-line: invisible
+            local hl_id = highlighter_query:get_hl_from_capture(capture)
+            if hl_id then
+              local start_row, start_col, end_row, end_col = node:range(false)
+              if end_row >= #contents then
+                end_col = #contents[end_row + 1]
+              end
+
+              -- TODO: hack for nvim's treesitter.
+              -- native treesitter highlights escaped-string and concealed-text but I don't expected it.
+              local conceal = metadata.conceal or metadata[capture] and metadata[capture].conceal
+              local capture_name = highlighter_query:query().captures[capture]
+              if conceal or vim.tbl_contains({ 'string.escape' }, capture_name) then
+                hl_id = nil
+              end
+
+              vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_row, start_col, {
+                end_row = end_row,
+                end_col = end_col,
+                hl_group = hl_id,
+                priority = tonumber(metadata.priority or metadata[capture] and metadata[capture].priority),
+                conceal = conceal,
+              })
+            end
+          end
+        end)
+        parser:destroy()
       end)
     end
   end

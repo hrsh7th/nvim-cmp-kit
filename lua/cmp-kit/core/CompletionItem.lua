@@ -195,7 +195,7 @@ function CompletionItem:get_select_text()
     if self._trigger_context.in_string then
       select_text = oneline(text)
     else
-      select_text = SelectText.create(text)
+      select_text = SelectText.create(text, self._trigger_context.text_after:sub(1, 1))
     end
 
     -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
