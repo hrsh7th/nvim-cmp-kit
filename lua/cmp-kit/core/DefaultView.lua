@@ -5,6 +5,8 @@ local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 
+local redraw_keys = vim.keycode('<Cmd>redraw<CR><C-r>=""<CR>')
+
 local tmp_tbls = {
   columns = {},
   parts = {},
@@ -64,7 +66,7 @@ end
 local function redraw_for_cmdline(win)
   if vim.fn.mode(1):sub(1, 1) == 'c' then
     if vim.tbl_contains({ '/', '?' }, vim.fn.getcmdtype()) and vim.o.incsearch then
-      vim.api.nvim_feedkeys(vim.keycode('<Cmd>redraw<CR><C-r>=""<CR>'), 'ni', true)
+      vim.api.nvim_feedkeys(redraw_keys, 'ni', true)
     else
       pcall(vim.api.nvim__redraw, { valid = true, win = win })
     end
@@ -275,8 +277,14 @@ end
 
 ---Return true if window is visible.
 ---@return boolean
-function DefaultView:is_visible()
+function DefaultView:is_menu_visible()
   return self._menu_window:is_visible()
+end
+
+---Return true if window is visible.
+---@return boolean
+function DefaultView:is_docs_visible()
+  return self._docs_window:is_visible()
 end
 
 ---Show completion menu.
@@ -574,6 +582,15 @@ function DefaultView:_update_docs(item)
       redraw_for_cmdline(self._docs_window:get_win())
     end)
   end)
+end
+
+---Scroll documentation if possible.
+---@param delta integer
+function DefaultView:scroll_docs(delta)
+  if not self._docs_window:is_visible() then
+    return
+  end
+  self._docs_window:scroll(delta)
 end
 
 return DefaultView

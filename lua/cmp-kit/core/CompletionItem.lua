@@ -190,7 +190,7 @@ function CompletionItem:get_select_text()
       text = tostring(SnippetText.parse(text)) --[[@as string]]
     end
 
-    -- NOTE: In string syntax, We use row insertText.
+    -- NOTE: In string syntax, We use raw insertText.
     local select_text --[[@as string]]
     if self._trigger_context.in_string then
       select_text = oneline(text)

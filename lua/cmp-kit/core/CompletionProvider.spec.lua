@@ -66,7 +66,7 @@ describe('cmp-kit.core', function()
         -- keyword_pattern & force -> keyword_pattern
         Keymap.send('o'):await()
         ctx.set_response({ isIncomplete = false, items = {} })
-        assert.are_not.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
+        assert.are.is_nil(provider:complete(TriggerContext.create(), DefaultConfig):await())
 
         -- keyword_pattern -> trigger_character
         Keymap.send('.'):await()

@@ -22,10 +22,15 @@ describe('cmp-kit.core', function()
           end,
           hide = function()
           end,
-          is_visible = function()
+          is_menu_visible = function()
             return true
           end,
+          is_docs_visible = function()
+            return false
+          end,
           select = function()
+          end,
+          scroll_docs = function()
           end,
           dispose = function()
           end,
@@ -55,10 +60,15 @@ describe('cmp-kit.core', function()
           end,
           hide = function()
           end,
-          is_visible = function()
+          is_menu_visible = function()
             return true
           end,
+          is_docs_visible = function()
+            return false
+          end,
           select = function()
+          end,
+          scroll_docs = function()
           end,
           dispose = function()
           end,
@@ -66,7 +76,7 @@ describe('cmp-kit.core', function()
       })
       service:register_source(source)
       service:complete()
-      service:complete({ force =true })
+      service:complete({ force = true })
       assert.are.equal(state.show_count, 2)
     end)
   end)

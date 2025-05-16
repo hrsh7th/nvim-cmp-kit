@@ -92,6 +92,7 @@ function CompletionService.new(config)
   -- support macro.
   do
     self._keys.macro_complete_auto = ('<Plug>(cmp-kit:complete:%s:a)'):format(self._id)
+    self._keys.macro_complete_auto_termcodes = Keymap.termcodes(self._keys.macro_complete_auto)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_auto, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
       if is_valid_mode and self._config.sync_mode() then
@@ -100,6 +101,7 @@ function CompletionService.new(config)
       end
     end)
     self._keys.macro_complete_force = ('<Plug>(cmp-kit:complete:%s:f)'):format(self._id)
+    self._keys.macro_complete_force_termcodes = Keymap.termcodes(self._keys.macro_complete_force)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_force, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
       if is_valid_mode and self._config.sync_mode() then
@@ -255,11 +257,11 @@ function CompletionService:clear()
   }
 
   -- reset menu.
-  local is_visible = self._config.view:is_visible()
+  local is_menu_visible = self._config.view:is_menu_visible()
   if not self._config.sync_mode() then
     self._config.view:hide(self._state.matches, self._state.selection)
   end
-  if is_visible then
+  if is_menu_visible then
     emit(self._events.on_menu_hide, { service = self })
   end
 end
@@ -267,7 +269,13 @@ end
 ---Is menu visible.
 ---@return boolean
 function CompletionService:is_menu_visible()
-  return self._config.view:is_visible()
+  return self._config.view:is_menu_visible()
+end
+
+---Is docs visible.
+---@return boolean
+function CompletionService:is_docs_visible()
+  return self._config.view:is_docs_visible()
 end
 
 ---Select completion.
@@ -309,6 +317,12 @@ function CompletionService:select(index, preselect)
   end)
 end
 
+---Scroll docs window.
+---@param delta integer
+function CompletionService:scroll_docs(delta)
+  self._config.view:scroll_docs(delta)
+end
+
 ---Get selection.
 ---@return cmp-kit.core.Selection
 function CompletionService:get_selection()
@@ -331,7 +345,6 @@ end
 do
   ---@param self cmp-kit.core.CompletionService
   ---@param trigger_context cmp-kit.core.TriggerContext
-  ---@return cmp-kit.kit.Async.AsyncTask
   local function complete_inner(self, trigger_context)
     local changed = self._state.complete_trigger_context:changed(trigger_context)
     if not changed then
@@ -344,42 +357,60 @@ do
 
     -- trigger.
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
-    for _, provider_group in ipairs(self:_get_provider_groups()) do
-      for _, provider_configuration in ipairs(provider_group) do
-        if provider_configuration.provider:capable(trigger_context) then
-          local prev_item_count = #provider_configuration.provider:get_items()
-          local prev_request_revision = provider_configuration.provider:get_request_revision()
+    for _, group in ipairs(self:_get_provider_groups()) do
+      local priority = group[1].priority
+      for _, cfg in ipairs(group) do
+        if cfg.provider:capable(trigger_context) then
+          -- wait for high priority provider.
+          if cfg.priority ~= priority then
+            Async.all(tasks):await()
+            if self._state.complete_trigger_context ~= trigger_context then
+              return
+            end
+          end
+          priority = cfg.priority
+
+          -- invoke completion.
+          local prev_item_count = #cfg.provider:get_items()
+          local prev_request_revision = cfg.provider:get_request_revision()
           table.insert(
             tasks,
-            provider_configuration.provider:complete(trigger_context, self._config):next(function()
-              local next_item_count = #provider_configuration.provider:get_items()
-              if prev_item_count == 0 and next_item_count == 0 then
-                return
-              end
-              local next_request_revision = provider_configuration.provider:get_request_revision()
-              if prev_request_revision ~= next_request_revision then
-                self._state.matching_trigger_context = TriggerContext.create_empty_context()
-                if not self._config.sync_mode() then
-                  self:matching()
+            Async.race({
+              Async.timeout(self._config.performance.fetching_timeout_ms),
+              cfg.provider:complete(trigger_context, self._config):next(function()
+                local next_item_count = #cfg.provider:get_items()
+                if prev_item_count == 0 and next_item_count == 0 then
+                  return
                 end
-              end
-            end)
+                local next_request_revision = cfg.provider:get_request_revision()
+                if prev_request_revision ~= next_request_revision then
+                  self._state.matching_trigger_context = TriggerContext.create_empty_context()
+                  if not self._config.sync_mode() then
+                    self:matching()
+                  end
+                end
+              end)
+            })
           )
         end
+      end
+
+      -- wait for high priority group.
+      Async.all(tasks):await()
+      if self._state.complete_trigger_context ~= trigger_context then
+        return
       end
     end
 
     -- set new-completion position for macro.
     if not self._config.sync_mode() then
       if trigger_context.force then
-        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_force), 'nit', true)
+        vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'nit', true)
       else
-        vim.api.nvim_feedkeys(Keymap.termcodes(self._keys.macro_complete_auto), 'nit', true)
+        vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nit', true)
       end
       self:matching() -- if in sync_mode, matching will be done in `select` method.
     end
-
-    return Async.all(tasks)
   end
 
   ---Invoke completion.
@@ -388,7 +419,7 @@ do
   function CompletionService:complete(option)
     local trigger_context = TriggerContext.create(option)
     return Async.run(function()
-      complete_inner(self, trigger_context):await()
+      complete_inner(self, trigger_context)
     end)
   end
 end
@@ -411,63 +442,35 @@ function CompletionService:matching()
 
   kit.clear(self._state.matches)
 
-  -- split provider groups by trigger characters or not.
-  local trigger_character_groups = {} --[=[@as cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
-  local trigger_keyword_groups = {} --[=[@as cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
-  for _, provider_group in ipairs(self:_get_provider_groups()) do
-    local has_trigger_character = false
-    for _, provider_configuration in ipairs(provider_group) do
-      if provider_configuration.provider:capable(trigger_context) then
-        local is_trigger_character = provider_configuration.provider:in_trigger_character_completion(
-          trigger_context,
-          self._config
-        )
-        has_trigger_character = has_trigger_character or is_trigger_character
+  -- check trigger character completion.
+  local has_trigger_character_completion = false
+  for _, group in ipairs(self:_get_provider_groups()) do
+    for _, cfg in ipairs(group) do
+      local is = true
+      is = is and cfg.provider:capable(trigger_context)
+      is = is and cfg.provider:in_trigger_character_completion(trigger_context, self._config)
+      if is then
+        has_trigger_character_completion = true
+        break
       end
     end
-    if has_trigger_character then
-      table.insert(trigger_character_groups, provider_group)
-    else
-      table.insert(trigger_keyword_groups, provider_group)
+    if has_trigger_character_completion then
+      break
     end
-  end
-
-  -- prefer trigger_character_groups.
-  local target_groups = trigger_keyword_groups
-  if #trigger_character_groups > 0 then
-    target_groups = trigger_character_groups
   end
 
   -- matching and show.
-  local fetching_providers = {}
-  for _, provider_group in ipairs(target_groups) do
-    local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
-    for _, provider_configuration in ipairs(provider_group) do
-      -- check the fetching prodier.
-      do
-        local is_fetching = provider_configuration.provider:get_request_state() ==
-            CompletionProvider.RequestState.Fetching
-        if is_fetching then
-          local elapsed_time = math.max(0, vim.uv.hrtime() / 1e6 - provider_configuration.provider:get_request_time())
-          local is_timeout = elapsed_time > (self._config.performance.fetching_timeout_ms or 0)
-          if not is_timeout then
-            table.insert(fetching_providers, provider_configuration)
-          end
-        end
-      end
-      if #provider_configuration.provider:get_items() > 0 then
-        table.insert(provider_configurations, provider_configuration)
+  for _, group in ipairs(self:_get_provider_groups()) do
+    local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+    for _, cfg in ipairs(group) do
+      if cfg.provider:capable(trigger_context) then
+        table.insert(cfgs, cfg)
       end
     end
 
-    if #fetching_providers > 0 and #provider_configurations == 0 then
-      return
-    end
-
-    -- group providers are capable.
-    if #provider_configurations ~= 0 then
+    if #cfgs ~= 0 then
       -- gather items.
-      for _, provider_configuration in ipairs(provider_configurations) do
+      for _, provider_configuration in ipairs(cfgs) do
         local score_boost = self:_get_score_boost(provider_configuration.provider)
         for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._config)) do
           match.score = match.score + score_boost
@@ -501,12 +504,12 @@ function CompletionService:matching()
         -- 3. check dedup.
         local preselect_index = nil --[[@as integer?]]
         do
-          local provider_item_count_map = vim.iter(provider_configurations):fold({},
+          local provider_item_count_map = vim.iter(cfgs):fold({},
             function(acc, provider_configuration)
               acc[provider_configuration.provider] = provider_configuration.item_count
               return acc
             end) --[[@as table<cmp-kit.core.CompletionProvider, integer>]]
-          local provider_dedup_map = vim.iter(provider_configurations):fold({}, function(acc, provider_configuration)
+          local provider_dedup_map = vim.iter(cfgs):fold({}, function(acc, provider_configuration)
             acc[provider_configuration.provider] = provider_configuration.dedup
             return acc
           end) --[[@as table<cmp-kit.core.CompletionProvider, boolean>]]
@@ -530,11 +533,11 @@ function CompletionService:matching()
         end
 
         -- completion found.
-        local is_visible = self._config.view:is_visible()
+        local is_menu_visible = self._config.view:is_menu_visible()
         if not self._config.sync_mode() then
           self._config.view:show(self._state.matches, self._state.selection)
         end
-        if not is_visible then
+        if not is_menu_visible then
           emit(self._events.on_menu_show, { service = self })
         end
 
@@ -548,8 +551,8 @@ function CompletionService:matching()
   end
 
   -- no completion found.
-  local is_visible = self._config.view:is_visible()
-  if is_visible then
+  local is_menu_visible = self._config.view:is_menu_visible()
+  if is_menu_visible then
     if not self._config.sync_mode() then
       self._config.view:hide(self._state.matches, self._state.selection)
     end
@@ -684,7 +687,7 @@ function CompletionService:_update_selection(index, preselect, text_before)
     text_before = text_before or self._state.selection.text_before
   }
   if not self._config.sync_mode() then
-    if self._config.view:is_visible() then
+    if self._config.view:is_menu_visible() then
       self._config.view:select(self._state.matches, self._state.selection)
     end
   end

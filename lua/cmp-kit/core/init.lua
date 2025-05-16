@@ -35,8 +35,10 @@
 ---@class cmp-kit.core.View
 ---@field public show fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
 ---@field public hide fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
----@field public is_visible fun(): boolean
+---@field public is_menu_visible fun(): boolean
+---@field public is_docs_visible fun(): boolean
 ---@field public select fun(self: cmp-kit.core.View, matches: cmp-kit.core.Match[], selection: cmp-kit.core.Selection)
+---@field public scroll_docs fun(self: cmp-kit.core.View, delta: integer)
 ---@field public dispose fun(self: cmp-kit.core.View)
 
 vim.api.nvim_set_hl(0, 'CmpKitMarkdownAnnotate01', {

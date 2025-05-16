@@ -11,7 +11,7 @@ return {
     return vim.fn.reg_executing() ~= ''
   end,
   performance = {
-    fetching_timeout_ms = 280
+    fetching_timeout_ms = 80
   },
   default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
 }

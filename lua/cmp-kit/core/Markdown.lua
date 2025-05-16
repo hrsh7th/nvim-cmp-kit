@@ -328,7 +328,7 @@ function Markdown.set(bufnr, ns_id, raw_contents)
                 hl_id = nil
               end
 
-              vim.api.nvim_buf_set_extmark(bufnr, ns_id, start_row, start_col, {
+              pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_id, start_row, start_col, {
                 end_row = end_row,
                 end_col = end_col,
                 hl_group = hl_id,
