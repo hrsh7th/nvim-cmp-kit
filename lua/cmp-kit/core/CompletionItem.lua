@@ -68,8 +68,8 @@ end
 ---@field private _provider cmp-kit.core.CompletionProvider
 ---@field private _completion_list cmp-kit.kit.LSP.CompletionList
 ---@field private _item cmp-kit.kit.LSP.CompletionItem
----@field private _cache table<string, any>
 ---@field private _resolving cmp-kit.kit.Async.AsyncTask
+---@field public cache table<string, any>
 local CompletionItem = {}
 CompletionItem.__index = CompletionItem
 
@@ -84,8 +84,8 @@ function CompletionItem.new(trigger_context, provider, list, item)
     _provider = provider,
     _completion_list = list,
     _item = item,
-    _cache = {},
     _resolving = nil,
+    cache = {},
   }, CompletionItem)
 end
 
@@ -100,11 +100,11 @@ end
 ---@return number
 function CompletionItem:get_offset()
   local cache_key = 'get_offset'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
         self._trigger_context.character + 1
     if not self:has_text_edit() then
-      self._cache[cache_key] = keyword_offset
+      self.cache[cache_key] = keyword_offset
       local filter_text = self:get_filter_text()
       if Character.is_symbol(filter_text:byte(1)) then
         local min_i = math.max(1, keyword_offset - #filter_text)
@@ -119,7 +119,7 @@ function CompletionItem:get_offset()
               end
             end
             if m then
-              self._cache[cache_key] = i
+              self.cache[cache_key] = i
               break
             end
           end
@@ -139,27 +139,27 @@ function CompletionItem:get_offset()
         end
         self._trigger_context.cache[trigger_context_cache_key] = math.min(offset, keyword_offset)
       end
-      self._cache[cache_key] = self._trigger_context.cache[trigger_context_cache_key]
+      self.cache[cache_key] = self._trigger_context.cache[trigger_context_cache_key]
     end
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return label text.
 ---@return string
 function CompletionItem:get_label_text()
   local cache_key = 'get_label_text'
-  if not self._cache[cache_key] then
-    self._cache[cache_key] = oneline(self._item.label)
+  if not self.cache[cache_key] then
+    self.cache[cache_key] = oneline(self._item.label)
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return label details.
 ---@return cmp-kit.kit.LSP.CompletionItemLabelDetails
 function CompletionItem:get_label_details()
   local cache_key = 'get_label_details'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local details = {} --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails]]
     if self._item.labelDetails then
       details.detail = details.detail or self._item.labelDetails.detail
@@ -168,9 +168,9 @@ function CompletionItem:get_label_details()
     if self._item.detail then
       details.detail = details.detail or self._item.detail
     end
-    self._cache[cache_key] = details
+    self.cache[cache_key] = details
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return sort_text.
@@ -184,7 +184,7 @@ end
 ---@return string
 function CompletionItem:get_select_text()
   local cache_key = 'get_select_text'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local text = self:get_insert_text()
     if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
       text = tostring(SnippetText.parse(text)) --[[@as string]]
@@ -213,15 +213,15 @@ function CompletionItem:get_select_text()
     if chars[select_text:sub(-1, -1)] then
       select_text = select_text:sub(1, -2)
     end
-    self._cache[cache_key] = select_text
+    self.cache[cache_key] = select_text
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return filter text that will be used for matching.
 function CompletionItem:get_filter_text()
   local cache_key = 'get_filter_text'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local text = trim_prewhite(self._item.filterText or self._item.label)
 
     -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
@@ -239,9 +239,9 @@ function CompletionItem:get_filter_text()
         end
       end
     end
-    self._cache[cache_key] = text
+    self.cache[cache_key] = text
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return insert text that will be inserted if the item is confirmed.
@@ -291,14 +291,14 @@ end
 ---@return string[]
 function CompletionItem:get_commit_characters()
   local cache_key = 'get_commit_characters'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local commit_characters = {}
     for _, c in ipairs(self._item.commitCharacters or {}) do
       table.insert(commit_characters, c)
     end
-    self._cache[cache_key] = commit_characters
+    self.cache[cache_key] = commit_characters
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return item is preselect or not.
@@ -311,23 +311,23 @@ end
 ---@return boolean
 function CompletionItem:is_deprecated()
   local cache_key = 'is_deprecated'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     if self._item.deprecated then
-      self._cache[cache_key] = { output = true }
+      self.cache[cache_key] = { output = true }
     elseif vim.tbl_contains(self._item.tags, LSP.CompletionItemTag.Deprecated) then
-      self._cache[cache_key] = { output = true }
+      self.cache[cache_key] = { output = true }
     else
-      self._cache[cache_key] = { output = false }
+      self.cache[cache_key] = { output = false }
     end
   end
-  return self._cache[cache_key].output
+  return self.cache[cache_key].output
 end
 
 ---Return item's documentation.
 ---@return cmp-kit.kit.LSP.MarkupContent?
 function CompletionItem:get_documentation()
   local cache_key = 'get_documentation'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local documentation = { kind = LSP.MarkupKind.Markdown, value = '' } --[[@as cmp-kit.kit.LSP.MarkupContent]]
 
     -- CompletionItem.documentation.
@@ -362,9 +362,9 @@ function CompletionItem:get_documentation()
           :gsub('\r\n', '\n')
           :gsub('\r', '\n')
     end
-    self._cache[cache_key] = { output = documentation }
+    self.cache[cache_key] = { output = documentation }
   end
-  return self._cache[cache_key].output
+  return self.cache[cache_key].output
 end
 
 ---Resolve completion item (completionItem/resolve).
@@ -375,7 +375,7 @@ function CompletionItem:resolve()
       if resolved_item then
         -- Merge resolved item to original item.
         self._item = kit.merge(resolved_item, self._item)
-        self._cache = {}
+        self.cache = {}
       else
         -- Clear resolving cache if null was returned from server.
         self._resolving = nil
@@ -523,7 +523,7 @@ end
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_insert_range()
   local cache_key = 'get_insert_range'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     ---@type cmp-kit.kit.LSP.Range
     local range
     if self._item.textEdit then
@@ -540,15 +540,15 @@ function CompletionItem:get_insert_range()
       end
     end
     if range then
-      self._cache[cache_key] = self:_convert_range_encoding(range)
+      self.cache[cache_key] = self:_convert_range_encoding(range)
     else
       -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local default_range = kit.clone(self._provider:get_default_insert_range())
       default_range.start.character = self:get_offset() - 1
-      self._cache[cache_key] = default_range
+      self.cache[cache_key] = default_range
     end
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Return replace range.
@@ -557,7 +557,7 @@ end
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_replace_range()
   local cache_key = 'get_replace_range'
-  if not self._cache[cache_key] then
+  if not self.cache[cache_key] then
     local range --[[@as cmp-kit.kit.LSP.Range]]
     if self._item.textEdit then
       if self._item.textEdit.replace then
@@ -569,9 +569,9 @@ function CompletionItem:get_replace_range()
       end
     end
     range = range or self:get_insert_range()
-    self._cache[cache_key] = create_expanded_range({ self._provider:get_default_replace_range(), range })
+    self.cache[cache_key] = create_expanded_range({ self._provider:get_default_replace_range(), range })
   end
-  return self._cache[cache_key]
+  return self.cache[cache_key]
 end
 
 ---Convert range encoding to LSP.PositionEncodingKind.UTF8.
