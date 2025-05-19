@@ -16,8 +16,6 @@ SelectText.StopCharacters = {
   [string.byte('>')] = true,
   [string.byte('{')] = true,
   [string.byte('}')] = true,
-  [string.byte(' ')] = true,
-  [string.byte('\t')] = true,
 }
 
 ---@type table<integer, boolean>

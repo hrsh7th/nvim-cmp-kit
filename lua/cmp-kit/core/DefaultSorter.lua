@@ -26,7 +26,7 @@ local function compare(a, b, context)
   local locality_b = context.locality_map[b.item:get_select_text()] or math.huge
 
   local score_boost_a = locality_a < locality_b and 0.5 or 0
-  local score_boost_b = locality_a < locality_b and 0 or 0.5
+  local score_boost_b = locality_a > locality_b and 0.5 or 0
 
   local score_a = a.score + score_boost_a
   local score_b = b.score + score_boost_b

@@ -390,12 +390,11 @@ function FloatingWindow:scroll(delta)
   if not is_visible(self._win) then
     return
   end
+  local viewport = self:get_viewport()
   vim.api.nvim_win_call(self._win, function()
     local topline = vim.fn.getwininfo(self._win)[1].topline
     topline = math.max(1, topline + delta)
-    topline = math.min(
-      vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(self._win)) -
-      vim.api.nvim_win_get_height(self._win) + 1, topline)
+    topline = math.min(viewport.content_size.height - vim.api.nvim_win_get_height(self._win) + 1, topline)
     vim.cmd.normal({
       ('%szt'):format(topline),
       bang = true,

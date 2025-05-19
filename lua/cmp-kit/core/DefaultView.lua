@@ -14,6 +14,67 @@ local tmp_tbls = {
   rendering_lines = {},
 }
 
+local ensure_color_code_highlight_group
+do
+  local cache = {}
+
+  ---Ensure color code highlight group.
+  ---@param color_code string
+  ---@return string
+  ensure_color_code_highlight_group = function(color_code)
+    color_code = color_code:gsub('^#', ''):sub(1, 6)
+    if not cache[color_code] then
+      local name = ('cmp-kit.core.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
+      vim.api.nvim_set_hl(0, name, {
+        fg = '#' .. color_code,
+        bg = 'NONE',
+        default = true,
+      })
+      cache[color_code] = name
+    end
+    return cache[color_code]
+  end
+end
+
+---Ensure coloring extmarks.
+---@param item cmp-kit.core.CompletionItem
+---@return string?
+local function get_coloring(item)
+  local cache_key = 'cmp-kit.core.DefaultView.coloring'
+  if not item.cache[cache_key] then
+    if item:get_kind() == LSP.CompletionItemKind.Color then
+      local details = item:get_label_details()
+      local match = nil
+
+      -- detail.
+      if not match and details.detail then
+        match = details.detail:match('#([a-fA-F0-9]+)')
+        if match then
+          item.cache[cache_key] = ensure_color_code_highlight_group(match)
+        end
+      end
+
+      -- docs.
+      local docs = item:get_documentation()
+      if not match and docs then
+        match = docs.value:match('#([a-fA-F0-9]+)')
+        if match then
+          item.cache[cache_key] = ensure_color_code_highlight_group(match)
+        end
+      end
+
+      -- label.
+      if not match then
+        match = item:get_label_text():match('#([a-fA-F0-9]+)')
+        if match then
+          item.cache[cache_key] = ensure_color_code_highlight_group(match)
+        end
+      end
+    end
+  end
+  return item.cache[cache_key]
+end
+
 ---@class cmp-kit.core.DefaultView.WindowPosition
 ---@field public row integer
 ---@field public col integer
@@ -103,6 +164,7 @@ local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 local default_config = {
   border = false,
   menu_components = {
+    -- kind icon.
     {
       padding_left = 0,
       padding_right = 0,
@@ -122,6 +184,7 @@ local default_config = {
         return {}
       end,
     },
+    -- label.
     {
       padding_left = 0,
       padding_right = 0,
@@ -139,25 +202,46 @@ local default_config = {
         end):totable()
       end
     },
+    -- description.
     {
       padding_left = 0,
       padding_right = 0,
       align = 'right',
       get_text = function(match)
-        if not match.item:get_label_details().description then
-          return ''
+        local details = match.item:get_label_details()
+        if details.description then
+          return strcharpart(match.item:get_label_details().description, 0, 32)
         end
-        return strcharpart(match.item:get_label_details().description, 0, 32)
+
+        -- coloring.
+        local coloring = get_coloring(match.item)
+        if coloring then
+          return '●'
+        end
+
+        return ''
       end,
       get_extmarks = function(match)
-        if not match.item:get_label_details().description then
-          return {}
+        local details = match.item:get_label_details()
+        if details.description then
+          return { {
+            col = 0,
+            end_col = #details.description,
+            hl_group = 'Comment',
+          } }
         end
-        return { {
-          col = 0,
-          end_col = #match.item:get_label_details().description,
-          hl_group = 'Comment',
-        } }
+
+        -- coloring.
+        local coloring = get_coloring(match.item)
+        if coloring then
+          return { {
+            col = 0,
+            end_col = 1,
+            hl_group = coloring,
+          } }
+        end
+
+        return {}
       end
     },
   },
@@ -237,6 +321,7 @@ function DefaultView.new(config)
     win:set_win_option('cursorlineopt', 'line')
     win:set_win_option('foldenable', false)
     win:set_win_option('wrap', false)
+
     if self._config.border then
       win:set_win_option('winhighlight', winhighlight({
         NormalFloat = 'Normal',
@@ -254,6 +339,7 @@ function DefaultView.new(config)
         Search = 'None',
       }))
     end
+
     win:set_win_option('winhighlight', winhighlight({
       NormalFloat = 'PmenuSbar',
       Normal = 'PmenuSbar',
@@ -429,6 +515,7 @@ function DefaultView:show(matches, selection)
     end
   end
 
+  self._menu_window:set_win_option('cursorline', selection.index ~= 0)
   self._menu_window:show({
     row = row + row_off,
     col = col + col_off,
@@ -438,7 +525,6 @@ function DefaultView:show(matches, selection)
     style = 'minimal',
     border = self._config.border,
   })
-  self._menu_window:set_win_option('cursorline', selection.index ~= 0)
 
   redraw_for_cmdline(self._menu_window:get_win())
 end

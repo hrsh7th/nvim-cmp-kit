@@ -111,6 +111,10 @@ function TriggerContext:changed(new_trigger_context)
     return true
   end
 
+  if new_trigger_context.line == -1 then
+    return true
+  end
+
   if self.bufnr ~= new_trigger_context.bufnr then
     return true
   end

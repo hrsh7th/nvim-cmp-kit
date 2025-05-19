@@ -16,8 +16,9 @@ describe('cmp-kit.ext.source.calc', function()
         assert.are_equal(#response.items, 0)
       else
         assert.is_not_nil(response)
-        assert.are_equal(#response.items, 1)
-        assert.are_equal(response.items[1].insertText, tostring(output))
+        assert.are_equal(#response.items, 2)
+        assert.is_truthy(response.items[1].label:match(('= %s$'):format(vim.pesc(tostring(output)))))
+        assert.is_truthy(response.items[2].label:match(('= %s$'):format(vim.pesc(tostring(output)))))
       end
     end
   end

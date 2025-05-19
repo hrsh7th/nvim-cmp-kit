@@ -44,9 +44,8 @@ local function extract_keyword_range(trigger_context, keyword_pattern)
 end
 
 ---@class cmp-kit.core.CompletionProvider.State
----@field public request_revision integer
 ---@field public request_state cmp-kit.core.CompletionProvider.RequestState
----@field public request_time? integer
+---@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
 ---@field public trigger_context? cmp-kit.core.TriggerContext
@@ -59,11 +58,13 @@ end
 ---@field public matches_before_text? string
 
 ---@class cmp-kit.core.CompletionProvider.Config
+---@field public dedup boolean
+---@field public item_count integer
 ---@field public keyword_length integer
 
 ---@class cmp-kit.core.CompletionProvider
+---@field public config cmp-kit.core.CompletionProvider.Config
 ---@field private _source cmp-kit.core.CompletionSource
----@field private _config cmp-kit.core.CompletionProvider.Config
 ---@field private _state cmp-kit.core.CompletionProvider.State
 local CompletionProvider = {}
 CompletionProvider.__index = CompletionProvider
@@ -75,14 +76,16 @@ CompletionProvider.RequestState = RequestState
 ---@return cmp-kit.core.CompletionProvider
 function CompletionProvider.new(source, config)
   local self = setmetatable({
-    _source = source,
-    _config = kit.merge(config or {}, {
+    config = kit.merge(config or {}, {
+      dedup = false,
+      item_count = math.huge,
       keyword_length = 1,
     }),
+    _source = source,
     _state = {
       is_trigger_character_completion = false,
       request_state = RequestState.Waiting,
-      request_revision = 0,
+      response_revision = 0,
       dedup_map = {},
       items = {},
       matches = {},
@@ -101,13 +104,13 @@ end
 
 ---Completion (textDocument/completion).
 ---@param trigger_context cmp-kit.core.TriggerContext
----@param config cmp-kit.core.CompletionService.Config
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
-function CompletionProvider:complete(trigger_context, config)
+function CompletionProvider:complete(trigger_context)
   return Async.run(function()
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
+    local is_same_offset = keyword_offset and keyword_offset == self._state.completion_offset
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
@@ -127,16 +130,14 @@ function CompletionProvider:complete(trigger_context, config)
       completion_offset = keyword_offset or (trigger_context.character + 1)
     else
       -- keyword based completion.
-      if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self._config.keyword_length then
-        local prev_keyword_offset = self._state.completion_offset
-        local prev_is_incomplete = self._state.is_incomplete
-        if prev_is_incomplete and keyword_offset == prev_keyword_offset then
+      if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self.config.keyword_length then
+        if is_same_offset and self._state.is_incomplete then
           -- keyword completion for incomplete completion.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.TriggerForIncompleteCompletions,
           }
           completion_offset = keyword_offset
-        elseif keyword_offset and keyword_offset ~= prev_keyword_offset then
+        elseif not is_same_offset then
           -- keyword completion for new keyword offset.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.Invoked,
@@ -155,7 +156,7 @@ function CompletionProvider:complete(trigger_context, config)
     end
 
     -- skip simple keyword completion if current completion is triggered by character and still matching.
-    local in_trigger_character_completion = self:in_trigger_character_completion(trigger_context, config)
+    local in_trigger_character_completion = self:in_trigger_character_completion()
     if in_trigger_character_completion then
       if not trigger_context.force and completion_context.triggerKind == LSP.CompletionTriggerKind.Invoked then
         return
@@ -163,13 +164,14 @@ function CompletionProvider:complete(trigger_context, config)
     end
 
     local is_trigger_char = false
-    is_trigger_char = is_trigger_char or (completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter)
     is_trigger_char = is_trigger_char or (
-      self._state.is_trigger_character_completion and
+      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter
+    )
+    is_trigger_char = is_trigger_char or (
+      self:in_trigger_character_completion() and
       completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions
     )
     self._state.is_trigger_character_completion = is_trigger_char
-    self._state.request_revision = self._state.request_revision + 1
     self._state.request_state = RequestState.Fetching
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
@@ -185,9 +187,6 @@ function CompletionProvider:complete(trigger_context, config)
 
     -- adopt response.
     self:_adopt_response(trigger_context, completion_context, to_completion_list(raw_response))
-    if #self._state.items == 0 then
-      self:clear()
-    end
 
     return completion_context
   end)
@@ -198,6 +197,8 @@ end
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
+  local prev_item_count = #self._state.items
+
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
@@ -207,6 +208,7 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     kit.clear(self._state.items)
   end
 
+  -- convert response to items.
   local cursor = { line = trigger_context.line, character = trigger_context.character }
   for _, item in ipairs(list.items) do
     local completion_item = CompletionItem.new(trigger_context, self, list, item)
@@ -228,9 +230,16 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     end
   end
 
+  -- clear matching state.
   kit.clear(self._state.matches)
   kit.clear(self._state.matches_items)
   self._state.matches_before_text = nil
+
+  -- increase response_revision if changed.
+  local next_item_count = #self._state.items
+  if not (next_item_count == 0 and prev_item_count == 0) then
+    self._state.response_revision = self._state.response_revision + 1
+  end
 end
 
 ---Resolve completion item (completionItem/resolve).
@@ -292,22 +301,16 @@ function CompletionProvider:get_trigger_characters()
   return self._source:get_configuration().trigger_characters or {}
 end
 
----Return request revision.
----@return integer
-function CompletionProvider:get_request_revision()
-  return self._state.request_revision
-end
-
 ---Return ready state.
 ---@return cmp-kit.core.CompletionProvider.RequestState
 function CompletionProvider:get_request_state()
   return self._state.request_state
 end
 
----Return request time.
+---Return response revision.
 ---@return integer
-function CompletionProvider:get_request_time()
-  return self._state.request_time or 0
+function CompletionProvider:get_response_revision()
+  return self._state.response_revision
 end
 
 ---Return current completion context.
@@ -321,7 +324,7 @@ function CompletionProvider:clear()
   self._state = {
     is_trigger_character_completion = false,
     request_state = RequestState.Waiting,
-    request_revision = self._state.request_revision,
+    response_revision = self._state.response_revision + (#self._state.items == 0 and 0 or 1),
     dedup_map = kit.clear(self._state.dedup_map),
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
@@ -336,11 +339,9 @@ function CompletionProvider:get_items()
 end
 
 ---Return current completion is triggered by character or not.
----@param trigger_context cmp-kit.core.TriggerContext
----@param config cmp-kit.core.CompletionService.Config
 ---@return boolean
-function CompletionProvider:in_trigger_character_completion(trigger_context, config)
-  return self._state.is_trigger_character_completion and #self:get_matches(trigger_context, config) > 0
+function CompletionProvider:in_trigger_character_completion()
+  return self._state.is_trigger_character_completion and #self:get_items() > 0
 end
 
 ---Return matches.

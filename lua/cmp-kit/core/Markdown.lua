@@ -378,7 +378,7 @@ function Markdown.set(bufnr, ns_id, raw_contents)
     local col = extmark.col
     extmark.row = nil
     extmark.col = nil
-    vim.api.nvim_buf_set_extmark(bufnr, ns_id, row, col, extmark --[[@as any]])
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns_id, row, col, extmark --[[@as any]])
   end
 end
 

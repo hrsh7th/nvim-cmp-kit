@@ -27,8 +27,6 @@ end
 ---@class cmp-kit.core.CompletionService.ProviderConfiguration
 ---@field public group integer
 ---@field public priority integer
----@field public dedup boolean
----@field public item_count integer
 ---@field public provider cmp-kit.core.CompletionProvider
 
 ---@class cmp-kit.core.CompletionService.Config
@@ -41,6 +39,7 @@ end
 ---@field public default_keyword_pattern string
 
 ---@class cmp-kit.core.CompletionService.State
+---@field public provider_response_revision table<cmp-kit.core.CompletionProvider, integer>
 ---@field public complete_trigger_context cmp-kit.core.TriggerContext
 ---@field public matching_trigger_context cmp-kit.core.TriggerContext
 ---@field public selection cmp-kit.core.Selection
@@ -74,6 +73,7 @@ function CompletionService.new(config)
     _matching_timer = ScheduledTimer.new(),
     _events = {},
     _state = {
+      provider_response_revision = {},
       complete_trigger_context = TriggerContext.create_empty_context(),
       matching_trigger_context = TriggerContext.create_empty_context(),
       selection = {
@@ -219,9 +219,9 @@ function CompletionService:register_source(source, config)
     index = #self._provider_configurations + 1,
     group = config and config.group or 0,
     priority = config and config.priority or 0,
-    dedup = config and config.dedup or false,
-    item_count = config and config.item_count or math.huge,
     provider = CompletionProvider.new(source, {
+      dedup = config and config.dedup or false,
+      item_count = config and config.item_count or math.huge,
       keyword_length = config and config.keyword_length or 1,
     }),
   }
@@ -246,6 +246,7 @@ function CompletionService:clear()
 
   -- reset current TriggerContext for preventing new completion in same context.
   self._state = {
+    provider_response_revision = {},
     complete_trigger_context = TriggerContext.create(),
     matching_trigger_context = TriggerContext.create(),
     selection = {
@@ -355,50 +356,53 @@ do
     -- reset selection for new completion.
     self:_update_selection(0, true, trigger_context.text_before)
 
-    -- trigger.
-    local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
-    for _, group in ipairs(self:_get_provider_groups()) do
-      local priority = group[1].priority
-      for _, cfg in ipairs(group) do
-        if cfg.provider:capable(trigger_context) then
-          -- wait for high priority provider.
-          if cfg.priority ~= priority then
-            Async.all(tasks):await()
-            if self._state.complete_trigger_context ~= trigger_context then
-              return
+    -- update if changed handler.
+    local function update_if_changed()
+      -- check provider's state was changed.
+      local has_changed = false
+      for _, group in ipairs(self:_get_provider_groups()) do
+        for _, cfg in ipairs(group) do
+          if cfg.provider:capable(trigger_context) then
+            if self._state.provider_response_revision[cfg.provider] ~= cfg.provider:get_response_revision() then
+              has_changed = true
             end
           end
-          priority = cfg.priority
-
-          -- invoke completion.
-          local prev_item_count = #cfg.provider:get_items()
-          local prev_request_revision = cfg.provider:get_request_revision()
-          table.insert(
-            tasks,
-            Async.race({
-              Async.timeout(self._config.performance.fetching_timeout_ms),
-              cfg.provider:complete(trigger_context, self._config):next(function()
-                local next_item_count = #cfg.provider:get_items()
-                if prev_item_count == 0 and next_item_count == 0 then
-                  return
-                end
-                local next_request_revision = cfg.provider:get_request_revision()
-                if prev_request_revision ~= next_request_revision then
-                  self._state.matching_trigger_context = TriggerContext.create_empty_context()
-                  if not self._config.sync_mode() then
-                    self:matching()
-                  end
-                end
-              end)
-            })
-          )
         end
       end
 
-      -- wait for high priority group.
-      Async.all(tasks):await()
-      if self._state.complete_trigger_context ~= trigger_context then
-        return
+      -- view update forcely.
+      if has_changed then
+        if not self._config.sync_mode() then
+          self._state.matching_trigger_context = TriggerContext.create_empty_context()
+          self:matching()
+        end
+      end
+    end
+
+    -- trigger.
+    local queue = Async.resolve()
+    local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
+    for _, group in ipairs(self:_get_provider_groups()) do
+      for _, cfg in ipairs(group) do
+        if cfg.provider:capable(trigger_context) then
+          -- invoke completion.
+          local task = Async.race({
+            Async.timeout(self._config.performance.fetching_timeout_ms),
+            cfg.provider:complete(trigger_context):next(function()
+              return queue
+            end):next(function()
+              update_if_changed()
+            end)
+          })
+
+          -- queue view update in sequencial order.
+          queue = queue:next(function()
+            return task
+          end)
+
+          -- add task to tasks.
+          table.insert(tasks, task)
+        end
       end
     end
 
@@ -442,24 +446,14 @@ function CompletionService:matching()
 
   kit.clear(self._state.matches)
 
-  -- check trigger character completion.
-  local has_trigger_character_completion = false
+  -- update revisions.
   for _, group in ipairs(self:_get_provider_groups()) do
     for _, cfg in ipairs(group) do
-      local is = true
-      is = is and cfg.provider:capable(trigger_context)
-      is = is and cfg.provider:in_trigger_character_completion(trigger_context, self._config)
-      if is then
-        has_trigger_character_completion = true
-        break
-      end
-    end
-    if has_trigger_character_completion then
-      break
+      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
     end
   end
 
-  -- matching and show.
+  -- detect group.
   for _, group in ipairs(self:_get_provider_groups()) do
     local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
@@ -468,95 +462,93 @@ function CompletionService:matching()
       end
     end
 
-    if #cfgs ~= 0 then
-      -- gather items.
-      for _, provider_configuration in ipairs(cfgs) do
-        local score_boost = self:_get_score_boost(provider_configuration.provider)
-        for _, match in ipairs(provider_configuration.provider:get_matches(trigger_context, self._config)) do
-          match.score = match.score + score_boost
-          self._state.matches[#self._state.matches + 1] = match
-        end
+    -- gather items.
+    for _, cfg in ipairs(cfgs) do
+      local score_boost = self:_get_score_boost(cfg.provider)
+      for _, match in ipairs(cfg.provider:get_matches(trigger_context, self._config)) do
+        match.score = match.score + score_boost
+        self._state.matches[#self._state.matches + 1] = match
       end
+    end
 
-      -- group matches are found.
-      if #self._state.matches > 0 then
-        local locality_map = {}
 
-        -- For macro, the sorting should be stable.
-        if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
-          local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
-          local min_row = math.max(1, cur - 30)
-          local max_row = cur
-          for row = min_row, max_row do
-            for _, word in ipairs(Buffer.ensure(0):get_words(self._config.default_keyword_pattern, row)) do
-              locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
-            end
-          end
-        end
-
-        local sorted_matches = self._config.sorter(self._state.matches, {
-          locality_map = locality_map,
-          trigger_context = trigger_context,
-        })
-
-        -- 1. search preselect_index.
-        -- 2. check item_count.
-        -- 3. check dedup.
-        local preselect_index = nil --[[@as integer?]]
-        do
-          local provider_item_count_map = vim.iter(cfgs):fold({},
-            function(acc, provider_configuration)
-              acc[provider_configuration.provider] = provider_configuration.item_count
-              return acc
-            end) --[[@as table<cmp-kit.core.CompletionProvider, integer>]]
-          local provider_dedup_map = vim.iter(cfgs):fold({}, function(acc, provider_configuration)
-            acc[provider_configuration.provider] = provider_configuration.dedup
-            return acc
-          end) --[[@as table<cmp-kit.core.CompletionProvider, boolean>]]
-
-          local dedup_map = kit.clear(tmp_tbls.dedup_map)
-          local limited_matches = {}
-          for j, match in ipairs(sorted_matches) do
-            if not preselect_index and match.item:is_preselect() then
-              preselect_index = j
-            end
-
-            local is_count_ok = provider_item_count_map[match.provider] >= 0
-            local is_dedup_ok = not provider_dedup_map[match.provider] or not dedup_map[match.item:get_label_text()]
-            if is_count_ok and is_dedup_ok then
-              table.insert(limited_matches, match)
-              provider_item_count_map[match.provider] = provider_item_count_map[match.provider] - 1
-            end
-            dedup_map[match.item:get_label_text()] = true
-          end
-          self._state.matches = limited_matches
-        end
-
-        -- completion found.
-        local is_menu_visible = self._config.view:is_menu_visible()
-        if not self._config.sync_mode() then
-          self._config.view:show(self._state.matches, self._state.selection)
-        end
-        if not is_menu_visible then
-          emit(self._events.on_menu_show, { service = self })
-        end
-
-        -- emit selection.
-        if preselect_index then
-          self:_update_selection(preselect_index --[[@as integer]], true)
-        end
-        return
-      end
+    -- use only this group.
+    if #self._state.matches > 0 then
+      break
     end
   end
 
-  -- no completion found.
-  local is_menu_visible = self._config.view:is_menu_visible()
-  if is_menu_visible then
-    if not self._config.sync_mode() then
-      self._config.view:hide(self._state.matches, self._state.selection)
+  -- check this group should be accepted?
+  if #self._state.matches > 0 then
+    -- group matches are found.
+    local locality_map = {}
+
+    -- For macro, the sorting should be stable.
+    if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
+      local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
+      local min_row = math.max(1, cur - 30)
+      local max_row = cur
+      for row = min_row, max_row do
+        for _, word in ipairs(Buffer.ensure(0):get_words(self._config.default_keyword_pattern, row)) do
+          locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
+        end
+      end
     end
-    emit(self._events.on_menu_hide, { service = self })
+
+    local sorted_matches = self._config.sorter(self._state.matches, {
+      locality_map = locality_map,
+      trigger_context = trigger_context,
+    })
+
+    -- 1. search preselect_index.
+    -- 2. check item_count.
+    -- 3. check dedup.
+    local preselect_index = nil --[[@as integer?]]
+    do
+      local item_count_per_provider = {}
+
+      local dedup_map = kit.clear(tmp_tbls.dedup_map)
+      local limited_matches = {}
+      for j, match in ipairs(sorted_matches) do
+        -- set first preselect index.
+        if not preselect_index and match.item:is_preselect() then
+          preselect_index = j
+        end
+
+        -- check dedup & count.
+        local is_dedup_ok = not match.provider.config.dedup or not dedup_map[match.item:get_label_text()]
+        local is_count_ok = match.provider.config.item_count >= (item_count_per_provider[match.provider] or 0)
+        if is_count_ok and is_dedup_ok then
+          table.insert(limited_matches, match)
+          item_count_per_provider[match.provider] = (item_count_per_provider[match.provider] or 0) + 1
+        end
+        dedup_map[match.item:get_label_text()] = true
+      end
+      self._state.matches = limited_matches
+    end
+
+    -- completion found.
+    local is_menu_visible = self._config.view:is_menu_visible()
+    if not self._config.sync_mode() then
+      self._config.view:show(self._state.matches, self._state.selection)
+    end
+    if not is_menu_visible then
+      emit(self._events.on_menu_show, { service = self })
+    end
+
+    -- emit selection.
+    if preselect_index then
+      self:_update_selection(preselect_index --[[@as integer]], true)
+    end
+  else
+    -- no completion found.
+    local is_menu_visible = self._config.view:is_menu_visible()
+    if is_menu_visible then
+      if not self._config.sync_mode() then
+        self._config.view:hide(self._state.matches, self._state.selection)
+      end
+      emit(self._events.on_menu_hide, { service = self })
+    end
   end
 end
 
@@ -588,13 +580,13 @@ function CompletionService:commit(item, option)
         local trigger_context = TriggerContext.create()
         if trigger_context.before_character and Character.is_symbol(trigger_context.before_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
-            local provider_configurations = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
-            for _, provider_configuration in ipairs(provider_group) do
-              if provider_configuration.provider:capable(trigger_context) then
-                table.insert(provider_configurations, provider_configuration)
+            local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+            for _, cfg in ipairs(provider_group) do
+              if cfg.provider:capable(trigger_context) then
+                table.insert(cfgs, cfg)
               end
             end
-            for _, provider_configuration in ipairs(provider_configurations) do
+            for _, provider_configuration in ipairs(cfgs) do
               if vim.tbl_contains(provider_configuration.provider:get_trigger_characters(), trigger_context.before_character) then
                 return self:complete()
               end
