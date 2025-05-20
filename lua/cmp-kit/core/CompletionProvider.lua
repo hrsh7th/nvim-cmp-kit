@@ -172,7 +172,9 @@ function CompletionProvider:complete(trigger_context)
       completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions
     )
     self._state.is_trigger_character_completion = is_trigger_char
-    self._state.request_state = RequestState.Fetching
+    if not is_same_offset or self._state.request_state == RequestState.Waiting then
+      self._state.request_state = RequestState.Fetching
+    end
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset

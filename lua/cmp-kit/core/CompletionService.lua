@@ -383,6 +383,10 @@ do
     local queue = Async.resolve()
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
     for _, group in ipairs(self:_get_provider_groups()) do
+      Async.all(tasks)
+      if self._state.complete_trigger_context ~= trigger_context then
+        return
+      end
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
           -- invoke completion.
@@ -413,7 +417,9 @@ do
       else
         vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nit', true)
       end
-      self:matching() -- if in sync_mode, matching will be done in `select` method.
+      if self:is_menu_visible() then
+        self:matching() -- if in sync_mode, matching will be done in `select` method.
+      end
     end
   end
 
@@ -446,18 +452,12 @@ function CompletionService:matching()
 
   kit.clear(self._state.matches)
 
-  -- update revisions.
-  for _, group in ipairs(self:_get_provider_groups()) do
-    for _, cfg in ipairs(group) do
-      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
-    end
-  end
-
   -- detect group.
   for _, group in ipairs(self:_get_provider_groups()) do
     local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
+        self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
         table.insert(cfgs, cfg)
       end
     end

@@ -195,7 +195,11 @@ function CompletionItem:get_select_text()
     if self._trigger_context.in_string then
       select_text = oneline(text)
     else
-      select_text = SelectText.create(text, self._trigger_context.text_after:sub(1, 1))
+      select_text = SelectText.create({
+        insert_text = text,
+        before_text = self._trigger_context:get_query(self:get_offset()),
+        after_text = self._trigger_context.text_after,
+      })
     end
 
     -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
@@ -404,6 +408,14 @@ function CompletionItem:commit(option)
   if debugger.enable() then
     debugger.add('cmp-kit.core.CompletionItem:commit', {
       item = self._item,
+      trigger_context = self._trigger_context,
+      offset = self:get_offset(),
+      query = self._trigger_context:get_query(self:get_offset()),
+      filter_text = self:get_filter_text(),
+      select_text = self:get_select_text(),
+      insert_text = self:get_insert_text(),
+      insert_range = self:get_insert_range(),
+      replace_range = self:get_replace_range(),
       option = option,
     })
   end
