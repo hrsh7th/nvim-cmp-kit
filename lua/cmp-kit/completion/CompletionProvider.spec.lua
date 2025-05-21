@@ -1,15 +1,15 @@
 local spec = require('cmp-kit.spec')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
-local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local CompletionProvider = require('cmp-kit.core.CompletionProvider')
+local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
+local CompletionProvider = require('cmp-kit.completion.CompletionProvider')
 
----@class cmp-kit.core.CompletionProvider.spec.Option
+---@class cmp-kit.completion.CompletionProvider.spec.Option
 ---@field public keyword_pattern? string
 
----@param option? cmp-kit.core.CompletionProvider.spec.Option
----@return cmp-kit.core.CompletionProvider, { set_response: fun(response: cmp-kit.kit.LSP.CompletionList) }
+---@param option? cmp-kit.completion.CompletionProvider.spec.Option
+---@return cmp-kit.completion.CompletionProvider, { set_response: fun(response: cmp-kit.kit.LSP.CompletionList) }
 local function create_provider(option)
   option = option or {}
 
@@ -34,7 +34,7 @@ local function create_provider(option)
   }
 end
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('CompletionProvider', function()
     it('should determine completion timing', function()
       spec.reset()

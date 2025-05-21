@@ -1,12 +1,16 @@
 local Async = require('cmp-kit.kit.Async')
-local CompletionService = require('cmp-kit.core.CompletionService')
+local CompletionService = require('cmp-kit.completion.CompletionService')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('init', function()
     it('should work with macro', function()
       vim.cmd.enew({ bang = true })
 
-      local service = CompletionService.new({})
+      local service = CompletionService.new({
+        performance = {
+          fetching_timeout_ms = 0
+        }
+      })
       service:register_source({
         name = 'test',
         complete = function()

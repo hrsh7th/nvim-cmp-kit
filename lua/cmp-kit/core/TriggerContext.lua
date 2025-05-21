@@ -5,7 +5,7 @@ local cache_keeper = {
 }
 
 ---The TriggerContext.
----@class cmp-kit.core.TriggerContext
+---@class cmp-kit.completion.TriggerContext
 ---@field public mode string
 ---@field public line integer 0-origin
 ---@field public character integer 0-origin utf8 byte index
@@ -23,14 +23,14 @@ local TriggerContext = {}
 TriggerContext.__index = TriggerContext
 
 ---Create empty TriggerContext.
----@return cmp-kit.core.TriggerContext
+---@return cmp-kit.completion.TriggerContext
 function TriggerContext.create_empty_context()
   return TriggerContext.new('i', -1, -1, '', -1)
 end
 
 ---Create new TriggerContext from current state.
 ---@param option? { force: boolean? }
----@return cmp-kit.core.TriggerContext
+---@return cmp-kit.completion.TriggerContext
 function TriggerContext.create(option)
   local mode = vim.api.nvim_get_mode().mode --[[@as string]]
   local bufnr = vim.api.nvim_get_current_buf()
@@ -48,7 +48,7 @@ end
 ---@param text string
 ---@param bufnr integer
 ---@param option? { force?: boolean }
----@return cmp-kit.core.TriggerContext
+---@return cmp-kit.completion.TriggerContext
 function TriggerContext.new(mode, line, character, text, bufnr, option)
   local text_before = text:sub(1, character)
   local text_after = text:sub(character + 1)
@@ -104,7 +104,7 @@ function TriggerContext:get_query(offset)
 end
 
 ---Check if trigger context is changed.
----@param new_trigger_context cmp-kit.core.TriggerContext
+---@param new_trigger_context cmp-kit.completion.TriggerContext
 ---@return boolean
 function TriggerContext:changed(new_trigger_context)
   if new_trigger_context.force then

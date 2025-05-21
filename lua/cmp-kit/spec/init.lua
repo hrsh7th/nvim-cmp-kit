@@ -1,10 +1,10 @@
 local LSP = require('cmp-kit.kit.LSP')
-local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Async = require('cmp-kit.kit.Async')
 local assert = select(2, pcall(require, 'luassert')) or _G.assert
+local TriggerContext = require('cmp-kit.core.TriggerContext')
 local LinePatch = require('cmp-kit.core.LinePatch')
-local CompletionService = require('cmp-kit.core.CompletionService')
-local DefaultConfig = require('cmp-kit.core.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
+local CompletionService = require('cmp-kit.completion.CompletionService')
 
 local profiling = {}
 
@@ -18,7 +18,7 @@ function spec.reset()
   vim.o.swapfile = false
 end
 
----@class cmp-kit.core.spec.setup.Option
+---@class cmp-kit.completion.spec.setup.Option
 ---@field public buffer_text string[]
 ---@field public mode? 'i' | 'c'
 ---@field public input? string
@@ -30,8 +30,8 @@ end
 ---@field public items? cmp-kit.kit.LSP.CompletionItem[]
 
 ---Setup for spec.
----@param option cmp-kit.core.spec.setup.Option
----@return cmp-kit.core.TriggerContext, cmp-kit.core.CompletionSource, cmp-kit.core.CompletionService
+---@param option cmp-kit.completion.spec.setup.Option
+---@return cmp-kit.completion.TriggerContext, cmp-kit.completion.CompletionSource, cmp-kit.completion.CompletionService
 function spec.setup(option)
   option.mode = option.mode or 'i'
 
@@ -58,7 +58,7 @@ function spec.setup(option)
   local target_items = option.items or { { label = 'dummy' } }
 
   ---Create source.
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   local source = {
     name = 'dummy',
     get_configuration = function()

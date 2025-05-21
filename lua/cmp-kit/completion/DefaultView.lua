@@ -1,9 +1,9 @@
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
+local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 
 local redraw_keys = vim.keycode('<Cmd>redraw<CR><C-r>=""<CR>')
 
@@ -24,7 +24,7 @@ do
   ensure_color_code_highlight_group = function(color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
     if not cache[color_code] then
-      local name = ('cmp-kit.core.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
+      local name = ('cmp-kit.completion.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
       vim.api.nvim_set_hl(0, name, {
         fg = '#' .. color_code,
         bg = 'NONE',
@@ -37,10 +37,10 @@ do
 end
 
 ---Ensure coloring extmarks.
----@param item cmp-kit.core.CompletionItem
+---@param item cmp-kit.completion.CompletionItem
 ---@return string?
 local function get_coloring(item)
-  local cache_key = 'cmp-kit.core.DefaultView.coloring'
+  local cache_key = 'cmp-kit.completion.DefaultView.coloring'
   if not item.cache[cache_key] then
     if item:get_kind() == LSP.CompletionItemKind.Color then
       local details = item:get_label_details()
@@ -75,28 +75,28 @@ local function get_coloring(item)
   return item.cache[cache_key]
 end
 
----@class cmp-kit.core.DefaultView.WindowPosition
+---@class cmp-kit.completion.DefaultView.WindowPosition
 ---@field public row integer
 ---@field public col integer
 ---@field public anchor 'NW' | 'NE' | 'SW' | 'SE'
 
----@class cmp-kit.core.DefaultView.Extmark
+---@class cmp-kit.completion.DefaultView.Extmark
 ---@field public col integer
 ---@field public end_col integer
 ---@field public hl_group? string
 ---@field public priority? integer
 ---@field public conceal? string
 
----@class cmp-kit.core.DefaultView.MenuComponent
+---@class cmp-kit.completion.DefaultView.MenuComponent
 ---@field padding_left integer
 ---@field padding_right integer
 ---@field align 'left' | 'right'
----@field get_text fun(match: cmp-kit.core.Match, config: cmp-kit.core.DefaultView.Config): string
----@field get_extmarks fun(match: cmp-kit.core.Match, config: cmp-kit.core.DefaultView.Config): cmp-kit.core.DefaultView.Extmark[]
+---@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.DefaultView.Config): string
+---@field get_extmarks fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.DefaultView.Config): cmp-kit.completion.DefaultView.Extmark[]
 
----@class cmp-kit.core.DefaultView.Config
+---@class cmp-kit.completion.DefaultView.Config
 ---@field border string|false
----@field menu_components cmp-kit.core.DefaultView.MenuComponent[]
+---@field menu_components cmp-kit.completion.DefaultView.MenuComponent[]
 ---@field menu_padding_left integer
 ---@field menu_padding_right integer
 ---@field menu_gap integer
@@ -104,7 +104,7 @@ end
 ---@field menu_max_win_height integer
 ---@field docs_min_win_width_ratio number
 ---@field docs_max_win_width_ratio number
----@field get_menu_position fun(preset: { offset: cmp-kit.core.DefaultView.WindowPosition, cursor: cmp-kit.core.DefaultView.WindowPosition }): cmp-kit.core.DefaultView.WindowPosition
+---@field get_menu_position fun(preset: { offset: cmp-kit.completion.DefaultView.WindowPosition, cursor: cmp-kit.completion.DefaultView.WindowPosition }): cmp-kit.completion.DefaultView.WindowPosition
 ---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
 
 ---Lookup table for CompletionItemKind.
@@ -160,7 +160,7 @@ end
 ---side padding border.
 local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 
----@type cmp-kit.core.DefaultView.Config
+---@type cmp-kit.completion.DefaultView.Config
 local default_config = {
   border = false,
   menu_components = {
@@ -271,26 +271,26 @@ local default_config = {
   end)(),
 }
 
----@class cmp-kit.core.DefaultView: cmp-kit.core.View
+---@class cmp-kit.completion.DefaultView: cmp-kit.completion.CompletionView
 ---@field private _ns integer
----@field private _config cmp-kit.core.DefaultView.Config
----@field private _service cmp-kit.core.CompletionService
+---@field private _config cmp-kit.completion.DefaultView.Config
+---@field private _service cmp-kit.completion.CompletionService
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _docs_window cmp-kit.kit.Vim.FloatingWindow
----@field private _matches cmp-kit.core.Match[]
----@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.core.DefaultView.MenuComponent }[]
----@field private _selected_item? cmp-kit.core.CompletionItem
+---@field private _matches cmp-kit.completion.Match[]
+---@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.completion.DefaultView.MenuComponent }[]
+---@field private _selected_item? cmp-kit.completion.CompletionItem
 ---@field private _resolving cmp-kit.kit.Async.AsyncTask
 local DefaultView = {}
 DefaultView.__index = DefaultView
 
 ---Create DefaultView
----@param config? cmp-kit.core.DefaultView.Config|{}
----@return cmp-kit.core.DefaultView
+---@param config? cmp-kit.completion.DefaultView.Config|{}
+---@return cmp-kit.completion.DefaultView
 function DefaultView.new(config)
-  config = kit.merge(config or {}, default_config) --[[@as cmp-kit.core.DefaultView.Config]]
+  config = kit.merge(config or {}, default_config) --[[@as cmp-kit.completion.DefaultView.Config]]
   local self = setmetatable({
-    _ns = vim.api.nvim_create_namespace(('cmp-kit.core.DefaultView.%s'):format(vim.uv.now())),
+    _ns = vim.api.nvim_create_namespace(('cmp-kit.completion.DefaultView.%s'):format(vim.uv.now())),
     _config = config,
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
@@ -374,8 +374,8 @@ function DefaultView:is_docs_visible()
 end
 
 ---Show completion menu.
----@param matches cmp-kit.core.Match[]
----@param selection cmp-kit.core.Selection
+---@param matches cmp-kit.completion.Match[]
+---@param selection cmp-kit.completion.Selection
 function DefaultView:show(matches, selection)
   -- hide window if no matches.
   self._matches = matches
@@ -537,8 +537,8 @@ function DefaultView:hide()
 end
 
 ---Apply selection.
----@param matches cmp-kit.core.Match[]
----@param selection cmp-kit.core.Selection
+---@param matches cmp-kit.completion.Match[]
+---@param selection cmp-kit.completion.Selection
 function DefaultView:select(matches, selection)
   if not self._menu_window:is_visible() then
     return
@@ -569,7 +569,7 @@ function DefaultView:dispose()
 end
 
 ---Update documentation.
----@param item? cmp-kit.core.CompletionItem
+---@param item? cmp-kit.completion.CompletionItem
 function DefaultView:_update_docs(item)
   self._selected_item = item
 

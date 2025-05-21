@@ -82,7 +82,7 @@ local remove_last_arg_regex = vim.regex([=[[^[:blank:]]\+$]=])
 return function(option)
   option = option or {}
 
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   return {
     name = 'cmdline',
     get_configuration = function()

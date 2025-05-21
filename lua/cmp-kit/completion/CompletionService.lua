@@ -2,13 +2,12 @@
 local kit = require('cmp-kit.kit')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
-local ScheduledTimer = require('cmp-kit.kit.Async.ScheduledTimer')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local Character = require('cmp-kit.core.Character')
-local DefaultConfig = require('cmp-kit.core.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local CompletionProvider = require('cmp-kit.core.CompletionProvider')
+local CompletionProvider = require('cmp-kit.completion.CompletionProvider')
 
 local tmp_tbls = {
   dedup_map = {},
@@ -24,45 +23,44 @@ local function emit(events, payload)
   end
 end
 
----@class cmp-kit.core.CompletionService.ProviderConfiguration
+---@class cmp-kit.completion.CompletionService.ProviderConfiguration
 ---@field public group integer
 ---@field public priority integer
----@field public provider cmp-kit.core.CompletionProvider
+---@field public provider cmp-kit.completion.CompletionProvider
 
----@class cmp-kit.core.CompletionService.Config
----@field public expand_snippet? cmp-kit.core.ExpandSnippet
+---@class cmp-kit.completion.CompletionService.Config
+---@field public expand_snippet? cmp-kit.completion.ExpandSnippet
 ---@field public sync_mode? fun(): boolean
----@field public view cmp-kit.core.View
----@field public sorter cmp-kit.core.Sorter
----@field public matcher cmp-kit.core.Matcher
+---@field public view cmp-kit.completion.CompletionView
+---@field public sorter cmp-kit.completion.Sorter
+---@field public matcher cmp-kit.completion.Matcher
 ---@field public performance { fetching_timeout_ms?: integer }
 ---@field public default_keyword_pattern string
 
----@class cmp-kit.core.CompletionService.State
----@field public provider_response_revision table<cmp-kit.core.CompletionProvider, integer>
----@field public complete_trigger_context cmp-kit.core.TriggerContext
----@field public matching_trigger_context cmp-kit.core.TriggerContext
----@field public selection cmp-kit.core.Selection
----@field public matches cmp-kit.core.Match[]
+---@class cmp-kit.completion.CompletionService.State
+---@field public provider_response_revision table<cmp-kit.completion.CompletionProvider, integer>
+---@field public complete_trigger_context cmp-kit.completion.TriggerContext
+---@field public matching_trigger_context cmp-kit.completion.TriggerContext
+---@field public selection cmp-kit.completion.Selection
+---@field public matches cmp-kit.completion.Match[]
 
----@class cmp-kit.core.CompletionService
+---@class cmp-kit.completion.CompletionService
 ---@field private _id integer
 ---@field private _ns integer
 ---@field private _disposed boolean
 ---@field private _preventing integer
----@field private _matching_timer cmp-kit.kit.Async.ScheduledTimer
 ---@field private _events table<string, function[]>
----@field private _state cmp-kit.core.CompletionService.State
----@field private _config cmp-kit.core.CompletionService.Config
+---@field private _state cmp-kit.completion.CompletionService.State
+---@field private _config cmp-kit.completion.CompletionService.Config
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
----@field private _provider_configurations (cmp-kit.core.CompletionService.ProviderConfiguration|{ index: integer })[]
+---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
 local CompletionService = {}
 CompletionService.__index = CompletionService
 
 ---Create a new CompletionService.
----@param config? cmp-kit.core.CompletionService.Config|{}
----@return cmp-kit.core.CompletionService
+---@param config? cmp-kit.completion.CompletionService.Config|{}
+---@return cmp-kit.completion.CompletionService
 function CompletionService.new(config)
   local id = kit.unique_id()
   local self = setmetatable({
@@ -70,7 +68,6 @@ function CompletionService.new(config)
     _ns = vim.api.nvim_create_namespace(('cmp-kit:%s'):format(id)),
     _disposed = false,
     _preventing = 0,
-    _matching_timer = ScheduledTimer.new(),
     _events = {},
     _state = {
       provider_response_revision = {},
@@ -87,7 +84,7 @@ function CompletionService.new(config)
     _provider_configurations = {},
     _keys = {},
     _macro_completion = {},
-  } --[[@as cmp-kit.core.CompletionService]], CompletionService)
+  } --[[@as cmp-kit.completion.CompletionService]], CompletionService)
 
   -- support macro.
   do
@@ -153,19 +150,19 @@ function CompletionService.new(config)
 end
 
 ---Set config.
----@param config cmp-kit.core.CompletionService.Config
+---@param config cmp-kit.completion.CompletionService.Config
 function CompletionService:set_config(config)
   self._config = config
 end
 
 ---Get config.
----@return cmp-kit.core.CompletionService.Config
+---@return cmp-kit.completion.CompletionService.Config
 function CompletionService:get_config()
   return self._config
 end
 
 ---Register on_menu_show event.
----@param callback fun(payload: { service: cmp-kit.core.CompletionService })
+---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
 ---@return fun()
 function CompletionService:on_menu_show(callback)
   self._events = self._events or {}
@@ -182,7 +179,7 @@ function CompletionService:on_menu_show(callback)
 end
 
 ---Register on_menu_hide event.
----@param callback fun(payload: { service: cmp-kit.core.CompletionService })
+---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
 ---@return fun()
 function CompletionService:on_menu_hide(callback)
   self._events = self._events or {}
@@ -210,11 +207,11 @@ function CompletionService:dispose()
 end
 
 ---Register source.
----@param source cmp-kit.core.CompletionSource
+---@param source cmp-kit.completion.CompletionSource
 ---@param config? { group?: integer, priority?: integer, dedup?: boolean, keyword_length?: integer, item_count?: integer }
 ---@return fun(): nil
 function CompletionService:register_source(source, config)
-  ---@type cmp-kit.core.CompletionService.ProviderConfiguration|{ index: integer }
+  ---@type cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer }
   local provider_configuration = {
     index = #self._provider_configurations + 1,
     group = config and config.group or 0,
@@ -325,7 +322,7 @@ function CompletionService:scroll_docs(delta)
 end
 
 ---Get selection.
----@return cmp-kit.core.Selection
+---@return cmp-kit.completion.Selection
 function CompletionService:get_selection()
   if self._config.sync_mode() then
     local tasks = self._macro_completion
@@ -338,14 +335,14 @@ end
 
 ---Get match at index.
 ---@param index integer
----@return cmp-kit.core.Match
+---@return cmp-kit.completion.Match
 function CompletionService:get_match_at(index)
   return self._state.matches[index]
 end
 
 do
-  ---@param self cmp-kit.core.CompletionService
-  ---@param trigger_context cmp-kit.core.TriggerContext
+  ---@param self cmp-kit.completion.CompletionService
+  ---@param trigger_context cmp-kit.completion.TriggerContext
   local function complete_inner(self, trigger_context)
     local changed = self._state.complete_trigger_context:changed(trigger_context)
     if not changed then
@@ -383,10 +380,6 @@ do
     local queue = Async.resolve()
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
     for _, group in ipairs(self:_get_provider_groups()) do
-      Async.all(tasks)
-      if self._state.complete_trigger_context ~= trigger_context then
-        return
-      end
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
           -- invoke completion.
@@ -417,9 +410,7 @@ do
       else
         vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nit', true)
       end
-      if self:is_menu_visible() then
-        self:matching() -- if in sync_mode, matching will be done in `select` method.
-      end
+      self:matching() -- if in sync_mode, matching will be done in `select` method.
     end
   end
 
@@ -450,16 +441,28 @@ function CompletionService:matching()
     return
   end
 
-  kit.clear(self._state.matches)
-
-  -- detect group.
+  -- update response revision.
   for _, group in ipairs(self:_get_provider_groups()) do
-    local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
-      if cfg.provider:capable(trigger_context) then
-        self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
-        table.insert(cfgs, cfg)
+      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
+    end
+  end
+
+  -- update matches.
+  self._state.matches = {}
+  for _, group in ipairs(self:_get_provider_groups()) do
+    local has_fetching = false
+
+    local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
+    for _, cfg in ipairs(group) do
+      has_fetching = (
+        cfg.provider:get_request_state() == CompletionProvider.RequestState.Fetching and
+        (vim.uv.hrtime() / 1e6 - cfg.provider:get_request_time()) < self._config.performance.fetching_timeout_ms
+      )
+      if has_fetching then
+        break
       end
+      table.insert(cfgs, cfg)
     end
 
     -- gather items.
@@ -471,10 +474,14 @@ function CompletionService:matching()
       end
     end
 
-
-    -- use only this group.
+    -- use this group.
     if #self._state.matches > 0 then
       break
+    end
+
+    -- wait for fetching providers.
+    if has_fetching then
+      return
     end
   end
 
@@ -553,7 +560,7 @@ function CompletionService:matching()
 end
 
 ---Commit completion.
----@param item cmp-kit.core.CompletionItem
+---@param item cmp-kit.completion.CompletionItem
 ---@param option? { replace?: boolean, no_snippet?: boolean }
 function CompletionService:commit(item, option)
   option = option or {}
@@ -580,7 +587,7 @@ function CompletionService:commit(item, option)
         local trigger_context = TriggerContext.create()
         if trigger_context.before_character and Character.is_symbol(trigger_context.before_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
-            local cfgs = {} --[=[@type cmp-kit.core.CompletionService.ProviderConfiguration[]]=]
+            local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
             for _, cfg in ipairs(provider_group) do
               if cfg.provider:capable(trigger_context) then
                 table.insert(cfgs, cfg)
@@ -616,7 +623,7 @@ function CompletionService:_is_active_selection()
 end
 
 ---Get provider groups.
----@return cmp-kit.core.CompletionService.ProviderConfiguration[][]
+---@return cmp-kit.completion.CompletionService.ProviderConfiguration[][]
 function CompletionService:_get_provider_groups()
   -- sort by group.
   table.sort(self._provider_configurations, function(a, b)
@@ -651,7 +658,7 @@ function CompletionService:_get_provider_groups()
 end
 
 ---Get score boost.
----@param provider cmp-kit.core.CompletionProvider
+---@param provider cmp-kit.completion.CompletionProvider
 ---@return number
 function CompletionService:_get_score_boost(provider)
   local cur_priority = 0
@@ -687,8 +694,8 @@ end
 
 ---Insert selection.
 ---@param text_before string
----@param item_next? cmp-kit.core.CompletionItem
----@param item_prev? cmp-kit.core.CompletionItem
+---@param item_next? cmp-kit.completion.CompletionItem
+---@param item_prev? cmp-kit.completion.CompletionItem
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionService:_insert_selection(text_before, item_next, item_prev)
   local trigger_context = TriggerContext.create()

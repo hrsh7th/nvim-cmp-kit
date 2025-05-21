@@ -1,6 +1,6 @@
 local Character = require('cmp-kit.core.Character')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('Character', function()
     it('is_alpha', function()
       assert.is_true(Character.is_alpha(('a'):byte()))

@@ -5,7 +5,7 @@ local function get_script_dir()
   return vim.fs.dirname(vim.fs.joinpath(vim.uv.cwd(), vim.fs.normalize(debug.getinfo(2, "S").source:sub(2))))
 end
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('Buffer', function()
     local function setup()
       vim.cmd.bdelete({ bang = true })

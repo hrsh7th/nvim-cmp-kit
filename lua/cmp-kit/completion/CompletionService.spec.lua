@@ -1,7 +1,7 @@
 local spec = require('cmp-kit.spec')
-local CompletionService = require('cmp-kit.core.CompletionService')
+local CompletionService = require('cmp-kit.completion.CompletionService')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('CompletionService', function()
     it('should work on basic case', function()
       local _, source = spec.setup({

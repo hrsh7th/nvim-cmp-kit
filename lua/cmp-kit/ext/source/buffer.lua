@@ -1,7 +1,7 @@
 local Async = require('cmp-kit.kit.Async')
 local Buffer = require('cmp-kit.core.Buffer')
-local DefaultConfig = require('cmp-kit.core.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
+local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
 
 ---@class cmp-kit.ext.source.buffer.Option
 ---@field public keyword_pattern? string
@@ -48,7 +48,7 @@ return function(option)
     }
   end
 
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   return {
     name = 'buffer',
     get_configuration = function()

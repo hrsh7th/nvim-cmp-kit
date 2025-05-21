@@ -76,7 +76,7 @@ return function(option)
   end
   option.enable_file_document = option.enable_file_document == nil and true or option.enable_file_document
 
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   return {
     name = 'path',
     get_configuration = function()

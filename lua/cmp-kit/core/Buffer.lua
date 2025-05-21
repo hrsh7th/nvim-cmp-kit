@@ -15,7 +15,7 @@ do
   end
 end
 
----@class cmp-kit.core.Buffer.Indexer
+---@class cmp-kit.completion.Buffer.Indexer
 ---@field private _bufnr integer
 ---@field private _regex string
 ---@field private _words string[][]
@@ -193,7 +193,7 @@ function Indexer:_finish_index()
       local text = vim.api.nvim_buf_get_lines(self._bufnr, i - 1, i, false)[1] or ''
       for _, word in ipairs(words) do
         if not text:match(vim.pesc(word)) then
-          debugger.add('cmp-kit.core.Buffer.Indexer', {
+          debugger.add('cmp-kit.completion.Buffer.Indexer', {
             desc = 'buffer is not synced collectly',
             bufnr = self._bufnr,
             regex = self._regex,
@@ -207,20 +207,20 @@ function Indexer:_finish_index()
   end
 end
 
----@class cmp-kit.core.Buffer
+---@class cmp-kit.completion.Buffer
 ---@field private _bufnr integer
----@field private _indexers table<string, cmp-kit.core.Buffer.Indexer>
+---@field private _indexers table<string, cmp-kit.completion.Buffer.Indexer>
 ---@field private _disposed boolean
 local Buffer = {}
 Buffer.__index = Buffer
 
 local internal = {
-  bufs = {} --[[@as table<integer, cmp-kit.core.Buffer>]]
+  bufs = {} --[[@as table<integer, cmp-kit.completion.Buffer>]]
 }
 
 ---Get or create buffer instance.
 ---@param bufnr integer
----@return cmp-kit.core.Buffer
+---@return cmp-kit.completion.Buffer
 function Buffer.ensure(bufnr)
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
   if not internal.bufs[bufnr] or internal.bufs[bufnr]:is_disposed() then

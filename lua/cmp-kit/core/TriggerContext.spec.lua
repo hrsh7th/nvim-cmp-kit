@@ -2,7 +2,7 @@ local spec = require('cmp-kit.spec')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('TriggerContext', function()
     for _, mode in ipairs({ 'i', 'c' }) do
       describe(mode, function()

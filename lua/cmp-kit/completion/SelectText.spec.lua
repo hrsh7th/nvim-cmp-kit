@@ -1,6 +1,6 @@
-local SelectText = require('cmp-kit.core.SelectText')
+local SelectText = require('cmp-kit.completion.SelectText')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('SelectText', function()
     describe('.create', function()
       it('should return select text', function()

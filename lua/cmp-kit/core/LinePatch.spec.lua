@@ -1,11 +1,10 @@
 ---@diagnostic disable: invisible
 local spec = require('cmp-kit.spec')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
-local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local DefaultMatcher = require('cmp-kit.core.DefaultMatcher')
+local LinePatch = require('cmp-kit.core.LinePatch')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('LinePatch', function()
     for _, mode in ipairs({ 'i', 'c' }) do
       for _, fn in ipairs({ 'apply_by_func', 'apply_by_keys' }) do

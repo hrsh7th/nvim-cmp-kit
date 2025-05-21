@@ -12,7 +12,7 @@ local INVALID = {
 
 ---@class cmp-kit.ext.source.calc.Option
 return function()
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   return {
     name = 'calc',
     get_configuration = function()

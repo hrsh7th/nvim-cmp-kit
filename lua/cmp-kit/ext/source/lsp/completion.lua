@@ -10,7 +10,7 @@ return function(option)
 
   local request = nil ---@type (cmp-kit.kit.Async.AsyncTask|{ cancel: fun(): nil })?
 
-  ---@type cmp-kit.core.CompletionSource
+  ---@type cmp-kit.completion.CompletionSource
   return {
     name = option.client.name,
     get_configuration = function()

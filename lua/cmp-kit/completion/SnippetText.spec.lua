@@ -1,6 +1,6 @@
-local SnippetText = require('cmp-kit.core.SnippetText')
+local SnippetText = require('cmp-kit.completion.SnippetText')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('SnippetText', function()
     describe('.parse', function()
       it('should return snippet text', function()

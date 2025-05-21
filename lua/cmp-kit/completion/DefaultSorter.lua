@@ -1,7 +1,7 @@
 ---Compare two items.
----@param a cmp-kit.core.Match
----@param b cmp-kit.core.Match
----@param context cmp-kit.core.SorterContext
+---@param a cmp-kit.completion.Match
+---@param b cmp-kit.completion.Match
+---@param context cmp-kit.completion.SorterContext
 ---@return boolean
 local function compare(a, b, context)
   local offset_a = a.item:get_offset()
@@ -59,9 +59,9 @@ end
 local DefaultSorter = {}
 
 ---Sort matches.
----@param matches cmp-kit.core.Match[]
----@param context cmp-kit.core.SorterContext
----@return cmp-kit.core.Match[]
+---@param matches cmp-kit.completion.Match[]
+---@param context cmp-kit.completion.SorterContext
+---@return cmp-kit.completion.Match[]
 function DefaultSorter.sorter(matches, context)
   -- sort matches.
   table.sort(matches, function(a, b)

@@ -2,7 +2,7 @@ local debugger = {}
 
 local private = {
   ---@type integer
-  ns = vim.api.nvim_create_namespace('cmp-kit.debugger'),
+  ns = vim.api.nvim_create_namespace('cmp-kit.core.debugger'),
   ---@type integer
   buf = vim.api.nvim_create_buf(false, true),
   ---@type integer

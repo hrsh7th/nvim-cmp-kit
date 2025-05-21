@@ -7,8 +7,8 @@ local debugger = require('cmp-kit.core.debugger')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Character = require('cmp-kit.core.Character')
-local SelectText = require('cmp-kit.core.SelectText')
-local SnippetText = require('cmp-kit.core.SnippetText')
+local SelectText = require('cmp-kit.completion.SelectText')
+local SnippetText = require('cmp-kit.completion.SnippetText')
 
 ---Trim whitespace.
 ---@param text string
@@ -61,11 +61,11 @@ local function oneline(s)
   return s
 end
 
----@alias cmp-kit.core.ExpandSnippet fun(s: string, option: { item: cmp-kit.core.CompletionItem })
+---@alias cmp-kit.completion.ExpandSnippet fun(s: string, option: { item: cmp-kit.completion.CompletionItem })
 
----@class cmp-kit.core.CompletionItem
----@field private _trigger_context cmp-kit.core.TriggerContext
----@field private _provider cmp-kit.core.CompletionProvider
+---@class cmp-kit.completion.CompletionItem
+---@field private _trigger_context cmp-kit.completion.TriggerContext
+---@field private _provider cmp-kit.completion.CompletionProvider
 ---@field private _completion_list cmp-kit.kit.LSP.CompletionList
 ---@field private _item cmp-kit.kit.LSP.CompletionItem
 ---@field private _resolving cmp-kit.kit.Async.AsyncTask
@@ -74,8 +74,8 @@ local CompletionItem = {}
 CompletionItem.__index = CompletionItem
 
 ---Create new CompletionItem.
----@param trigger_context cmp-kit.core.TriggerContext
----@param provider cmp-kit.core.CompletionProvider
+---@param trigger_context cmp-kit.completion.TriggerContext
+---@param provider cmp-kit.completion.CompletionProvider
 ---@param list cmp-kit.kit.LSP.CompletionList
 ---@param item cmp-kit.kit.LSP.CompletionItem
 function CompletionItem.new(trigger_context, provider, list, item)
@@ -399,14 +399,14 @@ function CompletionItem:execute()
 end
 
 ---Commit item.
----@param option? { replace?: boolean, expand_snippet?: cmp-kit.core.ExpandSnippet }
+---@param option? { replace?: boolean, expand_snippet?: cmp-kit.completion.ExpandSnippet }
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionItem:commit(option)
   option = option or {}
   option.replace = option.replace or false
 
   if debugger.enable() then
-    debugger.add('cmp-kit.core.CompletionItem:commit', {
+    debugger.add('cmp-kit.completion.CompletionItem:commit', {
       item = self._item,
       trigger_context = self._trigger_context,
       offset = self:get_offset(),
@@ -427,7 +427,7 @@ function CompletionItem:commit(option)
       Async.race({ self:resolve(), Async.timeout(500) }):sync(501)
     end)
 
-    local trigger_context --[[@as cmp-kit.core.TriggerContext]]
+    local trigger_context --[[@as cmp-kit.completion.TriggerContext]]
 
     -- Create initial undo point.
     vim.o.undolevels = vim.o.undolevels

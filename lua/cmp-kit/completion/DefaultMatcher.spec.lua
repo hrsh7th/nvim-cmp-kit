@@ -1,6 +1,6 @@
-local DefaultMatcher = require('cmp-kit.core.DefaultMatcher')
+local DefaultMatcher = require('cmp-kit.completion.DefaultMatcher')
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('DefaultMatcher', function()
     describe('.matcher', function()
       it('should return corerct indexes', function()

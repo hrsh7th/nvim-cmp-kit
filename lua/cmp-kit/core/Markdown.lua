@@ -2,13 +2,13 @@
 
 local kit = require('cmp-kit.kit')
 
----@class cmp-kit.core.Markdown.Range
+---@class cmp-kit.completion.Markdown.Range
 ---@field public [1] integer
 ---@field public [2] integer
 ---@field public [3] integer
 ---@field public [4] integer
 
----@class cmp-kit.core.Markdown.Extmark
+---@class cmp-kit.completion.Markdown.Extmark
 ---@field public row integer
 ---@field public col integer
 ---@field public end_row? integer
@@ -30,20 +30,20 @@ local kit = require('cmp-kit.kit')
 ---@field public conceal? string
 ---@field public url? string
 
----@class cmp-kit.core.Markdown.CodeBlockSection
+---@class cmp-kit.completion.Markdown.CodeBlockSection
 ---@field public type 'code_block'
 ---@field public language? string
 ---@field public contents string[]
----@class cmp-kit.core.Markdown.MarkdownSection
+---@class cmp-kit.completion.Markdown.MarkdownSection
 ---@field public type 'markdown'
 ---@field public contents string[]
----@class cmp-kit.core.Markdown.SeparatorSection
+---@class cmp-kit.completion.Markdown.SeparatorSection
 ---@field public type 'separator'
----@class cmp-kit.core.Markdown.HeadingSection
+---@class cmp-kit.completion.Markdown.HeadingSection
 ---@field public type 'heading'
 ---@field public level integer
 ---@field public title string
----@alias cmp-kit.core.Markdown.Section cmp-kit.core.Markdown.CodeBlockSection|cmp-kit.core.Markdown.MarkdownSection|cmp-kit.core.Markdown.SeparatorSection|cmp-kit.core.Markdown.HeadingSection
+---@alias cmp-kit.completion.Markdown.Section cmp-kit.completion.Markdown.CodeBlockSection|cmp-kit.completion.Markdown.MarkdownSection|cmp-kit.completion.Markdown.SeparatorSection|cmp-kit.completion.Markdown.HeadingSection
 
 local Markdown = {}
 
@@ -82,14 +82,14 @@ end
 
 ---Prepare markdown contents.
 ---@param raw_contents string[]
----@return string[], table<string, cmp-kit.core.Markdown.Range[]>, cmp-kit.core.Markdown.Extmark[]
+---@return string[], table<string, cmp-kit.completion.Markdown.Range[]>, cmp-kit.completion.Markdown.Extmark[]
 local function prepare_markdown_contents(raw_contents)
-  ---@type cmp-kit.core.Markdown.Section[]
+  ---@type cmp-kit.completion.Markdown.Section[]
   local sections = {}
 
   -- parse sections.
   do
-    ---@type cmp-kit.core.Markdown.Section
+    ---@type cmp-kit.completion.Markdown.Section
     local current = {
       type = 'markdown',
       contents = {},
@@ -168,8 +168,8 @@ local function prepare_markdown_contents(raw_contents)
 
   -- parse annotations.
   local contents = {} ---@type string[]
-  local languages = {} ---@type table<string, cmp-kit.core.Markdown.Range>
-  local extmarks = {} ---@type cmp-kit.core.Markdown.Extmark[]
+  local languages = {} ---@type table<string, cmp-kit.completion.Markdown.Range>
+  local extmarks = {} ---@type cmp-kit.completion.Markdown.Extmark[]
   for i, section in ipairs(sections) do
     -- insert empty lines between different sections.
     if i > 1 and #sections > 1 and section.type ~= 'separator' and sections[i - 1].type ~= 'separator' then

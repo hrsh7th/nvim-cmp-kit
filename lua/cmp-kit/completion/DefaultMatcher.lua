@@ -7,8 +7,8 @@ local PREFIX_FACTOR = 8
 local NOT_FUZZY_FACTOR = 6
 
 ---convert_matches
----@param matches cmp-kit.core.DefaultMatcher.MatchData[]
----@return cmp-kit.core.MatchPosition[]
+---@param matches cmp-kit.completion.DefaultMatcher.MatchData[]
+---@return cmp-kit.completion.MatchPosition[]
 local function convert_matches(matches)
   for _, match in ipairs(matches) do
     ---@diagnostic disable-next-line: inject-field
@@ -26,7 +26,7 @@ local function convert_matches(matches)
   return matches
 end
 
----@class cmp-kit.core.DefaultMatcher.MatchData
+---@class cmp-kit.completion.DefaultMatcher.MatchData
 ---@field index? integer
 ---@field query_match_start integer
 ---@field query_match_end integer
@@ -41,7 +41,7 @@ end
 ---@param query_end_index integer
 ---@param label string
 ---@param label_index integer
----@return cmp-kit.core.DefaultMatcher.MatchData | nil
+---@return cmp-kit.completion.DefaultMatcher.MatchData | nil
 local function find_match_region(query, query_start_index, query_end_index, label, label_index)
   -- determine query position ( woroff -> word_offset )
   while query_start_index < query_end_index do
@@ -111,7 +111,7 @@ end
 ---Match via pure lua code.
 ---@param query string
 ---@param label string
----@return integer, cmp-kit.core.MatchPosition[]
+---@return integer, cmp-kit.completion.MatchPosition[]
 function DefaultMatcher.matcher(query, label)
   -- empty input
   if #query == 0 then

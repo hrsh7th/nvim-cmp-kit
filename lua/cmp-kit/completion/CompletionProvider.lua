@@ -3,10 +3,10 @@ local kit            = require('cmp-kit.kit')
 local LSP            = require('cmp-kit.kit.LSP')
 local Async          = require('cmp-kit.kit.Async')
 local RegExp         = require('cmp-kit.kit.Vim.RegExp')
-local CompletionItem = require('cmp-kit.core.CompletionItem')
-local DefaultConfig  = require('cmp-kit.core.DefaultConfig')
+local CompletionItem = require('cmp-kit.completion.CompletionItem')
+local DefaultConfig  = require('cmp-kit.completion.DefaultConfig')
 
----@enum cmp-kit.core.CompletionProvider.RequestState
+---@enum cmp-kit.completion.CompletionProvider.RequestState
 local RequestState   = {
   Waiting = 'Waiting',
   Fetching = 'Fetching',
@@ -30,7 +30,7 @@ local function to_completion_list(response)
 end
 
 ---Extract keyword pattern range for requested line context.
----@param trigger_context cmp-kit.core.TriggerContext
+---@param trigger_context cmp-kit.completion.TriggerContext
 ---@param keyword_pattern string
 ---@return { [1]: integer, [2]: integer } 1-origin utf8 byte index
 local function extract_keyword_range(trigger_context, keyword_pattern)
@@ -43,37 +43,38 @@ local function extract_keyword_range(trigger_context, keyword_pattern)
   return trigger_context.cache[cache_key]
 end
 
----@class cmp-kit.core.CompletionProvider.State
----@field public request_state cmp-kit.core.CompletionProvider.RequestState
+---@class cmp-kit.completion.CompletionProvider.State
+---@field public request_state cmp-kit.completion.CompletionProvider.RequestState
+---@field public request_time integer
 ---@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
----@field public trigger_context? cmp-kit.core.TriggerContext
+---@field public trigger_context? cmp-kit.completion.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
 ---@field public dedup_map table<string, boolean>
----@field public items cmp-kit.core.CompletionItem[]
----@field public matches cmp-kit.core.Match[]
----@field public matches_items cmp-kit.core.CompletionItem[]
+---@field public items cmp-kit.completion.CompletionItem[]
+---@field public matches cmp-kit.completion.Match[]
+---@field public matches_items cmp-kit.completion.CompletionItem[]
 ---@field public matches_before_text? string
 
----@class cmp-kit.core.CompletionProvider.Config
+---@class cmp-kit.completion.CompletionProvider.Config
 ---@field public dedup boolean
 ---@field public item_count integer
 ---@field public keyword_length integer
 
----@class cmp-kit.core.CompletionProvider
----@field public config cmp-kit.core.CompletionProvider.Config
----@field private _source cmp-kit.core.CompletionSource
----@field private _state cmp-kit.core.CompletionProvider.State
+---@class cmp-kit.completion.CompletionProvider
+---@field public config cmp-kit.completion.CompletionProvider.Config
+---@field private _source cmp-kit.completion.CompletionSource
+---@field private _state cmp-kit.completion.CompletionProvider.State
 local CompletionProvider = {}
 CompletionProvider.__index = CompletionProvider
 CompletionProvider.RequestState = RequestState
 
 ---Create new CompletionProvider.
----@param source cmp-kit.core.CompletionSource
----@param config? cmp-kit.core.CompletionProvider.Config
----@return cmp-kit.core.CompletionProvider
+---@param source cmp-kit.completion.CompletionSource
+---@param config? cmp-kit.completion.CompletionProvider.Config
+---@return cmp-kit.completion.CompletionProvider
 function CompletionProvider.new(source, config)
   local self = setmetatable({
     config = kit.merge(config or {}, {
@@ -85,13 +86,14 @@ function CompletionProvider.new(source, config)
     _state = {
       is_trigger_character_completion = false,
       request_state = RequestState.Waiting,
+      request_time = 0,
       response_revision = 0,
       dedup_map = {},
       items = {},
       matches = {},
       matches_items = {},
       matches_before_text = nil,
-    } --[[@as cmp-kit.core.CompletionProvider.State]],
+    } --[[@as cmp-kit.completion.CompletionProvider.State]],
   }, CompletionProvider)
   return self
 end
@@ -103,7 +105,7 @@ function CompletionProvider:get_name()
 end
 
 ---Completion (textDocument/completion).
----@param trigger_context cmp-kit.core.TriggerContext
+---@param trigger_context cmp-kit.completion.TriggerContext
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
 function CompletionProvider:complete(trigger_context)
   return Async.run(function()
@@ -174,6 +176,7 @@ function CompletionProvider:complete(trigger_context)
     self._state.is_trigger_character_completion = is_trigger_char
     if not is_same_offset or self._state.request_state == RequestState.Waiting then
       self._state.request_state = RequestState.Fetching
+      self._state.request_time = vim.uv.hrtime() / 1e6
     end
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
@@ -195,7 +198,7 @@ function CompletionProvider:complete(trigger_context)
 end
 
 ---Accept completion response.
----@param trigger_context cmp-kit.core.TriggerContext
+---@param trigger_context cmp-kit.completion.TriggerContext
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
@@ -265,7 +268,7 @@ function CompletionProvider:execute(command)
 end
 
 ---Check if the provider is capable for the trigger context.
----@param trigger_context cmp-kit.core.TriggerContext
+---@param trigger_context cmp-kit.completion.TriggerContext
 ---@return boolean
 function CompletionProvider:capable(trigger_context)
   if self._source.capable and not self._source:capable(trigger_context) then
@@ -303,10 +306,16 @@ function CompletionProvider:get_trigger_characters()
   return self._source:get_configuration().trigger_characters or {}
 end
 
----Return ready state.
----@return cmp-kit.core.CompletionProvider.RequestState
+---Return request state.
+---@return cmp-kit.completion.CompletionProvider.RequestState
 function CompletionProvider:get_request_state()
   return self._state.request_state
+end
+
+---Return request state.
+---@return integer
+function CompletionProvider:get_request_time()
+  return self._state.request_time
 end
 
 ---Return response revision.
@@ -326,6 +335,7 @@ function CompletionProvider:clear()
   self._state = {
     is_trigger_character_completion = false,
     request_state = RequestState.Waiting,
+    request_time = 0,
     response_revision = self._state.response_revision + (#self._state.items == 0 and 0 or 1),
     dedup_map = kit.clear(self._state.dedup_map),
     items = kit.clear(self._state.items),
@@ -335,7 +345,7 @@ function CompletionProvider:clear()
 end
 
 ---Return items.
----@return cmp-kit.core.CompletionItem[]
+---@return cmp-kit.completion.CompletionItem[]
 function CompletionProvider:get_items()
   return self._state.items or {}
 end
@@ -347,9 +357,9 @@ function CompletionProvider:in_trigger_character_completion()
 end
 
 ---Return matches.
----@param trigger_context cmp-kit.core.TriggerContext
----@param config cmp-kit.core.CompletionService.Config
----@return cmp-kit.core.Match[]
+---@param trigger_context cmp-kit.completion.TriggerContext
+---@param config cmp-kit.completion.CompletionService.Config
+---@return cmp-kit.completion.Match[]
 function CompletionProvider:get_matches(trigger_context, config)
   local is_acceptable = not not self._state.trigger_context
   is_acceptable = is_acceptable and self._state.trigger_context.bufnr == trigger_context.bufnr

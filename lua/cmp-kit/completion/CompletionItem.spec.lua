@@ -18,7 +18,7 @@ local function range(sl, sc, el, ec)
   }
 end
 
-describe('cmp-kit.core', function()
+describe('cmp-kit.completion', function()
   describe('CompletionItem', function()
     describe('#commit', function()
       it('should support dot-to-arrow completion (clangd)', function()
