@@ -2,7 +2,7 @@ local spec = require('cmp-kit.spec')
 local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 local CompletionProvider = require('cmp-kit.completion.CompletionProvider')
 
 ---@class cmp-kit.completion.CompletionProvider.spec.Option

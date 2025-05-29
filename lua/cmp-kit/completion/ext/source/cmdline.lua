@@ -77,8 +77,8 @@ local lua_expression_cmd_regex = create_head_regex({
 
 local remove_last_arg_regex = vim.regex([=[[^[:blank:]]\+$]=])
 
----@class cmp-kit.ext.source.cmdline.Option
----@param option? cmp-kit.ext.source.cmdline.Option
+---@class cmp-kit.completion.ext.source.cmdline.Option
+---@param option? cmp-kit.completion.ext.source.cmdline.Option
 return function(option)
   option = option or {}
 

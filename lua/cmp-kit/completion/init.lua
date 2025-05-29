@@ -10,9 +10,10 @@
 ---@alias cmp-kit.completion.Matcher fun(query: string, input: string): integer, cmp-kit.completion.MatchPosition[]
 
 ---@alias cmp-kit.completion.Sorter fun(matches: cmp-kit.completion.Match[], context: cmp-kit.completion.SorterContext): cmp-kit.completion.Match[]
+
 ---@class cmp-kit.completion.SorterContext
 ---@field public locality_map table<string, integer>
----@field public trigger_context cmp-kit.completion.TriggerContext
+---@field public trigger_context cmp-kit.core.TriggerContext
 
 ---@class cmp-kit.completion.CompletionSource.Configuration
 ---@field public keyword_pattern? string
@@ -24,7 +25,7 @@
 ---@field public get_configuration? fun(self: unknown): cmp-kit.completion.CompletionSource.Configuration
 ---@field public resolve? fun(self: unknown, item: cmp-kit.kit.LSP.CompletionItem): cmp-kit.kit.Async.AsyncTask
 ---@field public execute? fun(self: unknown, command: cmp-kit.kit.LSP.Command): cmp-kit.kit.Async.AsyncTask
----@field public capable? fun(self: unknown, trigger_context: cmp-kit.completion.TriggerContext): boolean
+---@field public capable? fun(self: unknown, trigger_context: cmp-kit.core.TriggerContext): boolean
 ---@field public complete fun(self: unknown, completion_context: cmp-kit.kit.LSP.CompletionContext): cmp-kit.kit.Async.AsyncTask
 
 ---@class cmp-kit.completion.Selection
@@ -40,10 +41,3 @@
 ---@field public select fun(self: cmp-kit.completion.CompletionView, matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection)
 ---@field public scroll_docs fun(self: cmp-kit.completion.CompletionView, delta: integer)
 ---@field public dispose fun(self: cmp-kit.completion.CompletionView)
-
-vim.api.nvim_set_hl(0, 'CmpKitMarkdownAnnotate01', {
-  default = true,
-  italic = true,
-  underline = true,
-  undercurl = true,
-})

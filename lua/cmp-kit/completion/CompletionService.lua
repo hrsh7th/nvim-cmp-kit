@@ -5,7 +5,7 @@ local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local Character = require('cmp-kit.core.Character')
-local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.completion.CompletionProvider')
 
@@ -31,6 +31,7 @@ end
 ---@class cmp-kit.completion.CompletionService.Config
 ---@field public expand_snippet? cmp-kit.completion.ExpandSnippet
 ---@field public sync_mode? fun(): boolean
+---@field public preselect? boolean
 ---@field public view cmp-kit.completion.CompletionView
 ---@field public sorter cmp-kit.completion.Sorter
 ---@field public matcher cmp-kit.completion.Matcher
@@ -39,8 +40,8 @@ end
 
 ---@class cmp-kit.completion.CompletionService.State
 ---@field public provider_response_revision table<cmp-kit.completion.CompletionProvider, integer>
----@field public complete_trigger_context cmp-kit.completion.TriggerContext
----@field public matching_trigger_context cmp-kit.completion.TriggerContext
+---@field public complete_trigger_context cmp-kit.core.TriggerContext
+---@field public matching_trigger_context cmp-kit.core.TriggerContext
 ---@field public selection cmp-kit.completion.Selection
 ---@field public matches cmp-kit.completion.Match[]
 
@@ -50,8 +51,8 @@ end
 ---@field private _disposed boolean
 ---@field private _preventing integer
 ---@field private _events table<string, function[]>
----@field private _state cmp-kit.completion.CompletionService.State
 ---@field private _config cmp-kit.completion.CompletionService.Config
+---@field private _state cmp-kit.completion.CompletionService.State
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
@@ -93,7 +94,6 @@ function CompletionService.new(config)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_auto, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
       if is_valid_mode and self._config.sync_mode() then
-        ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete({ force = false }))
       end
     end)
@@ -102,7 +102,6 @@ function CompletionService.new(config)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_force, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
       if is_valid_mode and self._config.sync_mode() then
-        ---@diagnostic disable-next-line: invisible
         table.insert(self._macro_completion, self:complete({ force = true }))
       end
     end)
@@ -110,7 +109,11 @@ function CompletionService.new(config)
 
   -- support commitCharacters.
   vim.on_key(function(_, typed)
-    if not typed or typed == '' then
+    if not typed or #typed ~= 1 then
+      return
+    end
+    local b = typed:byte(1)
+    if not (32 <= b and b <= 126) then
       return
     end
 
@@ -119,12 +122,6 @@ function CompletionService.new(config)
       local match = self:get_match_at(selection.index)
       if match and match.item then
         if vim.tbl_contains(match.item:get_commit_characters(), typed) then
-          while true do
-            local c = vim.fn.getcharstr(0)
-            if c == '' then
-              break
-            end
-          end
           self:commit(match.item, {
             replace = false,
           }):next(function()
@@ -195,6 +192,40 @@ function CompletionService:on_menu_hide(callback)
   end
 end
 
+---Register on_commit event.
+---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
+---@return fun()
+function CompletionService:on_commit(callback)
+  self._events = self._events or {}
+  self._events.on_commit = self._events.on_commit or {}
+  table.insert(self._events.on_commit, callback)
+  return function()
+    for i, c in ipairs(self._events.on_commit) do
+      if c == callback then
+        table.remove(self._events.on_commit, i)
+        break
+      end
+    end
+  end
+end
+
+---Register on_dispose event.
+---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
+---@return fun()
+function CompletionService:on_dispose(callback)
+  self._events = self._events or {}
+  self._events.on_dispose = self._events.on_dispose or {}
+  table.insert(self._events.on_dispose, callback)
+  return function()
+    for i, c in ipairs(self._events.on_dispose) do
+      if c == callback then
+        table.remove(self._events.on_dispose, i)
+        break
+      end
+    end
+  end
+end
+
 ---Dispose completion service.
 function CompletionService:dispose()
   if self._disposed then
@@ -202,8 +233,11 @@ function CompletionService:dispose()
   end
   self._disposed = true
 
+  self:clear()
   self._config.view:dispose()
   vim.on_key(nil, self._ns, {})
+
+  emit(self._events.on_dispose, { service = self })
 end
 
 ---Register source.
@@ -342,7 +376,7 @@ end
 
 do
   ---@param self cmp-kit.completion.CompletionService
-  ---@param trigger_context cmp-kit.completion.TriggerContext
+  ---@param trigger_context cmp-kit.core.TriggerContext
   local function complete_inner(self, trigger_context)
     local changed = self._state.complete_trigger_context:changed(trigger_context)
     if not changed then
@@ -386,8 +420,6 @@ do
           local task = Async.race({
             Async.timeout(self._config.performance.fetching_timeout_ms),
             cfg.provider:complete(trigger_context):next(function()
-              return queue
-            end):next(function()
               update_if_changed()
             end)
           })
@@ -395,6 +427,8 @@ do
           -- queue view update in sequencial order.
           queue = queue:next(function()
             return task
+          end):next(function()
+            update_if_changed()
           end)
 
           -- add task to tasks.
@@ -406,9 +440,9 @@ do
     -- set new-completion position for macro.
     if not self._config.sync_mode() then
       if trigger_context.force then
-        vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'nit', true)
+        vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'nt', true)
       else
-        vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nit', true)
+        vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nt', true)
       end
       self:matching() -- if in sync_mode, matching will be done in `select` method.
     end
@@ -418,6 +452,10 @@ do
   ---@param option? { force: boolean? }
   ---@return cmp-kit.kit.Async.AsyncTask
   function CompletionService:complete(option)
+    if self._disposed then
+      return Async.resolve({})
+    end
+
     local trigger_context = TriggerContext.create(option)
     return Async.run(function()
       complete_inner(self, trigger_context)
@@ -427,6 +465,10 @@ end
 
 ---Match completion items.
 function CompletionService:matching()
+  if self._disposed then
+    return Async.resolve({})
+  end
+
   local trigger_context = TriggerContext.create()
 
   -- check prev matching_trigger_context.
@@ -439,13 +481,6 @@ function CompletionService:matching()
   -- check user is selecting manually.
   if self:_is_active_selection() then
     return
-  end
-
-  -- update response revision.
-  for _, group in ipairs(self:_get_provider_groups()) do
-    for _, cfg in ipairs(group) do
-      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
-    end
   end
 
   -- update matches.
@@ -485,6 +520,13 @@ function CompletionService:matching()
     end
   end
 
+  -- update response revision.
+  for _, group in ipairs(self:_get_provider_groups()) do
+    for _, cfg in ipairs(group) do
+      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
+    end
+  end
+
   -- check this group should be accepted?
   if #self._state.matches > 0 then
     -- group matches are found.
@@ -518,8 +560,10 @@ function CompletionService:matching()
       local limited_matches = {}
       for j, match in ipairs(sorted_matches) do
         -- set first preselect index.
-        if not preselect_index and match.item:is_preselect() then
-          preselect_index = j
+        if self._config.preselect then
+          if not preselect_index and match.item:is_preselect() then
+            preselect_index = j
+          end
         end
 
         -- check dedup & count.
@@ -582,6 +626,7 @@ function CompletionService:commit(item, option)
       :next(self:prevent())
       :next(function()
         self:clear()
+        emit(self._events.on_commit, { service = self })
 
         -- re-trigger completion for trigger characters.
         local trigger_context = TriggerContext.create()

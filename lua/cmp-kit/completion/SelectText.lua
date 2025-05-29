@@ -68,6 +68,8 @@ function SelectText.create(params)
     end
   end
 
+  local is_after_symbol = Character.is_symbol(after_text:byte(1))
+
   local is_alnum_consumed = false
   local pairs_stack = {}
   for i = insert_text_idx, #insert_text do
@@ -77,7 +79,7 @@ function SelectText.create(params)
     end
     local alnum = Character.is_alnum(byte)
 
-    if is_alnum_consumed and after_text:byte(1) == byte then
+    if is_alnum_consumed and is_after_symbol and after_text:byte(1) == byte then
       return insert_text:sub(1, i - 1)
     end
 

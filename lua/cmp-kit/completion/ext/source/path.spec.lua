@@ -1,8 +1,8 @@
-local path_source = require('cmp-kit.ext.source.path')
+local path_source = require('cmp-kit.completion.ext.source.path')
 local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
 
-describe('cmp-kit.ext.source.path', function()
+describe('cmp-kit.completion.ext.source.path', function()
   local source = path_source()
 
   describe('skip absolute path', function()

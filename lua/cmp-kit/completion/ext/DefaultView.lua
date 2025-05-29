@@ -14,6 +14,29 @@ local tmp_tbls = {
   rendering_lines = {},
 }
 
+---Create winhighlight.
+---@param map table<string, string>
+---@return string
+local function winhighlight(map)
+  return vim.iter(pairs(map)):map(function(k, v)
+    return ('%s:%s'):format(k, v)
+  end):join(',')
+end
+local winhl_bordered = winhighlight({
+  NormalFloat = 'Normal',
+  Normal = 'Normal',
+  FloatBorder = 'Normal',
+  CursorLine = 'Visual',
+  Search = 'None',
+})
+local winhl_pum = winhighlight({
+  NormalFloat = 'Pmenu',
+  Normal = 'Pmenu',
+  FloatBorder = 'Pmenu',
+  CursorLine = 'PmenuSel',
+  Search = 'None',
+})
+
 local ensure_color_code_highlight_group
 do
   local cache = {}
@@ -24,7 +47,7 @@ do
   ensure_color_code_highlight_group = function(color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
     if not cache[color_code] then
-      local name = ('cmp-kit.completion.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
+      local name = ('cmp-kit.completion.ext.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
       vim.api.nvim_set_hl(0, name, {
         fg = '#' .. color_code,
         bg = 'NONE',
@@ -40,7 +63,7 @@ end
 ---@param item cmp-kit.completion.CompletionItem
 ---@return string?
 local function get_coloring(item)
-  local cache_key = 'cmp-kit.completion.DefaultView.coloring'
+  local cache_key = 'cmp-kit.completion.ext.DefaultView.coloring'
   if not item.cache[cache_key] then
     if item:get_kind() == LSP.CompletionItemKind.Color then
       local details = item:get_label_details()
@@ -75,28 +98,27 @@ local function get_coloring(item)
   return item.cache[cache_key]
 end
 
----@class cmp-kit.completion.DefaultView.WindowPosition
+---@class cmp-kit.completion.ext.DefaultView.WindowPosition
 ---@field public row integer
 ---@field public col integer
 ---@field public anchor 'NW' | 'NE' | 'SW' | 'SE'
 
----@class cmp-kit.completion.DefaultView.Extmark
+---@class cmp-kit.completion.ext.DefaultView.Extmark
 ---@field public col integer
 ---@field public end_col integer
 ---@field public hl_group? string
 ---@field public priority? integer
 ---@field public conceal? string
 
----@class cmp-kit.completion.DefaultView.MenuComponent
+---@class cmp-kit.completion.ext.DefaultView.MenuComponent
 ---@field padding_left integer
 ---@field padding_right integer
 ---@field align 'left' | 'right'
----@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.DefaultView.Config): string
----@field get_extmarks fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.DefaultView.Config): cmp-kit.completion.DefaultView.Extmark[]
+---@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): string
+---@field get_extmarks fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
 
----@class cmp-kit.completion.DefaultView.Config
----@field border string|false
----@field menu_components cmp-kit.completion.DefaultView.MenuComponent[]
+---@class cmp-kit.completion.ext.DefaultView.Config
+---@field menu_components cmp-kit.completion.ext.DefaultView.MenuComponent[]
 ---@field menu_padding_left integer
 ---@field menu_padding_right integer
 ---@field menu_gap integer
@@ -104,22 +126,13 @@ end
 ---@field menu_max_win_height integer
 ---@field docs_min_win_width_ratio number
 ---@field docs_max_win_width_ratio number
----@field get_menu_position fun(preset: { offset: cmp-kit.completion.DefaultView.WindowPosition, cursor: cmp-kit.completion.DefaultView.WindowPosition }): cmp-kit.completion.DefaultView.WindowPosition
+---@field get_menu_position fun(preset: { offset: cmp-kit.completion.ext.DefaultView.WindowPosition, cursor: cmp-kit.completion.ext.DefaultView.WindowPosition }): cmp-kit.completion.ext.DefaultView.WindowPosition
 ---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
 
 ---Lookup table for CompletionItemKind.
 local CompletionItemKindLookup = {}
 for k, v in pairs(LSP.CompletionItemKind) do
   CompletionItemKindLookup[v] = k
-end
-
----Create winhighlight.
----@param map table<string, string>
----@return string
-local function winhighlight(map)
-  return vim.iter(pairs(map)):map(function(k, v)
-    return ('%s:%s'):format(k, v)
-  end):join(',')
 end
 
 ---Redraw for cmdline.
@@ -160,9 +173,8 @@ end
 ---side padding border.
 local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 
----@type cmp-kit.completion.DefaultView.Config
+---@type cmp-kit.completion.ext.DefaultView.Config
 local default_config = {
-  border = false,
   menu_components = {
     -- kind icon.
     {
@@ -271,26 +283,26 @@ local default_config = {
   end)(),
 }
 
----@class cmp-kit.completion.DefaultView: cmp-kit.completion.CompletionView
+---@class cmp-kit.completion.ext.DefaultView: cmp-kit.completion.CompletionView
 ---@field private _ns integer
----@field private _config cmp-kit.completion.DefaultView.Config
+---@field private _config cmp-kit.completion.ext.DefaultView.Config
 ---@field private _service cmp-kit.completion.CompletionService
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _docs_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _matches cmp-kit.completion.Match[]
----@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.completion.DefaultView.MenuComponent }[]
+---@field private _columns { display_width: integer, byte_width: integer, padding_left: integer, padding_right: integer, align: 'left' | 'right', texts: string[], component: cmp-kit.completion.ext.DefaultView.MenuComponent }[]
 ---@field private _selected_item? cmp-kit.completion.CompletionItem
 ---@field private _resolving cmp-kit.kit.Async.AsyncTask
 local DefaultView = {}
 DefaultView.__index = DefaultView
 
 ---Create DefaultView
----@param config? cmp-kit.completion.DefaultView.Config|{}
----@return cmp-kit.completion.DefaultView
+---@param config? cmp-kit.completion.ext.DefaultView.Config|{}
+---@return cmp-kit.completion.ext.DefaultView
 function DefaultView.new(config)
-  config = kit.merge(config or {}, default_config) --[[@as cmp-kit.completion.DefaultView.Config]]
+  config = kit.merge(config or {}, default_config) --[[@as cmp-kit.completion.ext.DefaultView.Config]]
   local self = setmetatable({
-    _ns = vim.api.nvim_create_namespace(('cmp-kit.completion.DefaultView.%s'):format(vim.uv.now())),
+    _ns = vim.api.nvim_create_namespace(('cmp-kit.completion.ext.DefaultView.%s'):format(vim.uv.now())),
     _config = config,
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
@@ -321,24 +333,6 @@ function DefaultView.new(config)
     win:set_win_option('cursorlineopt', 'line')
     win:set_win_option('foldenable', false)
     win:set_win_option('wrap', false)
-
-    if self._config.border then
-      win:set_win_option('winhighlight', winhighlight({
-        NormalFloat = 'Normal',
-        Normal = 'Normal',
-        FloatBorder = 'Normal',
-        CursorLine = 'Visual',
-        Search = 'None',
-      }))
-    else
-      win:set_win_option('winhighlight', winhighlight({
-        NormalFloat = 'Pmenu',
-        Normal = 'Pmenu',
-        FloatBorder = 'Pmenu',
-        CursorLine = 'PmenuSel',
-        Search = 'None',
-      }))
-    end
 
     win:set_win_option('winhighlight', winhighlight({
       NormalFloat = 'PmenuSbar',
@@ -480,7 +474,7 @@ function DefaultView:show(matches, selection)
   end
   vim.api.nvim_buf_set_lines(self._menu_window:get_buf(), 0, -1, false, rendering_lines)
 
-  local border_size = FloatingWindow.get_border_size(self._config.border)
+  local border_size = FloatingWindow.get_border_size(vim.o.winborder)
   local trigger_context = TriggerContext.create()
   local leading_text = trigger_context.text_before:sub(min_offset)
 
@@ -515,6 +509,12 @@ function DefaultView:show(matches, selection)
     end
   end
 
+  if (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') then
+    self._menu_window:set_win_option('winhighlight', winhl_bordered)
+  else
+    self._menu_window:set_win_option('winhighlight', winhl_pum)
+  end
+  self._menu_window:set_win_option('winblend', vim.o.pumblend)
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
   self._menu_window:show({
     row = row + row_off,
@@ -523,7 +523,7 @@ function DefaultView:show(matches, selection)
     height = outer_height - border_size.v,
     anchor = anchor,
     style = 'minimal',
-    border = self._config.border,
+    border = vim.o.winborder,
   })
 
   redraw_for_cmdline(self._menu_window:get_win())
@@ -562,10 +562,6 @@ end
 function DefaultView:dispose()
   self._menu_window:hide()
   self._docs_window:hide()
-  vim.api.nvim_buf_clear_namespace(self._menu_window:get_buf(), self._ns, 0, -1)
-  vim.api.nvim_buf_clear_namespace(self._docs_window:get_buf(), self._ns, 0, -1)
-  vim.api.nvim_buf_delete(self._menu_window:get_buf(), { force = true })
-  vim.api.nvim_buf_delete(self._docs_window:get_buf(), { force = true })
 end
 
 ---Update documentation.
@@ -612,7 +608,8 @@ function DefaultView:_update_docs(item)
       local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
       local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
       local menu_viewport = self._menu_window:get_viewport()
-      local docs_border = self._config.border and self._config.border or border_padding_side
+      local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and vim.o.winborder or
+      border_padding_side
       local border_size = FloatingWindow.get_border_size(docs_border)
       local content_size = FloatingWindow.get_content_size({
         bufnr = self._docs_window:get_buf(),
@@ -656,6 +653,13 @@ function DefaultView:_update_docs(item)
         col = menu_viewport.col - restricted_size.outer_width
       end
 
+      if (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') then
+        self._docs_window:set_win_option('winhighlight', winhl_bordered)
+      else
+        self._docs_window:set_win_option('winhighlight', winhl_pum)
+      end
+      self._docs_window:set_win_option('winblend', vim.o.pumblend)
+
       self._docs_window:show({
         row = row, --[[@as integer]]
         col = col,
@@ -664,6 +668,7 @@ function DefaultView:_update_docs(item)
         border = docs_border,
         style = 'minimal',
       })
+      vim.api.nvim_win_set_cursor(self._docs_window:get_win() --[[@as integer]], { 1, 0 })
     end):next(function()
       redraw_for_cmdline(self._docs_window:get_win())
     end)

@@ -1,6 +1,6 @@
-local DefaultView = require('cmp-kit.completion.DefaultView')
-local DefaultSorter = require('cmp-kit.completion.DefaultSorter')
-local DefaultMatcher = require('cmp-kit.completion.DefaultMatcher')
+local DefaultView = require('cmp-kit.completion.ext.DefaultView')
+local DefaultSorter = require('cmp-kit.completion.ext.DefaultSorter')
+local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
 
 ---@type cmp-kit.completion.CompletionService.Config
 return {
@@ -10,6 +10,7 @@ return {
   sync_mode = function()
     return vim.fn.reg_executing() ~= ''
   end,
+  preselect = true,
   performance = {
     fetching_timeout_ms = 120
   },

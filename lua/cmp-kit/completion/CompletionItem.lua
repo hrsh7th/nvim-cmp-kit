@@ -64,7 +64,7 @@ end
 ---@alias cmp-kit.completion.ExpandSnippet fun(s: string, option: { item: cmp-kit.completion.CompletionItem })
 
 ---@class cmp-kit.completion.CompletionItem
----@field private _trigger_context cmp-kit.completion.TriggerContext
+---@field private _trigger_context cmp-kit.core.TriggerContext
 ---@field private _provider cmp-kit.completion.CompletionProvider
 ---@field private _completion_list cmp-kit.kit.LSP.CompletionList
 ---@field private _item cmp-kit.kit.LSP.CompletionItem
@@ -74,7 +74,7 @@ local CompletionItem = {}
 CompletionItem.__index = CompletionItem
 
 ---Create new CompletionItem.
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@param provider cmp-kit.completion.CompletionProvider
 ---@param list cmp-kit.kit.LSP.CompletionList
 ---@param item cmp-kit.kit.LSP.CompletionItem
@@ -427,7 +427,7 @@ function CompletionItem:commit(option)
       Async.race({ self:resolve(), Async.timeout(500) }):sync(501)
     end)
 
-    local trigger_context --[[@as cmp-kit.completion.TriggerContext]]
+    local trigger_context --[[@as cmp-kit.core.TriggerContext]]
 
     -- Create initial undo point.
     vim.o.undolevels = vim.o.undolevels

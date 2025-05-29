@@ -10,7 +10,7 @@ local INVALID = {
   items = {},
 }
 
----@class cmp-kit.ext.source.calc.Option
+---@class cmp-kit.completion.ext.source.calc.Option
 return function()
   ---@type cmp-kit.completion.CompletionSource
   return {

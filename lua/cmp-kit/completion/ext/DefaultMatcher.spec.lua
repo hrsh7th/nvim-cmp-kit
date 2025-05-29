@@ -1,4 +1,4 @@
-local DefaultMatcher = require('cmp-kit.completion.DefaultMatcher')
+local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
 
 describe('cmp-kit.completion', function()
   describe('DefaultMatcher', function()

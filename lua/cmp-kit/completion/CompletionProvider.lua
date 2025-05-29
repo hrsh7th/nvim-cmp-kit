@@ -4,7 +4,7 @@ local LSP            = require('cmp-kit.kit.LSP')
 local Async          = require('cmp-kit.kit.Async')
 local RegExp         = require('cmp-kit.kit.Vim.RegExp')
 local CompletionItem = require('cmp-kit.completion.CompletionItem')
-local DefaultConfig  = require('cmp-kit.completion.DefaultConfig')
+local DefaultConfig  = require('cmp-kit.completion.ext.DefaultConfig')
 
 ---@enum cmp-kit.completion.CompletionProvider.RequestState
 local RequestState   = {
@@ -30,7 +30,7 @@ local function to_completion_list(response)
 end
 
 ---Extract keyword pattern range for requested line context.
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@param keyword_pattern string
 ---@return { [1]: integer, [2]: integer } 1-origin utf8 byte index
 local function extract_keyword_range(trigger_context, keyword_pattern)
@@ -49,7 +49,7 @@ end
 ---@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
----@field public trigger_context? cmp-kit.completion.TriggerContext
+---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
 ---@field public dedup_map table<string, boolean>
@@ -105,7 +105,7 @@ function CompletionProvider:get_name()
 end
 
 ---Completion (textDocument/completion).
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
 function CompletionProvider:complete(trigger_context)
   return Async.run(function()
@@ -117,19 +117,19 @@ function CompletionProvider:complete(trigger_context)
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
     local completion_offset ---@type integer?
-    if vim.tbl_contains(trigger_characters, trigger_context.before_character) then
+    if trigger_context.force then
+      -- manual based completion
+      completion_context = {
+        triggerKind = LSP.CompletionTriggerKind.Invoked,
+      }
+      completion_offset = keyword_offset or (trigger_context.character + 1)
+    elseif vim.tbl_contains(trigger_characters, trigger_context.before_character) then
       -- trigger character based completion.
       completion_context = {
         triggerKind = LSP.CompletionTriggerKind.TriggerCharacter,
         triggerCharacter = trigger_context.before_character,
       }
       completion_offset = trigger_context.character + 1
-    elseif trigger_context.force then
-      -- manual based completion
-      completion_context = {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-      }
-      completion_offset = keyword_offset or (trigger_context.character + 1)
     else
       -- keyword based completion.
       if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self.config.keyword_length then
@@ -198,7 +198,7 @@ function CompletionProvider:complete(trigger_context)
 end
 
 ---Accept completion response.
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
@@ -268,7 +268,7 @@ function CompletionProvider:execute(command)
 end
 
 ---Check if the provider is capable for the trigger context.
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@return boolean
 function CompletionProvider:capable(trigger_context)
   if self._source.capable and not self._source:capable(trigger_context) then
@@ -357,7 +357,7 @@ function CompletionProvider:in_trigger_character_completion()
 end
 
 ---Return matches.
----@param trigger_context cmp-kit.completion.TriggerContext
+---@param trigger_context cmp-kit.core.TriggerContext
 ---@param config cmp-kit.completion.CompletionService.Config
 ---@return cmp-kit.completion.Match[]
 function CompletionProvider:get_matches(trigger_context, config)

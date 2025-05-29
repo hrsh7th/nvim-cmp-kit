@@ -58,10 +58,10 @@ local function parse_components(before_text)
   return path_parts, table.concat(kit.slice(chars, 1, i), '')
 end
 
----@class cmp-kit.ext.source.path.Option
+---@class cmp-kit.completion.ext.source.path.Option
 ---@field public get_cwd? fun(): string
 ---@field public enable_file_document? boolean
----@param option? cmp-kit.ext.source.path.Option
+---@param option? cmp-kit.completion.ext.source.path.Option
 return function(option)
   option = option or {}
   option.get_cwd = option.get_cwd or function()
@@ -154,7 +154,7 @@ return function(option)
             kind = vim.lsp.protocol.CompletionItemKind.Folder
           end
           table.insert(items, {
-            label = vim.fs.basename(entry.path),
+            label = vim.fs.basename(entry.path) .. (entry.type == 'directory' and '/' or ''),
             kind = kind,
             data = entry,
           })

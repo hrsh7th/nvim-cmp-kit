@@ -51,10 +51,25 @@ local escaped_characters = { '\\', '`', '*', '_', '{', '}', '[', ']', '<', '>', 
 
 local special_highlights = {
   {
-    s = '%*%*',
-    e = '%*%*',
-    hl_group = 'CmpKitMarkdownAnnotate01',
-  }
+    s = '<u>',
+    e = '</u>',
+    hl_group = 'CmpKitMarkdownAnnotateUnderlined',
+  },
+  {
+    s = '<b>',
+    e = '</b>',
+    hl_group = 'CmpKitMarkdownAnnotateBold',
+  },
+  {
+    s = '<em>',
+    e = '</em>',
+    hl_group = 'CmpKitMarkdownAnnotateEm',
+  },
+  {
+    s = '<strong>',
+    e = '</strong>',
+    hl_group = 'CmpKitMarkdownAnnotateStrong',
+  },
 }
 
 ---Trim empty lines.
@@ -128,7 +143,7 @@ local function prepare_markdown_contents(raw_contents)
           table.insert(sections, {
             type = 'heading',
             level = content:match('^#+'):len(),
-            title = content:match('^#+ (.*)$'),
+            title = content:match('^#+%s*(.*)$'),
           })
           current = {
             type = 'markdown',
@@ -182,6 +197,22 @@ local function prepare_markdown_contents(raw_contents)
         table.insert(contents, content)
       end
       local e = #contents
+
+      -- 1. first code_block does not have area highlight.
+      -- 2. oneline code_block does not have area highlight.
+      if i > 1 and e - s > 0 then
+        table.insert(contents, s, '')
+        table.insert(contents, '')
+        e = e + 2
+        table.insert(extmarks, {
+          row = s - 1,
+          col = 0,
+          end_row = e,
+          end_col = 0,
+          hl_group = 'Visual',
+          hl_eol = true,
+        })
+      end
       if section.language then
         languages[section.language] = languages[section.language] or {}
         table.insert(languages[section.language], { s - 1, 0, e - 1, #contents[#contents] })
@@ -267,8 +298,6 @@ local function prepare_markdown_contents(raw_contents)
           { ('#'):rep(section.level), 'FloatTitle' },
           { ' ' },
           { section.title, 'FloatTitle' },
-          { ' ' },
-          { ('─'):rep(vim.o.columns) }
         } }
       })
     end
@@ -294,11 +323,11 @@ function Markdown.set(bufnr, ns_id, raw_contents)
       ---@diagnostic disable-next-line: invisible
       parser:set_included_regions(
         vim
-          .iter(ranges)
-          :map(function(range)
-            return { range }
-          end)
-          :totable()
+        .iter(ranges)
+        :map(function(range)
+          return { range }
+        end)
+        :totable()
       )
       parser:parse(true, function(err)
         if vim.b[bufnr].cmp_kit_markdown_revision ~= vim.b[bufnr].cmp_kit_markdown_revision then
@@ -354,19 +383,19 @@ function Markdown.set(bufnr, ns_id, raw_contents)
             end_row = i - 1,
             end_col = s_idx2,
             conceal = '',
-            priority = 10000,
+            priority = 20000,
           })
           vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, s_idx2 - 1, {
             end_row = i - 1,
             end_col = e_idx1 - 1,
             hl_group = highlight.hl_group,
-            priority = 10000,
+            priority = 20000,
           })
           vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, e_idx1 - 1, {
             end_row = i - 1,
             end_col = e_idx2,
             conceal = '',
-            priority = 10000,
+            priority = 20000,
           })
         end
       end

@@ -1,11 +1,26 @@
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
 
-local cache_keeper = {
+local state = {
+  ns = vim.api.nvim_create_namespace('cmp-kit.core.TriggerContext'),
+  last_typed_char = nil,
   trigger_context = nil
 }
 
+do
+  vim.on_key(function(_, typed)
+    if not typed or #typed ~= 1 then
+      return
+    end
+    local b = typed:byte(1)
+    if not (32 <= b and b <= 126) then
+      return
+    end
+    state.last_typed_char = typed
+  end, state.ns)
+end
+
 ---The TriggerContext.
----@class cmp-kit.completion.TriggerContext
+---@class cmp-kit.core.TriggerContext
 ---@field public mode string
 ---@field public line integer 0-origin
 ---@field public character integer 0-origin utf8 byte index
@@ -23,14 +38,14 @@ local TriggerContext = {}
 TriggerContext.__index = TriggerContext
 
 ---Create empty TriggerContext.
----@return cmp-kit.completion.TriggerContext
+---@return cmp-kit.core.TriggerContext
 function TriggerContext.create_empty_context()
   return TriggerContext.new('i', -1, -1, '', -1)
 end
 
 ---Create new TriggerContext from current state.
 ---@param option? { force: boolean? }
----@return cmp-kit.completion.TriggerContext
+---@return cmp-kit.core.TriggerContext
 function TriggerContext.create(option)
   local mode = vim.api.nvim_get_mode().mode --[[@as string]]
   local bufnr = vim.api.nvim_get_current_buf()
@@ -48,7 +63,7 @@ end
 ---@param text string
 ---@param bufnr integer
 ---@param option? { force?: boolean }
----@return cmp-kit.completion.TriggerContext
+---@return cmp-kit.core.TriggerContext
 function TriggerContext.new(mode, line, character, text, bufnr, option)
   local text_before = text:sub(1, character)
   local text_after = text:sub(character + 1)
@@ -63,6 +78,11 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     end
   end
 
+  local before_character = text_before:match('(.)$')
+  if before_character ~= state.last_typed_char then
+    before_character = nil
+  end
+
   local self = setmetatable({
     mode = mode,
     line = line,
@@ -73,24 +93,24 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     bufnr = bufnr,
     time = vim.uv.now(),
     force = not not (option and option.force),
-    before_character = text_before:gsub('%s*$', ''):match('(.)$'), -- ignore <Space> for trigger characters, TODO: is it correct?
+    before_character = before_character,
     in_string = in_string,
     in_comment = in_comment,
     cache = {},
   }, TriggerContext)
 
-  cache_keeper.trigger_context = cache_keeper.trigger_context or self
+  state.trigger_context = state.trigger_context or self
 
   local keep = true
-  keep = keep and cache_keeper.trigger_context.mode == self.mode
-  keep = keep and cache_keeper.trigger_context.line == self.line
-  keep = keep and cache_keeper.trigger_context.character == self.character
-  keep = keep and cache_keeper.trigger_context.text == self.text
-  keep = keep and cache_keeper.trigger_context.bufnr == self.bufnr
+  keep = keep and state.trigger_context.mode == self.mode
+  keep = keep and state.trigger_context.line == self.line
+  keep = keep and state.trigger_context.character == self.character
+  keep = keep and state.trigger_context.text == self.text
+  keep = keep and state.trigger_context.bufnr == self.bufnr
   if not keep then
-    cache_keeper.trigger_context = self
+    state.trigger_context = self
   else
-    self.cache = cache_keeper.trigger_context.cache
+    self.cache = state.trigger_context.cache
   end
 
   return self
@@ -104,7 +124,7 @@ function TriggerContext:get_query(offset)
 end
 
 ---Check if trigger context is changed.
----@param new_trigger_context cmp-kit.completion.TriggerContext
+---@param new_trigger_context cmp-kit.core.TriggerContext
 ---@return boolean
 function TriggerContext:changed(new_trigger_context)
   if new_trigger_context.force then

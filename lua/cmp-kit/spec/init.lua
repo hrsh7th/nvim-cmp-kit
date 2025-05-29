@@ -3,8 +3,8 @@ local Async = require('cmp-kit.kit.Async')
 local assert = select(2, pcall(require, 'luassert')) or _G.assert
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local LinePatch = require('cmp-kit.core.LinePatch')
-local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
 local CompletionService = require('cmp-kit.completion.CompletionService')
+local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 
 local profiling = {}
 
@@ -31,7 +31,7 @@ end
 
 ---Setup for spec.
 ---@param option cmp-kit.completion.spec.setup.Option
----@return cmp-kit.completion.TriggerContext, cmp-kit.completion.CompletionSource, cmp-kit.completion.CompletionService
+---@return cmp-kit.core.TriggerContext, cmp-kit.completion.CompletionSource, cmp-kit.completion.CompletionService
 function spec.setup(option)
   option.mode = option.mode or 'i'
 

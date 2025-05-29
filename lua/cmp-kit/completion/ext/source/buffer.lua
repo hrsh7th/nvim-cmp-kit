@@ -1,15 +1,15 @@
 local Async = require('cmp-kit.kit.Async')
 local Buffer = require('cmp-kit.core.Buffer')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local DefaultConfig = require('cmp-kit.completion.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 
----@class cmp-kit.ext.source.buffer.Option
+---@class cmp-kit.completion.ext.source.buffer.Option
 ---@field public keyword_pattern? string
 ---@field public required_keyword_length? integer
 ---@field public gather_keyword_length? integer
 ---@field public get_bufnrs? fun(): integer[]
 ---@field public label_details? cmp-kit.kit.LSP.CompletionItemLabelDetails
----@param option? cmp-kit.ext.source.buffer.Option
+---@param option? cmp-kit.completion.ext.source.buffer.Option
 return function(option)
   local keyword_pattern = option and option.keyword_pattern or DefaultConfig.default_keyword_pattern
   local gather_keyword_length = option and option.gather_keyword_length or 3

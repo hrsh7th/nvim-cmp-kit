@@ -49,6 +49,11 @@ describe('cmp-kit.completion', function()
           before_text = 'import URL',
           after_text = ''
         }))
+        assert.are.equal('signature', SelectText.create({
+          insert_text = 'signature',
+          before_text = '',
+          after_text = 'exit'
+        }))
       end)
     end)
   end)

@@ -1,8 +1,8 @@
-local calc_source = require('cmp-kit.ext.source.calc')
+local calc_source = require('cmp-kit.completion.ext.source.calc')
 local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
 
-describe('cmp-kit.ext.source.calc', function()
+describe('cmp-kit.completion.ext.source.calc', function()
   local source = calc_source()
 
   ---@param text string
