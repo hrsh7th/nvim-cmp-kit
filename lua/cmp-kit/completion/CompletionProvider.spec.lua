@@ -39,6 +39,7 @@ describe('cmp-kit.completion', function()
     it('should determine completion timing', function()
       spec.reset()
 
+      TriggerContext.loose_trigger_character = true
       local provider, ctx = create_provider()
       Keymap.spec(function()
         Keymap.send('i'):await()
@@ -72,6 +73,7 @@ describe('cmp-kit.completion', function()
         Keymap.send('.'):await()
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
       end)
+      TriggerContext.loose_trigger_character = false
     end)
   end)
 end)

@@ -44,7 +44,7 @@ describe('cmp-kit.completion', function()
           before_text = '',
           after_text = '"'
         }))
-        assert.are.equal('import { URL } from ', SelectText.create({
+        assert.are.equal('import ', SelectText.create({
           insert_text = 'import { URL } from "url";',
           before_text = 'import URL',
           after_text = ''
@@ -53,6 +53,11 @@ describe('cmp-kit.completion', function()
           insert_text = 'signature',
           before_text = '',
           after_text = 'exit'
+        }))
+        assert.are.equal('insert', SelectText.create({
+          insert_text = 'insert(${1:list}, ${2:pos}, ${3:value})',
+          before_text = 'insert',
+          after_text = ''
         }))
       end)
     end)

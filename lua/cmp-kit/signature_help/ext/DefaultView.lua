@@ -230,4 +230,12 @@ function DefaultView:hide()
   self._window:hide()
 end
 
+---Scroll the signature help view.
+---@param delta integer
+function DefaultView:scroll(delta)
+  if self:is_visible() then
+    self._window:scroll(delta)
+  end
+end
+
 return DefaultView

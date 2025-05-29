@@ -81,7 +81,6 @@ function SignatureHelpService:trigger(params)
   params = params or {}
   params.force = params.force or false
 
-  local trigger_context = TriggerContext.create({ force = params.force })
 
   if self._disposed then
     return Async.run(function() end)
@@ -89,17 +88,17 @@ function SignatureHelpService:trigger(params)
   if self._preventing > 0 then
     return Async.run(function() end)
   end
-  if not trigger_context:changed(self._state.trigger_context) then
+
+  local trigger_context = TriggerContext.create({ force = params.force })
+  if not self._state.trigger_context:changed(trigger_context) then
     return Async.run(function() end)
   end
+  self._state.trigger_context = trigger_context
 
   if self._config.view:is_visible() then
-    local active_signature_data = self._state.active_provider and
-        self._state.active_provider:get_active_signature_data()
+    local active_signature_data = self._state.active_provider and self._state.active_provider:get_active_signature_data()
     if active_signature_data then
       self._config.view:show(active_signature_data)
-    else
-      self._config.view:hide()
     end
   end
 
@@ -125,6 +124,14 @@ function SignatureHelpService:select(index)
   end
   self._state.active_provider:select(index)
   self:_update_signature_help(self._state.active_provider)
+end
+
+---Scroll signature help.
+---@param delta integer
+function SignatureHelpService:scroll(delta)
+  if self._config.view:is_visible() then
+    self._config.view:scroll(delta)
+  end
 end
 
 ---Return if the signature help is visible.

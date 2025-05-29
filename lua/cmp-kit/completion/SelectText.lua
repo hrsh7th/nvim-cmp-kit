@@ -41,6 +41,7 @@ function SelectText.create(params)
   local insert_text = params.insert_text
   local before_text = params.before_text
   local after_text = params.after_text
+  local is_alnum_consumed = false
 
   -- skip if already inserted text is same as actual insert text.
   local insert_text_idx = 1
@@ -61,6 +62,9 @@ function SelectText.create(params)
       end
     end
     if insert_text:byte(insert_text_idx) == before_text:byte(before_text_idx) then
+      if Character.is_alnum(insert_text:byte(insert_text_idx)) then
+        is_alnum_consumed = true
+      end
       insert_text_idx = insert_text_idx + 1
       before_text_idx = before_text_idx + 1
     else
@@ -70,7 +74,6 @@ function SelectText.create(params)
 
   local is_after_symbol = Character.is_symbol(after_text:byte(1))
 
-  local is_alnum_consumed = false
   local pairs_stack = {}
   for i = insert_text_idx, #insert_text do
     local byte = insert_text:byte(i)

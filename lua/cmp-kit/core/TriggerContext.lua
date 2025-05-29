@@ -37,6 +37,9 @@ end
 local TriggerContext = {}
 TriggerContext.__index = TriggerContext
 
+---Use trigger character loosely.
+TriggerContext.loose_trigger_character = false
+
 ---Create empty TriggerContext.
 ---@return cmp-kit.core.TriggerContext
 function TriggerContext.create_empty_context()
@@ -79,8 +82,10 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
   end
 
   local before_character = text_before:match('(.)$')
-  if before_character ~= state.last_typed_char then
-    before_character = nil
+  if not TriggerContext.loose_trigger_character then
+    if before_character ~= state.last_typed_char then
+      before_character = nil
+    end
   end
 
   local self = setmetatable({
