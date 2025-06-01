@@ -311,20 +311,21 @@ function CompletionItem:is_preselect()
   return not not self._item.preselect
 end
 
----Return item is deprecated or not.
----@return boolean
-function CompletionItem:is_deprecated()
-  local cache_key = 'is_deprecated'
+---Get completion item tags.
+---@return table<cmp-kit.kit.LSP.CompletionItemTag, true>
+function CompletionItem:get_tags()
+  local cache_key = 'get_tags'
   if not self.cache[cache_key] then
-    if self._item.deprecated then
-      self.cache[cache_key] = { output = true }
-    elseif vim.tbl_contains(self._item.tags, LSP.CompletionItemTag.Deprecated) then
-      self.cache[cache_key] = { output = true }
-    else
-      self.cache[cache_key] = { output = false }
+    local tags = {}
+    for _, tag in ipairs(self._item.tags or {}) do
+      tags[tag] = true
     end
+    if self._item.deprecated then
+      tags[LSP.CompletionItemTag.Deprecated] = true
+    end
+    self.cache[cache_key] = tags
   end
-  return self.cache[cache_key].output
+  return self.cache[cache_key]
 end
 
 ---Return item's documentation.
