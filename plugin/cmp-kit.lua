@@ -33,6 +33,12 @@ local function inherit_hl(name, source, keys, opts)
   vim.api.nvim_set_hl(0, name, opts)
 end
 
+inherit_hl('CmpKitDeprecated', 'Comment', { 'fg', 'bg' }, {
+  default = true,
+  sp = 'fg',
+  strikethrough = true,
+})
+
 inherit_hl('CmpKitMarkdownAnnotateUnderlined', 'SpecialKey', { 'fg', 'bg' }, {
   default = true,
   sp = 'fg',

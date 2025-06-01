@@ -115,7 +115,7 @@ end
 ---@field padding_right integer
 ---@field align 'left' | 'right'
 ---@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): string
----@field get_extmarks fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
+---@field get_extmarks fun(text: string, match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
 
 ---@class cmp-kit.completion.ext.DefaultView.Config
 ---@field menu_components cmp-kit.completion.ext.DefaultView.MenuComponent[]
@@ -184,7 +184,7 @@ local default_config = {
       get_text = function(match, config)
         return config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text)[1]
       end,
-      get_extmarks = function(match, config)
+      get_extmarks = function(_, match, config)
         local icon, hl_group = unpack(config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text) or {})
         if icon then
           return { {
@@ -204,14 +204,23 @@ local default_config = {
       get_text = function(match)
         return strcharpart(match.item:get_label_text(), 0, 48)
       end,
-      get_extmarks = function(match)
-        return vim.iter(match.match_positions):map(function(position)
-          return {
+      get_extmarks = function(text, match)
+        local extmarks = {}
+        for _, position in ipairs(match.match_positions) do
+          table.insert(extmarks, {
             col = position.start_index - 1,
             end_col = position.end_index,
-            hl_group = position.hl_group or 'CmpItemAbbrMatch',
-          }
-        end):totable()
+            hl_group = position.hl_group or 'PmenuMatch',
+          })
+        end
+        if match.item:get_tags()[LSP.CompletionItemTag.Deprecated] then
+          table.insert(extmarks, {
+            col = 0,
+            end_col = #text,
+            hl_group = 'CmpKitDeprecated',
+          })
+        end
+        return extmarks
       end
     },
     -- description.
@@ -233,12 +242,12 @@ local default_config = {
 
         return ''
       end,
-      get_extmarks = function(match)
+      get_extmarks = function(text, match)
         local details = match.item:get_label_details()
         if details.description then
           return { {
             col = 0,
-            end_col = #details.description,
+            end_col = #text,
             hl_group = 'Comment',
           } }
         end
@@ -248,7 +257,7 @@ local default_config = {
         if coloring then
           return { {
             col = 0,
-            end_col = 1,
+            end_col = #text,
             hl_group = coloring,
           } }
         end
@@ -423,7 +432,7 @@ function DefaultView:show(matches, selection)
           local text = column.texts[row + 1]
           local space_width = column.display_width - get_strwidth(text)
           local right_align_off = column.align == 'right' and space_width or 0
-          for _, extmark in ipairs(column.component.get_extmarks(self._matches[row + 1], self._config)) do
+          for _, extmark in ipairs(column.component.get_extmarks(text, self._matches[row + 1], self._config)) do
             vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
               end_row = row,
               end_col = off + right_align_off + extmark.end_col,
@@ -609,7 +618,7 @@ function DefaultView:_update_docs(item)
       local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
       local menu_viewport = self._menu_window:get_viewport()
       local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and vim.o.winborder or
-      border_padding_side
+          border_padding_side
       local border_size = FloatingWindow.get_border_size(docs_border)
       local content_size = FloatingWindow.get_content_size({
         bufnr = self._docs_window:get_buf(),
