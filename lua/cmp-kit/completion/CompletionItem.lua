@@ -312,7 +312,7 @@ function CompletionItem:is_preselect()
 end
 
 ---Get completion item tags.
----@return table<cmp-kit.kit.LSP.CompletionItemTag, true>
+---@return table<cmp-kit.kit.LSP.CompletionItemTag, boolean>
 function CompletionItem:get_tags()
   local cache_key = 'get_tags'
   if not self.cache[cache_key] then
@@ -376,16 +376,26 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionItem:resolve()
   self._resolving = self._resolving or (function()
-    return self._provider:resolve(kit.merge({}, self._item)):next(function(resolved_item)
-      if resolved_item then
-        -- Merge resolved item to original item.
-        self._item = kit.merge(resolved_item, self._item)
-        self.cache = {}
-      else
-        -- Clear resolving cache if null was returned from server.
-        self._resolving = nil
-      end
-    end)
+    return self._provider:resolve(kit.merge({}, self._item))
+        :catch(function(err)
+          if debugger.enable() then
+            debugger.add('cmp-kit.completion.CompletionItem:resolve', {
+              item = self._item,
+              trigger_context = self._trigger_context,
+              err = err,
+            })
+          end
+        end)
+        :next(function(resolved_item)
+          if resolved_item then
+            -- Merge resolved item to original item.
+            self._item = kit.merge(resolved_item, self._item)
+            self.cache = {}
+          else
+            -- Clear resolving cache if null was returned from server.
+            self._resolving = nil
+          end
+        end)
   end)()
   return self._resolving
 end
