@@ -297,6 +297,11 @@ function CompletionItem:get_commit_characters()
   local cache_key = 'get_commit_characters'
   if not self.cache[cache_key] then
     local commit_characters = {}
+    for _, c in ipairs(self._provider:get_all_commit_characters()) do
+      if not vim.tbl_contains(commit_characters, c) then
+        table.insert(commit_characters, c)
+      end
+    end
     for _, c in ipairs(self._item.commitCharacters or {}) do
       table.insert(commit_characters, c)
     end

@@ -306,6 +306,15 @@ function CompletionProvider:get_trigger_characters()
   return self._source:get_configuration().trigger_characters or {}
 end
 
+---Return all commit characters.
+---@return string[]
+function CompletionProvider:get_all_commit_characters()
+  if not self._source.get_configuration then
+    return {}
+  end
+  return self._source:get_configuration().all_commit_characters or {}
+end
+
 ---Return request state.
 ---@return cmp-kit.completion.CompletionProvider.RequestState
 function CompletionProvider:get_request_state()

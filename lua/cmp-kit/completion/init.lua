@@ -18,6 +18,7 @@
 ---@class cmp-kit.completion.CompletionSource.Configuration
 ---@field public keyword_pattern? string
 ---@field public trigger_characters? string[]
+---@field public all_commit_characters? string[]
 ---@field public position_encoding_kind? cmp-kit.kit.LSP.PositionEncodingKind
 
 ---@class cmp-kit.completion.CompletionSource

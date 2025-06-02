@@ -89,11 +89,6 @@ return function(option)
       return Async.run(function()
         local trigger_context = TriggerContext.create()
 
-        -- ignore by text_before.
-        if trigger_context.text_before:match('^%s*//%s*$') then
-          return {}
-        end
-
         -- parse path components.
         local path_components, prefix = parse_components(trigger_context.text_before)
         if #path_components <= 0 then
