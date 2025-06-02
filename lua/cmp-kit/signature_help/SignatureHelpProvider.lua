@@ -51,11 +51,14 @@ function SignatureHelpProvider:fetch(trigger_context)
       if self._state.signature_help_context then
         trigger_kind = self._state.signature_help_context.triggerKind
         trigger_character = self._state.signature_help_context.triggerCharacter
-      else
-        if self._state.request_state ~= RequestState.Waiting then
-          trigger_kind = LSP.SignatureHelpTriggerKind.ContentChange
-        end
+      elseif self._state.request_state ~= RequestState.Waiting then
+        trigger_kind = LSP.SignatureHelpTriggerKind.ContentChange
       end
+    end
+
+    if not trigger_kind then
+      self:clear()
+      return
     end
 
     local is_retrigger = self._state.active_signature_help or self._state.request_state == RequestState.Fetching
@@ -78,7 +81,6 @@ function SignatureHelpProvider:fetch(trigger_context)
     if not response or not response.signatures or #response.signatures == 0 then
       return self:clear()
     end
-
 
     local active_signature_index = self:get_active_signature_index()
     if #response.signatures >= active_signature_index then
