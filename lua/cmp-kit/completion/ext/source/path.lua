@@ -116,9 +116,16 @@ return function(option)
           if prefix:match('<$') then
             return {}
           end
-          -- comment
-          if prefix:match('^%s*$') and dirname:match('^/') and (vim.o.commentstring:gsub('^%s*', '')):sub(1, 1) == '/' then
-            return {}
+          -- slash comments.
+          if vim.o.commentstring:gsub('^%s*', ''):sub(1, 1) == '/' then
+            -- /
+            if prefix:match('^%s*$') and dirname:match('^/') then
+              return {}
+            end
+            -- */
+            if prefix:match('^%s*%*$') and dirname:match('^/') then
+              return {}
+            end
           end
           -- math expression.
           if prefix:match('[)%d]%s*$') and dirname:match('^/') then

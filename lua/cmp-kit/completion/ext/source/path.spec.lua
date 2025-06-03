@@ -43,26 +43,39 @@ describe('cmp-kit.completion.ext.source.path', function()
     end)
 
     it('commentstring=// %s', function()
-      spec.setup({ buffer_text = { '  /|' } })
-      vim.o.commentstring = '// %s'
-      assert.are_same(source:complete({
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }):sync(2 * 1000), {})
+      -- should not complete
+      do
+        spec.setup({ buffer_text = { '  /|' } })
+        vim.o.commentstring = '// %s'
+        assert.are_same(source:complete({
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/'
+        }):sync(2 * 1000), {})
 
-      spec.setup({ buffer_text = { '  //|' } })
-      vim.o.commentstring = '// %s'
-      assert.are_same(source:complete({
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }):sync(2 * 1000), {})
+        spec.setup({ buffer_text = { '  //|' } })
+        vim.o.commentstring = '// %s'
+        assert.are_same(source:complete({
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/'
+        }):sync(2 * 1000), {})
 
-      spec.setup({ buffer_text = { '  // /|' } })
-      vim.o.commentstring = '// %s'
-      assert.are_not.same(source:complete({
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }):sync(2 * 1000), {})
+        spec.setup({ buffer_text = { '  */|' } })
+        vim.o.commentstring = '// %s'
+        assert.are_same(source:complete({
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/'
+        }):sync(2 * 1000), {})
+      end
+
+      -- should complete.
+      do
+        spec.setup({ buffer_text = { '  // /|' } })
+        vim.o.commentstring = '// %s'
+        assert.are_not.same(source:complete({
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/'
+        }):sync(2 * 1000), {})
+      end
     end)
   end)
 end)
