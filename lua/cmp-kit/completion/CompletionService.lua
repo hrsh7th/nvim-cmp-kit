@@ -378,17 +378,18 @@ do
   ---@param self cmp-kit.completion.CompletionService
   ---@param trigger_context cmp-kit.core.TriggerContext
   local function complete_inner(self, trigger_context)
-    local changed = self._state.complete_trigger_context:changed(trigger_context)
-    if not changed then
-      return Async.resolve({})
-    end
-    self._state.complete_trigger_context = trigger_context
-
     -- reset selection for new completion.
     self:_update_selection(0, true, trigger_context.text_before)
 
     -- update if changed handler.
     local function update_if_changed()
+      if self._disposed then
+        return
+      end
+      if self._preventing > 0 then
+        return
+      end
+
       -- check provider's state was changed.
       local has_changed = false
       for _, group in ipairs(self:_get_provider_groups()) do
@@ -455,8 +456,17 @@ do
     if self._disposed then
       return Async.resolve({})
     end
+    if self._preventing > 0 then
+      return Async.resolve({})
+    end
 
     local trigger_context = TriggerContext.create(option)
+    local changed = self._state.complete_trigger_context:changed(trigger_context)
+    if not changed then
+      return Async.resolve({})
+    end
+    self._state.complete_trigger_context = trigger_context
+
     return Async.run(function()
       complete_inner(self, trigger_context)
     end)
@@ -466,22 +476,21 @@ end
 ---Match completion items.
 function CompletionService:matching()
   if self._disposed then
-    return Async.resolve({})
+    return
+  end
+  if self._preventing > 0 then
+    return
+  end
+  if self:_is_active_selection() then
+    return
   end
 
   local trigger_context = TriggerContext.create()
-
-  -- check prev matching_trigger_context.
   local changed = self._state.matching_trigger_context:changed(trigger_context)
   if not changed then
     return
   end
   self._state.matching_trigger_context = trigger_context
-
-  -- check user is selecting manually.
-  if self:_is_active_selection() then
-    return
-  end
 
   -- update matches.
   self._state.matches = {}
@@ -653,10 +662,17 @@ end
 function CompletionService:prevent()
   self._preventing = self._preventing + 1
   return function()
-    self._preventing = self._preventing - 1
-    self._state.complete_trigger_context = TriggerContext.create()
-    self._state.matching_trigger_context = TriggerContext.create()
-    return Async.resolve()
+    return Async.run(function()
+      Async.new(function(resolve)
+        vim.api.nvim_create_autocmd('SafeState', {
+          once = true,
+          callback = resolve
+        })
+      end):await()
+      self._state.complete_trigger_context = TriggerContext.create()
+      self._state.matching_trigger_context = TriggerContext.create()
+      self._preventing = self._preventing - 1
+    end)
   end
 end
 
@@ -747,6 +763,7 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
   local prev_offset = item_prev and item_prev:get_offset() - 1 or #text_before
   local next_offset = item_next and item_next:get_offset() - 1 or #text_before
   local to_remove_offset = math.min(prev_offset, next_offset, #text_before)
+  local resume = self:prevent()
   return LinePatch.apply_by_keys(
     0,
     trigger_context.character - to_remove_offset,
@@ -755,7 +772,7 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
       text_before:sub(prev_offset + 1, next_offset),
       item_next and item_next:get_select_text() or ''
     )
-  ):next(self:prevent())
+  ):next(resume)
 end
 
 return CompletionService

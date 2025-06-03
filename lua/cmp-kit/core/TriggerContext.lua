@@ -1,5 +1,6 @@
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
 
+---@type { ns: integer, last_typed_char: string?, trigger_context: cmp-kit.core.TriggerContext? }
 local state = {
   ns = vim.api.nvim_create_namespace('cmp-kit.core.TriggerContext'),
   last_typed_char = nil,
@@ -104,19 +105,18 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     cache = {},
   }, TriggerContext)
 
-  state.trigger_context = state.trigger_context or self
-
-  local keep = true
-  keep = keep and state.trigger_context.mode == self.mode
-  keep = keep and state.trigger_context.line == self.line
-  keep = keep and state.trigger_context.character == self.character
-  keep = keep and state.trigger_context.text == self.text
-  keep = keep and state.trigger_context.bufnr == self.bufnr
-  if not keep then
-    state.trigger_context = self
-  else
-    self.cache = state.trigger_context.cache
+  if state.trigger_context then
+    local keep_cache = true
+    keep_cache = keep_cache and state.trigger_context.mode == self.mode
+    keep_cache = keep_cache and state.trigger_context.line == self.line
+    keep_cache = keep_cache and state.trigger_context.character == self.character
+    keep_cache = keep_cache and state.trigger_context.text == self.text
+    keep_cache = keep_cache and state.trigger_context.bufnr == self.bufnr
+    if keep_cache then
+      self.cache = state.trigger_context.cache
+    end
   end
+  state.trigger_context = self
 
   return self
 end

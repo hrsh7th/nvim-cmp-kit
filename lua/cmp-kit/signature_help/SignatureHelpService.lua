@@ -83,10 +83,10 @@ function SignatureHelpService:trigger(params)
 
 
   if self._disposed then
-    return Async.run(function() end)
+    return Async.resolve()
   end
   if self._preventing > 0 then
-    return Async.run(function() end)
+    return Async.resolve()
   end
 
   local trigger_context = TriggerContext.create({ force = params.force })
@@ -150,11 +150,20 @@ function SignatureHelpService:get_active_signature_data()
 end
 
 ---Prevent signature help.
----@return fun()
+---@return fun(): cmp-kit.kit.Async.AsyncTask
 function SignatureHelpService:prevent()
   self._preventing = self._preventing + 1
   return function()
-    self._preventing = self._preventing - 1
+    return Async.run(function()
+      Async.new(function(resolve)
+        vim.api.nvim_create_autocmd('SafeState', {
+          once = true,
+          callback = resolve
+        })
+      end):await()
+      self._state.trigger_context = TriggerContext.create()
+      self._preventing = self._preventing - 1
+    end)
   end
 end
 
