@@ -46,6 +46,7 @@ return function(option)
     fetch = function(_, signature_help_context)
       if request then
         request.cancel()
+        request = nil
       end
 
       local position_params = vim.lsp.util.make_position_params(0, option.client.offset_encoding)
@@ -60,11 +61,9 @@ return function(option)
           },
           context = signature_help_context
         })
-        local response = request:catch(function()
+        return request:catch(function()
           return nil
         end):await()
-        request = nil
-        return response
       end)
     end,
   }

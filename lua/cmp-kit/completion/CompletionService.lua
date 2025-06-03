@@ -639,7 +639,7 @@ function CompletionService:commit(item, option)
 
         -- re-trigger completion for trigger characters.
         local trigger_context = TriggerContext.create()
-        if trigger_context.before_character and Character.is_symbol(trigger_context.before_character:byte(1)) then
+        if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
             local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
             for _, cfg in ipairs(provider_group) do
@@ -648,7 +648,7 @@ function CompletionService:commit(item, option)
               end
             end
             for _, provider_configuration in ipairs(cfgs) do
-              if vim.tbl_contains(provider_configuration.provider:get_trigger_characters(), trigger_context.before_character) then
+              if vim.tbl_contains(provider_configuration.provider:get_trigger_characters(), trigger_context.trigger_character) then
                 return self:complete()
               end
             end

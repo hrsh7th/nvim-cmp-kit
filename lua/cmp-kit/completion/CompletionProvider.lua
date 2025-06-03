@@ -123,11 +123,11 @@ function CompletionProvider:complete(trigger_context)
         triggerKind = LSP.CompletionTriggerKind.Invoked,
       }
       completion_offset = keyword_offset or (trigger_context.character + 1)
-    elseif vim.tbl_contains(trigger_characters, trigger_context.before_character) then
+    elseif vim.tbl_contains(trigger_characters, trigger_context.trigger_character) then
       -- trigger character based completion.
       completion_context = {
         triggerKind = LSP.CompletionTriggerKind.TriggerCharacter,
-        triggerCharacter = trigger_context.before_character,
+        triggerCharacter = trigger_context.trigger_character,
       }
       completion_offset = trigger_context.character + 1
     else

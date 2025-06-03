@@ -1,4 +1,5 @@
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
+local Character = require('cmp-kit.core.Character')
 
 ---@type { ns: integer, last_typed_char: string?, trigger_context: cmp-kit.core.TriggerContext? }
 local state = {
@@ -31,15 +32,13 @@ end
 ---@field public bufnr integer
 ---@field public time integer
 ---@field public force? boolean
----@field public before_character? string
+---@field public trigger_character? string
+---@field public trigger_character_typed? string
 ---@field public in_string boolean
 ---@field public in_comment boolean
 ---@field public cache table<string, any>
 local TriggerContext = {}
 TriggerContext.__index = TriggerContext
-
----Use trigger character loosely.
-TriggerContext.loose_trigger_character = false
 
 ---Create empty TriggerContext.
 ---@return cmp-kit.core.TriggerContext
@@ -82,11 +81,17 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     end
   end
 
-  local before_character = text_before:match('(.)$')
-  if not TriggerContext.loose_trigger_character then
-    if before_character ~= state.last_typed_char then
-      before_character = nil
-    end
+  local trigger_character = text_before:match('(.)$')
+  local trigger_character_typed = nil
+  if trigger_character == state.last_typed_char then
+    trigger_character_typed = trigger_character
+  end
+
+  -- NOTE: cmp-kit's specific implementation.
+  -- In the vim ecosystem, there is a convention of using <Tab> to exit a closing brackets, and to support this, `before character' is used as the trigger character.
+  -- However, whitespace chars is only used `if actually typed'.
+  if trigger_character and Character.is_white(trigger_character:byte(1)) then
+    trigger_character = trigger_character_typed
   end
 
   local self = setmetatable({
@@ -99,7 +104,8 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     bufnr = bufnr,
     time = vim.uv.now(),
     force = not not (option and option.force),
-    before_character = before_character,
+    trigger_character = trigger_character,
+    trigger_character_typed = trigger_character_typed,
     in_string = in_string,
     in_comment = in_comment,
     cache = {},

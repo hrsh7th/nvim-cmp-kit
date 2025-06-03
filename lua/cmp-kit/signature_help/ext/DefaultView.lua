@@ -164,6 +164,10 @@ function DefaultView:show(data)
     end
   end
 
+  if #contents == 0 then
+    return self:hide()
+  end
+
   -- Update buffer contents.
   Markdown.set(self._window:get_buf('main'), self._ns, vim.iter(contents):fold({}, function(acc, v)
     for _, t in ipairs(vim.split(v.value, '\n')) do

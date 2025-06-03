@@ -11,7 +11,6 @@ local RequestState = {
 ---@class cmp-kit.signature_help.SignatureHelpProvider.State
 ---@field public request_state cmp-kit.signature_help.SignatureHelpProvider.RequestState
 ---@field public trigger_context? cmp-kit.core.TriggerContext
----@field public signature_help_context? cmp-kit.kit.LSP.SignatureHelpContext
 ---@field public active_signature_help? cmp-kit.kit.LSP.SignatureHelp
 
 ---@class cmp-kit.signature_help.SignatureHelpProvider
@@ -29,7 +28,6 @@ function SignatureHelpProvider.new(source)
     _state = {
       request_state = RequestState.Waiting,
       trigger_context = nil,
-      signature_help_context = nil,
       active_signature_help = nil,
     },
   }, SignatureHelpProvider)
@@ -40,55 +38,46 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
 function SignatureHelpProvider:fetch(trigger_context)
   return Async.run(function()
+    self._state.trigger_context = trigger_context
+
+    local is_retrigger = self._state.request_state ~= RequestState.Waiting
+    local is_triggered = is_retrigger or not not self._state.active_signature_help
+
     local trigger_kind --[[@as cmp-kit.kit.LSP.SignatureHelpTriggerKind]]
     local trigger_character --[[@as string?]]
     if trigger_context.force then
       trigger_kind = LSP.SignatureHelpTriggerKind.Invoked
-    elseif vim.tbl_contains(self:get_trigger_characters(), trigger_context.before_character) or (self._state.signature_help_context and vim.tbl_contains(self:get_retrigger_characters(), trigger_context.before_character)) then
+    elseif vim.tbl_contains(self:get_trigger_characters(), trigger_context.trigger_character) or (is_triggered and vim.tbl_contains(self:get_retrigger_characters(), trigger_context.trigger_character)) then
       trigger_kind = LSP.SignatureHelpTriggerKind.TriggerCharacter
-      trigger_character = trigger_context.before_character
-    else
-      if self._state.signature_help_context then
-        trigger_kind = self._state.signature_help_context.triggerKind
-        trigger_character = self._state.signature_help_context.triggerCharacter
-      elseif self._state.request_state ~= RequestState.Waiting then
-        trigger_kind = LSP.SignatureHelpTriggerKind.ContentChange
-      end
+      trigger_character = trigger_context.trigger_character
+    elseif is_triggered then
+      trigger_kind = LSP.SignatureHelpTriggerKind.ContentChange
     end
 
     if not trigger_kind then
-      self:clear()
       return
     end
 
-    local is_retrigger = self._state.active_signature_help or self._state.request_state == RequestState.Fetching
     local context = {
       triggerKind = trigger_kind,
       triggerCharacter = trigger_character,
       isRetrigger = is_retrigger,
       activeSignatureHelp = self._state.active_signature_help,
-    }
-
-    self._state.trigger_context = trigger_context
-    self._state.signature_help_context = context
+    } --[[@as cmp-kit.kit.LSP.SignatureHelpContext]]
     self._state.request_state = RequestState.Fetching
     local response = self._source:fetch(context):await() --[[@as cmp-kit.kit.LSP.TextDocumentSignatureHelpResponse]]
-    self._state.request_state = RequestState.Completed
     if self._state.trigger_context ~= trigger_context then
       return
     end
-    self._state.active_signature_help = response
     if not response or not response.signatures or #response.signatures == 0 then
-      return self:clear()
+      self._state.request_state = RequestState.Waiting
+      self._state.active_signature_help = nil
+      return
     end
+    self._state.request_state = RequestState.Completed
+    self._state.active_signature_help = response
 
-    local active_signature_index = self:get_active_signature_index()
-    if #response.signatures >= active_signature_index then
-      response.activeSignature = active_signature_index - 1
-      response.activeParameter = self:get_active_parameter_index() - 1
-    end
-
-    return response
+    return context
   end)
 end
 
@@ -97,7 +86,6 @@ function SignatureHelpProvider:clear()
   self._state = {
     request_state = RequestState.Waiting,
     trigger_context = nil,
-    signature_help_context = nil,
     active_signature_help = nil,
   }
 end
@@ -127,14 +115,15 @@ end
 ---Get active signature data.
 ---@return cmp-kit.signature_help.ActiveSignatureData?
 function SignatureHelpProvider:get_active_signature_data()
-  if not self._state.active_signature_help then
+  local active_signature_help = self._state.active_signature_help
+  if not active_signature_help then
     return
   end
   local active_signature_index = self:get_active_signature_index()
   if not active_signature_index then
     return
   end
-  local signature = self._state.active_signature_help.signatures[active_signature_index]
+  local signature = active_signature_help.signatures[active_signature_index]
   if not signature then
     return
   end
@@ -142,7 +131,7 @@ function SignatureHelpProvider:get_active_signature_data()
     signature = signature,
     parameter_index = self:get_active_parameter_index(),
     signature_index = active_signature_index,
-    signature_count = #self._state.active_signature_help.signatures,
+    signature_count = #active_signature_help.signatures,
   }
 end
 

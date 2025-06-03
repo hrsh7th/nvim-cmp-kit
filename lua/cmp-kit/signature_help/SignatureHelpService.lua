@@ -68,6 +68,9 @@ function SignatureHelpService:register_source(source, config)
     for i, c in ipairs(self._provider_configurations) do
       if c == provider_configuration then
         table.remove(self._provider_configurations, i)
+        if self._state.active_provider == provider_configuration.provider then
+          self._state.active_provider = nil
+        end
         break
       end
     end
@@ -80,7 +83,6 @@ end
 function SignatureHelpService:trigger(params)
   params = params or {}
   params.force = params.force or false
-
 
   if self._disposed then
     return Async.resolve()
@@ -95,18 +97,18 @@ function SignatureHelpService:trigger(params)
   end
   self._state.trigger_context = trigger_context
 
-  if self._config.view:is_visible() then
-    local active_signature_data = self._state.active_provider and self._state.active_provider:get_active_signature_data()
-    if active_signature_data then
-      self._config.view:show(active_signature_data)
-    end
+  if self:is_visible() then
+    self:_update_signature_help(self._state.active_provider)
   end
 
   return Async.run(function()
     for _, cfg in ipairs(self:_get_providers()) do
       if cfg.provider:capable(trigger_context) then
-        local response = cfg.provider:fetch(trigger_context):await()
-        if response then
+        local context = cfg.provider:fetch(trigger_context):await()
+        if self._state.trigger_context ~= trigger_context then
+          return
+        end
+        if context then
           self:_update_signature_help(cfg.provider)
           return
         end
@@ -169,6 +171,9 @@ end
 
 ---Clear signature help.
 function SignatureHelpService:clear()
+  for _, cfg in ipairs(self:_get_providers()) do
+    cfg.provider:clear()
+  end
   self._state = {
     trigger_context = TriggerContext.create(),
     active_provider = nil,
