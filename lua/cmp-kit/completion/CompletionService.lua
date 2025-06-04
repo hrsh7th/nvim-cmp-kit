@@ -396,6 +396,7 @@ do
         for _, cfg in ipairs(group) do
           if cfg.provider:capable(trigger_context) then
             if self._state.provider_response_revision[cfg.provider] ~= cfg.provider:get_response_revision() then
+              self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
               has_changed = true
             end
           end
@@ -499,14 +500,16 @@ function CompletionService:matching()
 
     local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
-      has_fetching = (
-        cfg.provider:get_request_state() == CompletionProvider.RequestState.Fetching and
-        (vim.uv.hrtime() / 1e6 - cfg.provider:get_request_time()) < self._config.performance.fetching_timeout_ms
-      )
-      if has_fetching then
-        break
+      if cfg.provider:capable(trigger_context) then
+        has_fetching = (
+          cfg.provider:get_request_state() == CompletionProvider.RequestState.Fetching and
+          (vim.uv.hrtime() / 1e6 - cfg.provider:get_request_time()) < self._config.performance.fetching_timeout_ms
+        )
+        if has_fetching then
+          break
+        end
+        table.insert(cfgs, cfg)
       end
-      table.insert(cfgs, cfg)
     end
 
     -- gather items.
@@ -526,13 +529,6 @@ function CompletionService:matching()
     -- wait for fetching providers.
     if has_fetching then
       return
-    end
-  end
-
-  -- update response revision.
-  for _, group in ipairs(self:_get_provider_groups()) do
-    for _, cfg in ipairs(group) do
-      self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
     end
   end
 

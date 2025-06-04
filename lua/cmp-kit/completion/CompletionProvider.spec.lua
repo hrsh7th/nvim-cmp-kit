@@ -48,24 +48,24 @@ describe('cmp-kit.completion', function()
         Keymap.send(' '):await()
         assert.is_nil(provider:complete(TriggerContext.create()):await())
 
-        -- no_completion -> keyword_pattern & incmp-kit.
+        -- no_completion -> keyword_pattern & incomplete.
         Keymap.send('f'):await()
-        ctx.set_response({ isIncomplete = true, items = {} })
+        ctx.set_response({ isIncomplete = true, items = { { label = 'foo' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
 
         -- keyword_pattern & incomplete -> keyword_pattern.
         Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = {} })
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
 
         -- keyword_pattern -> force.
         Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = {} })
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create({ force = true })):await())
 
         -- keyword_pattern & force -> keyword_pattern
         Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = {} })
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
         assert.is_nil(provider:complete(TriggerContext.create()):await())
 
         -- keyword_pattern -> trigger_character

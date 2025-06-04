@@ -49,6 +49,7 @@ end
 ---@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
+---@field public keyword_offset? integer
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
@@ -112,7 +113,7 @@ function CompletionProvider:complete(trigger_context)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local is_same_offset = keyword_offset and keyword_offset == self._state.completion_offset
+    local is_same_offset = keyword_offset and keyword_offset == self._state.keyword_offset
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
@@ -174,13 +175,14 @@ function CompletionProvider:complete(trigger_context)
       completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions
     )
     self._state.is_trigger_character_completion = is_trigger_char
-    if not is_same_offset or self._state.request_state == RequestState.Waiting then
+    if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
       self._state.request_state = RequestState.Fetching
       self._state.request_time = vim.uv.hrtime() / 1e6
     end
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset
+    self._state.keyword_offset = keyword_offset
 
     -- invoke completion.
     local raw_response = self._source:complete(completion_context):await()
@@ -202,8 +204,6 @@ end
 ---@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
-  local prev_item_count = #self._state.items
-
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
@@ -241,10 +241,7 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
   self._state.matches_before_text = nil
 
   -- increase response_revision if changed.
-  local next_item_count = #self._state.items
-  if not (next_item_count == 0 and prev_item_count == 0) then
-    self._state.response_revision = self._state.response_revision + 1
-  end
+  self._state.response_revision = self._state.response_revision + 1
 end
 
 ---Resolve completion item (completionItem/resolve).
