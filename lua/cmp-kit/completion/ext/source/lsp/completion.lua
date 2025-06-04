@@ -49,11 +49,20 @@ return function(option)
       end)
     end,
     execute = function(_, command)
-      return Async.run(function()
-        return client:workspace_executeCommand({
-          command = command.command,
-          arguments = command.arguments
-        }):await()
+      return Async.new(function(resolve, reject)
+        option.client:exec_cmd(command --[[@as lsp.Command]], {
+          bufnr = vim.api.nvim_get_current_buf(),
+        }, function(err, result)
+          vim.print({
+            err = err,
+            result = result,
+          })
+          if err then
+            reject(err)
+          else
+            resolve(result)
+          end
+        end)
       end)
     end,
     complete = function(_, completion_context)
