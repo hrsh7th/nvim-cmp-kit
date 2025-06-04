@@ -53,10 +53,6 @@ return function(option)
         option.client:exec_cmd(command --[[@as lsp.Command]], {
           bufnr = vim.api.nvim_get_current_buf(),
         }, function(err, result)
-          vim.print({
-            err = err,
-            result = result,
-          })
           if err then
             reject(err)
           else
