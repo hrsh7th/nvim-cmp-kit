@@ -79,6 +79,8 @@ end
 ---@param win_config cmp-kit.kit.Vim.FloatingWindow.WindowConfig
 ---@return integer
 local function show_or_move(win, buf, win_config)
+  win_config.border = win_config.border or (vim.o.winborder --[[@as string]])
+
   local border_size = FloatingWindow.get_border_size(win_config.border)
   if win_config.anchor == 'NE' then
     win_config.col = win_config.col - win_config.width - border_size.right - border_size.left
@@ -139,6 +141,8 @@ end
 ---@param border nil | string | string[]
 ---@return cmp-kit.kit.Vim.FloatingWindow.BorderSize
 function FloatingWindow.get_border_size(border)
+  border = border or (vim.o.winborder --[[@as string]])
+
   local maybe_border_size = (function()
     if not border or border == '' then
       return { top = 0, right = 0, bottom = 0, left = 0 }
