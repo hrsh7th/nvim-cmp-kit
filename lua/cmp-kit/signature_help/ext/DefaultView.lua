@@ -46,8 +46,8 @@ local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 
 ---@class cmp-kit.signature_help.ext.DefaultView.Config
 local default_config = {
-  max_width_ratio = 0.4,
-  max_height_ratio = 12 / vim.o.lines,
+  max_width_ratio = 0.8,
+  max_height_ratio = 8 / vim.o.lines,
 }
 
 ---@class cmp-kit.signature_help.ext.DefaultView: cmp-kit.signature_help.SignatureHelpView
@@ -203,7 +203,7 @@ function DefaultView:show(data)
   local height = math.min(math.floor(default_config.max_height_ratio * vim.o.lines), content_size.height)
 
   -- Check row space is enough.
-  if (row + row_off) < height then
+  if (row + row_off) < (height + border_size.v) then
     return self:hide()
   end
 
