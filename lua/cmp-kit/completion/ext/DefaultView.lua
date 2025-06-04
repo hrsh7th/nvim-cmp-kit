@@ -5,7 +5,10 @@ local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local redraw_keys = vim.keycode('<Cmd>redraw<CR><C-r>=""<CR>')
+---NOET: in cmdline, the floating-windows and incsearch-highlight are not redraw automatically.
+---The `<Cmd>redraw<CR>` part supports floating-windows.
+---The `<C-r>=""<CR>` part supports incsearch-highlight.
+local cmdline_redraw_keys = vim.keycode('<Cmd>redraw<CR><Space><BS>')
 
 local tmp_tbls = {
   columns = {},
@@ -140,7 +143,7 @@ end
 local function redraw_for_cmdline(win)
   if vim.fn.mode(1):sub(1, 1) == 'c' then
     if vim.tbl_contains({ '/', '?' }, vim.fn.getcmdtype()) and vim.o.incsearch then
-      vim.api.nvim_feedkeys(redraw_keys, 'ni', true)
+      vim.api.nvim_feedkeys(cmdline_redraw_keys, 'n', true)
     else
       pcall(vim.api.nvim__redraw, { valid = true, win = win })
     end
