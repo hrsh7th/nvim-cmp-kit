@@ -6,12 +6,6 @@ end, {
   nargs = '*'
 })
 
-vim.api.nvim_create_user_command('CmpKitDebuggerToggle', function()
-  debugger.enable(not debugger.enable())
-end, {
-  nargs = '*'
-})
-
 ---@param name string
 ---@param source string
 ---@param keys string[]
