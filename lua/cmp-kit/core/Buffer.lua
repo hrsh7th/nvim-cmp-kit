@@ -141,6 +141,9 @@ function Indexer:_run_index()
   local s = vim.uv.hrtime() / 1e6
   local c = 0
   local regex = get_regex(self._regex)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  cursor[2] = cursor[2] + 1 -- Convert to 1-based index
+  local is_inserting = vim.api.nvim_get_mode().mode == 'i'
   for i = self._s_idx, self._e_idx do
     if self._words[i] == nil then
       self._words[i] = {}
@@ -149,10 +152,9 @@ function Indexer:_run_index()
       while true do
         local sidx, eidx = regex:match_str(text)
         if sidx and eidx then
-          local cursor = vim.api.nvim_win_get_cursor(0)
-          local is_inserting = vim.api.nvim_get_mode().mode == 'i'
           if not is_inserting or cursor[1] ~= i or cursor[2] < (off + sidx) or (off + eidx) < cursor[2] then
-            table.insert(self._words[i], text:sub(sidx + 1, eidx))
+            local word = text:sub(sidx + 1, eidx)
+            table.insert(self._words[i], word)
           end
           off = off + eidx
 
