@@ -535,7 +535,7 @@ function DefaultView:show(matches, selection)
     row = row + row_off,
     col = col + col_off,
     width = max_content_width,
-    height = outer_height - border_size.v,
+    height = math.min(outer_height - border_size.v, vim.o.pumheight or outer_height - border_size.v),
     anchor = anchor,
     style = 'minimal',
     border = vim.o.winborder,
