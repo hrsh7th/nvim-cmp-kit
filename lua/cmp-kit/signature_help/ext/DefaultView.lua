@@ -199,11 +199,13 @@ function DefaultView:show(data)
   local row_off = -1
   local col_off = -1
   local anchor = 'SW'
-  local width = math.min(math.floor(default_config.max_width_ratio * vim.o.columns), content_size.width)
+  local width = content_size.width
+  width = math.min(width, math.floor(default_config.max_width_ratio * vim.o.columns))
   local height = math.min(math.floor(default_config.max_height_ratio * vim.o.lines), content_size.height)
+  height = math.min(height, (row + row_off) - border_size.v)
 
   -- Check row space is enough.
-  if (row + row_off) < (height + border_size.v) then
+  if (row + row_off - border_size.v) < 1 then
     return self:hide()
   end
 

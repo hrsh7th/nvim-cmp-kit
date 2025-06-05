@@ -49,6 +49,9 @@ do
   ---@return string
   ensure_color_code_highlight_group = function(color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
+    if #color_code == 3 then
+      color_code = color_code:sub(1, 1):rep(2) .. color_code:sub(2, 2):rep(2) .. color_code:sub(3, 3):rep(2)
+    end
     if not cache[color_code] then
       local name = ('cmp-kit.completion.ext.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
       vim.api.nvim_set_hl(0, name, {
@@ -75,7 +78,7 @@ local function get_coloring(item)
       -- detail.
       if not match and details.detail then
         match = details.detail:match('#([a-fA-F0-9]+)')
-        if match then
+        if match and (#match == 3 or #match == 6) then
           item.cache[cache_key] = ensure_color_code_highlight_group(match)
         end
       end
@@ -84,7 +87,7 @@ local function get_coloring(item)
       local docs = item:get_documentation()
       if not match and docs then
         match = docs.value:match('#([a-fA-F0-9]+)')
-        if match then
+        if match and (#match == 3 or #match == 6) then
           item.cache[cache_key] = ensure_color_code_highlight_group(match)
         end
       end
@@ -92,7 +95,7 @@ local function get_coloring(item)
       -- label.
       if not match then
         match = item:get_label_text():match('#([a-fA-F0-9]+)')
-        if match then
+        if match and (#match == 3 or #match == 6) then
           item.cache[cache_key] = ensure_color_code_highlight_group(match)
         end
       end

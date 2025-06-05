@@ -296,16 +296,55 @@ end
 function CompletionItem:get_commit_characters()
   local cache_key = 'get_commit_characters'
   if not self.cache[cache_key] then
+    local uniq = {}
     local commit_characters = {}
     for _, c in ipairs(self._provider:get_all_commit_characters()) do
-      if not vim.tbl_contains(commit_characters, c) then
+      if not uniq[c] then
+        uniq[c] = true
         table.insert(commit_characters, c)
       end
     end
     for _, c in ipairs(self._item.commitCharacters or {}) do
-      table.insert(commit_characters, c)
+      if not uniq[c] then
+        uniq[c] = true
+        table.insert(commit_characters, c)
+      end
+    end
+    for _, c in ipairs(self._completion_list.itemDefaults and self._completion_list.itemDefaults.commitCharacters or {}) do
+      if not uniq[c] then
+        uniq[c] = true
+        table.insert(commit_characters, c)
+      end
     end
     self.cache[cache_key] = commit_characters
+  end
+  return self.cache[cache_key]
+end
+
+---Return text edit.
+---@return (cmp-kit.kit.LSP.InsertReplaceEdit|cmp-kit.kit.LSP.TextEdit)?
+function CompletionItem:get_text_edit()
+  local cache_key = 'get_text_edit'
+  if not self.cache[cache_key] then
+    if self._item.textEdit then
+      self.cache[cache_key] = self._item.textEdit
+    end
+    if self._item.textEditText then
+      if self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
+        if self._completion_list.itemDefaults.editRange.start then
+          self.cache[cache_key] = {
+            range = self._completion_list.itemDefaults.editRange,
+            newText = self._item.textEditText
+          }
+        elseif self._completion_list.itemDefaults.editRange.insert then
+          self.cache[cache_key] = {
+            insert = self._completion_list.itemDefaults.editRange.insert,
+            replace = self._completion_list.itemDefaults.editRange.replace,
+            newText = self._item.textEditText
+          }
+        end
+      end
+    end
   end
   return self.cache[cache_key]
 end
@@ -381,7 +420,15 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionItem:resolve()
   self._resolving = self._resolving or (function()
-    return self._provider:resolve(kit.merge({}, self._item))
+    return self._provider:resolve(
+          kit.merge({
+            commitCharacters = self:get_commit_characters(),
+            textEdit = self:get_text_edit(),
+            insertTextFormat = self:get_insert_text_format(),
+            insertTextMode = self:get_insert_text_mode(),
+            data = self._item.data or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.data),
+          }, self._item)
+        )
         :catch(function(err)
           if debugger.enable() then
             debugger.add('cmp-kit.completion.CompletionItem:resolve', {
@@ -409,7 +456,9 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionItem:execute()
   if self._provider.execute and self._item.command then
-    return self._provider:execute(self._item.command):catch(function() end)
+    return self:resolve():next(function()
+      return self._provider:execute(self._item.command):catch(function() end)
+    end)
   end
   return Async.resolve()
 end
