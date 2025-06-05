@@ -55,8 +55,13 @@ describe('cmp-kit.completion', function()
           after_text = 'exit'
         }))
         assert.are.equal('insert', SelectText.create({
-          insert_text = 'insert(${1:list}, ${2:pos}, ${3:value})',
+          insert_text = 'insert(list, pos, value)',
           before_text = 'insert',
+          after_text = ''
+        }))
+        assert.are.equal('font-size:', SelectText.create({
+          insert_text = 'font-size: ;',
+          before_text = '',
           after_text = ''
         }))
       end)
