@@ -42,7 +42,7 @@ function debugger.add(name, entry)
   })
 
   -- insert inspected values.
-  local inspected = vim.inspect(entry)
+  local inspected = vim.inspect(vim.deepcopy(entry, true))
   for _, s in ipairs(vim.split(inspected, '\n')) do
     table.insert(lines, s)
   end

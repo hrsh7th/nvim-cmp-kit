@@ -49,7 +49,6 @@ end
 ---@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
----@field public keyword_offset? integer
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
@@ -113,7 +112,7 @@ function CompletionProvider:complete(trigger_context)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local is_same_offset = keyword_offset and keyword_offset == self._state.keyword_offset
+    local is_same_offset = keyword_offset and keyword_offset == self._state.completion_offset
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
@@ -158,14 +157,6 @@ function CompletionProvider:complete(trigger_context)
       return
     end
 
-    -- skip simple keyword completion if current completion is triggered by character and still matching.
-    local in_trigger_character_completion = self:in_trigger_character_completion()
-    if in_trigger_character_completion then
-      if not trigger_context.force and completion_context.triggerKind == LSP.CompletionTriggerKind.Invoked then
-        return
-      end
-    end
-
     local is_trigger_char = false
     is_trigger_char = is_trigger_char or (
       completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter
@@ -182,7 +173,6 @@ function CompletionProvider:complete(trigger_context)
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset
-    self._state.keyword_offset = keyword_offset
 
     -- invoke completion.
     local raw_response = self._source:complete(completion_context):await()

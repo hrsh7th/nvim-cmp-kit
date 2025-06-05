@@ -156,6 +156,64 @@ describe('cmp-kit.completion', function()
         end)
       end)
 
+      it('should use filter text as select text if item has the inline additionalTextEdits', function()
+        Keymap.spec(function()
+          Keymap.send('i'):await()
+          local _, _, service = spec.setup({
+            input = 'b',
+            buffer_text = {
+              'fn main() {',
+              '  ""',
+              '    .|foo',
+              '}',
+            },
+            items = { {
+              additionalTextEdits = { {
+                newText = "",
+                range = {
+                  ["end"] = {
+                    character = 5,
+                    line = 2
+                  },
+                  start = {
+                    character = 2,
+                    line = 1
+                  }
+                }
+              } },
+              filterText = "box",
+              label = "box",
+              textEdit = {
+                newText = 'Box::new("")',
+                range = {
+                  ["end"] = {
+                    character = 5,
+                    line = 2
+                  },
+                  start = {
+                    character = 5,
+                    line = 2
+                  }
+                }
+              }
+            } },
+          })
+          local trigger_context = TriggerContext.create()
+          local match = service:get_match_at(1)
+          assert.are.equal(match.item:get_offset(), #'    .' + 1)
+          assert.are.equal(trigger_context:get_query(match.item:get_offset()), 'b')
+          assert.are.equal(match.item:get_select_text(), 'box')
+          assert.are.equal(match.item:get_filter_text(), 'box')
+          match.item:commit({ replace = true }):await()
+          spec.assert({
+            'fn main() {',
+            '  Box::new("")|',
+            '}',
+          })
+          Keymap.send(Keymap.termcodes('<Esc>')):await()
+        end)
+      end)
+
       it('should support EmmyLua annotation completion (lua-language-server)', function()
         -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
         Keymap.spec(function()

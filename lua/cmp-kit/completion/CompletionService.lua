@@ -192,6 +192,23 @@ function CompletionService:on_menu_hide(callback)
   end
 end
 
+---Register on_menu_update event.
+---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
+---@return fun()
+function CompletionService:on_menu_update(callback)
+  self._events = self._events or {}
+  self._events.on_menu_update = self._events.on_menu_update or {}
+  table.insert(self._events.on_menu_update, callback)
+  return function()
+    for i, c in ipairs(self._events.on_menu_update) do
+      if c == callback then
+        table.remove(self._events.on_menu_update, i)
+        break
+      end
+    end
+  end
+end
+
 ---Register on_commit event.
 ---@param callback fun(payload: { service: cmp-kit.completion.CompletionService })
 ---@return fun()
@@ -587,6 +604,7 @@ function CompletionService:matching()
     local is_menu_visible = self._config.view:is_menu_visible()
     if not self._config.sync_mode() then
       self._config.view:show(self._state.matches, self._state.selection)
+      emit(self._events.on_menu_update, { service = self })
     end
     if not is_menu_visible then
       emit(self._events.on_menu_show, { service = self })

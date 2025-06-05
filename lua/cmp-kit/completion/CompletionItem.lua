@@ -185,9 +185,14 @@ end
 function CompletionItem:get_select_text()
   local cache_key = 'get_select_text'
   if not self.cache[cache_key] then
-    local text = self:get_insert_text()
-    if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
-      text = tostring(SnippetText.parse(text)) --[[@as string]]
+    local text --[[@as string]]
+    if self:_has_inline_additional_text_edits() then
+      text = self:get_filter_text()
+    else
+      text = self:get_insert_text()
+      if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
+        text = tostring(SnippetText.parse(text)) --[[@as string]]
+      end
     end
 
     -- NOTE: In string syntax, We use raw insertText.
@@ -421,33 +426,38 @@ end
 function CompletionItem:resolve()
   self._resolving = self._resolving or (function()
     return self._provider:resolve(
-          kit.merge({
-            commitCharacters = self:get_commit_characters(),
-            textEdit = self:get_text_edit(),
-            insertTextFormat = self:get_insert_text_format(),
-            insertTextMode = self:get_insert_text_mode(),
-            data = self._item.data or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.data),
-          }, self._item)
-        )
-        :catch(function(err)
-          if debugger.enable() then
-            debugger.add('cmp-kit.completion.CompletionItem:resolve', {
-              item = self._item,
-              trigger_context = self._trigger_context,
-              err = err,
-            })
-          end
-        end)
-        :next(function(resolved_item)
-          if resolved_item then
-            -- Merge resolved item to original item.
-            self._item = kit.merge(resolved_item, self._item)
-            self.cache = {}
-          else
-            -- Clear resolving cache if null was returned from server.
-            self._resolving = nil
-          end
-        end)
+      kit.merge({
+        commitCharacters = self:get_commit_characters(),
+        textEdit = self:get_text_edit(),
+        insertTextFormat = self:get_insert_text_format(),
+        insertTextMode = self:get_insert_text_mode(),
+        data = self._item.data or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.data),
+      }, self._item)
+    ):dispatch(function(resolved_item)
+      if debugger.enable() then
+        debugger.add('cmp-kit.completion.CompletionItem:resolve.next', {
+          item = self._item,
+          resolved_item = resolved_item,
+          trigger_context = self._trigger_context,
+        })
+      end
+      if resolved_item then
+        self._item = kit.merge(resolved_item, self._item)
+        self.cache = {}
+      else
+        -- Clear resolving cache if null was returned from server.
+        self._resolving = nil
+      end
+    end, function(err)
+      if debugger.enable() then
+        debugger.add('cmp-kit.completion.CompletionItem:resolve.catch', {
+          item = self._item,
+          resolved_item = nil,
+          trigger_context = self._trigger_context,
+          err = err,
+        })
+      end
+    end)
   end)()
   return self._resolving
 end
@@ -519,7 +529,11 @@ function CompletionItem:commit(option)
         .iter(self._item.additionalTextEdits)
         :map(function(text_edit)
           return {
-            range = Range.to_buf(self._trigger_context.bufnr, text_edit.range),
+            range = Range.to_buf(
+              self._trigger_context.bufnr,
+              text_edit.range,
+              self._provider:get_position_encoding_kind()
+            ),
             newText = text_edit.newText,
           }
         end)
@@ -569,7 +583,11 @@ function CompletionItem:commit(option)
                 vim.iter(self._item.additionalTextEdits)
                 :map(function(text_edit)
                   return {
-                    range = Range.to_buf(self._trigger_context.bufnr, text_edit.range),
+                    range = Range.to_buf(
+                      self._trigger_context.bufnr,
+                      text_edit.range,
+                      self._provider:get_position_encoding_kind()
+                    ),
                     newText = text_edit.newText,
                   }
                 end)
@@ -683,6 +701,29 @@ function CompletionItem:_convert_range_encoding(range)
     }
   end
   return self._trigger_context.cache[cache_key]
+end
+
+---Check this item has inline additionalTextEdits.
+---NOTE: This is a cmp-kit's specific implementation.
+---@return boolean
+function CompletionItem:_has_inline_additional_text_edits()
+  local cache_key = '_has_inline_additional_text_edits'
+  if not self.cache[cache_key] then
+    self.cache[cache_key] = false
+    if self._item.additionalTextEdits then
+      for _, text_edit in ipairs(self._item.additionalTextEdits) do
+        if text_edit.range.start.line == self._trigger_context.line then
+          self.cache[cache_key] = true
+          break
+        end
+        if text_edit.range['end'].line == self._trigger_context.line then
+          self.cache[cache_key] = true
+          break
+        end
+      end
+    end
+  end
+  return self.cache[cache_key]
 end
 
 return CompletionItem
