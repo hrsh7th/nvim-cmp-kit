@@ -101,7 +101,6 @@ end
 ---@param data cmp-kit.signature_help.ActiveSignatureData
 function DefaultView:show(data)
   local contents = {} --[=[@as cmp-kit.kit.LSP.MarkupContent[]]=]
-
   -- Create signature label.
   do
     local label = data.signature.label
@@ -115,9 +114,11 @@ function DefaultView:show(data)
         end
       end
       if kit.is_array(pos) then
-        local before = label:sub(1, parameter.label[1])
-        local middle = label:sub(parameter.label[1] + 1, parameter.label[2])
-        local after = label:sub(parameter.label[2] + 1)
+        local pos1 = pos[1]
+        local pos2 = pos[2] or pos1
+        local before = label:sub(1, pos1)
+        local middle = label:sub(pos1 + 1, pos2)
+        local after = label:sub(pos2 + 1)
         label = ('```%s\n%s<strong>%s</strong>%s\n```'):format(vim.bo.filetype, before, middle, after)
       end
     end

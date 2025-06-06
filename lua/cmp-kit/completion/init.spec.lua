@@ -13,8 +13,8 @@ describe('cmp-kit.completion', function()
       })
       service:register_source({
         name = 'test',
-        complete = function()
-          return Async.run(function()
+        complete = function(_, _, callback)
+          Async.run(function()
             if vim.fn.reg_executing() ~= '' then
               Async.timeout(16):await()
             end
@@ -22,6 +22,10 @@ describe('cmp-kit.completion', function()
               { label = 'label1' },
               { label = 'label2' }
             }
+          end):dispatch(function(res)
+            callback(nil, res)
+          end, function(err)
+            callback(err, nil)
           end)
         end
       })

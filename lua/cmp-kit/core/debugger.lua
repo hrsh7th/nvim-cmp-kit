@@ -25,6 +25,10 @@ end
 ---@param name string
 ---@param entry any
 function debugger.add(name, entry)
+  if not private.enabled then
+    return
+  end
+
   local botrow = vim.api.nvim_buf_line_count(private.buf)
   local lines = {}
   local marks = {}

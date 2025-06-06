@@ -70,14 +70,20 @@ function spec.setup(option)
     get_position_encoding_kind = function(_)
       return option.position_encoding_kind or LSP.PositionEncodingKind.UTF8
     end,
-    resolve = function(_, item)
-      if not option.resolve then
-        return Async.resolve(item)
-      end
-      return option.resolve(item)
+    resolve = function(_, item, callback)
+      Async.run(function()
+        if not option.resolve then
+          return Async.resolve(item)
+        end
+        return option.resolve(item)
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
+      end)
     end,
-    complete = function(_)
-      return Async.resolve({
+    complete = function(_, _, callback)
+      callback(nil, {
         items = target_items,
         itemDefaults = option.item_defaults,
         isIncomplete = option.is_incomplete or false,

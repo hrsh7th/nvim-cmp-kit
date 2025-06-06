@@ -85,8 +85,8 @@ return function(option)
         trigger_characters = { '/' },
       }
     end,
-    complete = function()
-      return Async.run(function()
+    complete = function(_, _, callback)
+      Async.run(function()
         local trigger_context = TriggerContext.create()
 
         -- parse path components.
@@ -171,10 +171,14 @@ return function(option)
           return a.label < b.label
         end)
         return items
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end,
-    resolve = function(_, item)
-      return Async.run(function()
+    resolve = function(_, item, callback)
+      Async.run(function()
         if item.data.type == 'file' and option.enable_file_document then
           -- read file.
           local contents = vim.split(IO.read_file(item.data.path):catch(function()
@@ -204,6 +208,10 @@ return function(option)
             },
           })
         end
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end
   }

@@ -65,7 +65,15 @@ function SignatureHelpProvider:fetch(trigger_context)
       activeSignatureHelp = self._state.active_signature_help,
     } --[[@as cmp-kit.kit.LSP.SignatureHelpContext]]
     self._state.request_state = RequestState.Fetching
-    local response = self._source:fetch(context):await() --[[@as cmp-kit.kit.LSP.TextDocumentSignatureHelpResponse]]
+    local response = Async.new(function(resolve)
+      self._source:fetch(context, function(err, res)
+        if err then
+          resolve(nil)
+        else
+          resolve(res)
+        end
+      end)
+    end):await() --[[@as cmp-kit.kit.LSP.TextDocumentSignatureHelpResponse]]
     if self._state.trigger_context ~= trigger_context then
       return
     end

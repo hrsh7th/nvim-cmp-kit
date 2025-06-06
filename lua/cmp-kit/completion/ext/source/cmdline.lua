@@ -75,8 +75,6 @@ local lua_expression_cmd_regex = create_head_regex({
   [=[\s*luado]=],
 })
 
-local remove_last_arg_regex = vim.regex([=[[^[:blank:]]\+$]=])
-
 ---@class cmp-kit.completion.ext.source.cmdline.Option
 ---@param option? cmp-kit.completion.ext.source.cmdline.Option
 return function(option)
@@ -93,8 +91,8 @@ return function(option)
     capable = function()
       return vim.api.nvim_get_mode().mode == 'c'
     end,
-    complete = function()
-      return Async.run(function()
+    complete = function(_, _, callback)
+      Async.run(function()
         -- create normalized cmdline.
         -- - remove modifiers
         --   - `keepalt bufdo` -> bufdo`
@@ -179,6 +177,10 @@ return function(option)
           isIncomplete = true,
           items = items,
         }
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end
   }

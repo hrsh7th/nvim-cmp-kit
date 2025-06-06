@@ -24,10 +24,10 @@
 ---@class cmp-kit.completion.CompletionSource
 ---@field public name string
 ---@field public get_configuration? fun(self: unknown): cmp-kit.completion.CompletionSource.Configuration
----@field public resolve? fun(self: unknown, item: cmp-kit.kit.LSP.CompletionItem): cmp-kit.kit.Async.AsyncTask
----@field public execute? fun(self: unknown, command: cmp-kit.kit.LSP.Command): cmp-kit.kit.Async.AsyncTask
+---@field public resolve? fun(self: unknown, item: cmp-kit.kit.LSP.CompletionItem, callback: fun(err?: unknown, response?: cmp-kit.kit.LSP.CompletionItemResolveResponse)): nil
+---@field public execute? fun(self: unknown, command: cmp-kit.kit.LSP.Command, callback: fun(err?: unknown, response?: cmp-kit.kit.LSP.WorkspaceExecuteCommandResponse)): nil
 ---@field public capable? fun(self: unknown, trigger_context: cmp-kit.core.TriggerContext): boolean
----@field public complete fun(self: unknown, completion_context: cmp-kit.kit.LSP.CompletionContext): cmp-kit.kit.Async.AsyncTask
+---@field public complete fun(self: unknown, completion_context: cmp-kit.kit.LSP.CompletionContext, callback: fun(err?: unknown, res?: cmp-kit.kit.LSP.TextDocumentCompletionResponse)): nil
 
 ---@class cmp-kit.completion.Selection
 ---@field public index integer

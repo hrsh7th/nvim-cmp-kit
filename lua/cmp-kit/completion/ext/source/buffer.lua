@@ -56,8 +56,8 @@ return function(option)
         keyword_pattern = keyword_pattern,
       }
     end,
-    complete = function()
-      return Async.run(function()
+    complete = function(_, _, callback)
+      Async.run(function()
         local ctx = TriggerContext.create()
 
         -- check required_keyword_length.
@@ -70,6 +70,10 @@ return function(option)
         end
 
         return get_items(get_bufnrs())
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end
   }

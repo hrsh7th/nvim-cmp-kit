@@ -1,6 +1,7 @@
 local calc_source = require('cmp-kit.completion.ext.source.calc')
 local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
+local Async = require('cmp-kit.kit.Async')
 
 describe('cmp-kit.completion.ext.source.calc', function()
   local source = calc_source()
@@ -10,7 +11,15 @@ describe('cmp-kit.completion.ext.source.calc', function()
   local function assert_output(text, output)
     for _, buffer_text in ipairs({ text, ('%s '):format(text) }) do
       spec.setup({ buffer_text = { buffer_text } })
-      local response = source:complete({ triggerKind = LSP.CompletionTriggerKind.Invoked }):sync(2 * 1000)
+      local response = Async.new(function(resolve, reject)
+        source:complete({ triggerKind = LSP.CompletionTriggerKind.Invoked }, function(err, res)
+          if err then
+            reject(err)
+          else
+            resolve(res)
+          end
+        end)
+      end):sync(2 * 1000)
       if output == nil then
         assert.is_not_nil(response)
         assert.are_equal(#response.items, 0)

@@ -40,16 +40,20 @@ return function(option)
       end
       return option.client:supports_method('textDocument/completion', trigger_context.bufnr)
     end,
-    resolve = function(_, item)
-      return Async.run(function()
+    resolve = function(_, item, callback)
+      Async.run(function()
         if option.client.server_capabilities.completionProvider.resolveProvider then
           return client:completionItem_resolve(item):await()
         end
         return item
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end,
-    execute = function(_, command)
-      return Async.new(function(resolve, reject)
+    execute = function(_, command, callback)
+      Async.new(function(resolve, reject)
         option.client:exec_cmd(command --[[@as lsp.Command]], {
           bufnr = vim.api.nvim_get_current_buf(),
         }, function(err, result)
@@ -59,15 +63,19 @@ return function(option)
             resolve(result)
           end
         end)
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end,
-    complete = function(_, completion_context)
+    complete = function(_, completion_context, callback)
       if request then
         request.cancel()
       end
 
       local position_params = vim.lsp.util.make_position_params(0, option.client.offset_encoding)
-      return Async.run(function()
+      Async.run(function()
         request = client:textDocument_completion({
           textDocument = {
             uri = position_params.textDocument.uri,
@@ -83,6 +91,10 @@ return function(option)
         end):await()
         request = nil
         return response
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end
   }

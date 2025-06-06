@@ -43,14 +43,14 @@ return function(option)
       end
       return option.client:supports_method('textDocument/signatureHelp', trigger_context.bufnr)
     end,
-    fetch = function(_, signature_help_context)
+    fetch = function(_, signature_help_context, callback)
       if request then
         request.cancel()
         request = nil
       end
 
       local position_params = vim.lsp.util.make_position_params(0, option.client.offset_encoding)
-      return Async.run(function()
+      Async.run(function()
         request = client:textDocument_signatureHelp({
           textDocument = {
             uri = position_params.textDocument.uri,
@@ -63,7 +63,11 @@ return function(option)
         })
         return request:catch(function()
           return nil
-        end):await()
+        end)
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end,
   }

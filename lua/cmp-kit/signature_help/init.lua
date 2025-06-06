@@ -6,7 +6,7 @@
 ---@class cmp-kit.signature_help.SignatureHelpSource
 ---@field public name string
 ---@field public get_configuration? fun(self: unknown): cmp-kit.signature_help.SignatureHelpSource.Configuration
----@field public fetch fun(self: unknown, context: cmp-kit.kit.LSP.SignatureHelpContext): cmp-kit.kit.Async.AsyncTask
+---@field public fetch fun(self: unknown, context: cmp-kit.kit.LSP.SignatureHelpContext, callback: fun(err?: unknown, response?: cmp-kit.kit.LSP.TextDocumentSignatureHelpResponse)): nil
 ---@field public capable? fun(self: unknown, trigger_context: cmp-kit.core.TriggerContext): boolean
 
 ---@class cmp-kit.signature_help.SignatureHelpView

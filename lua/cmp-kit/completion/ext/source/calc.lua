@@ -21,8 +21,8 @@ return function()
         trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ' },
       }
     end,
-    complete = function()
-      return Async.run(function()
+    complete = function(_, _, callback)
+      Async.run(function()
         local ctx = TriggerContext.create()
         local off = ctx:get_keyword_offset(PATTERN)
         if not off then
@@ -77,8 +77,10 @@ return function()
             }
           }
         }
-      end):catch(function()
-        return INVALID
+      end):dispatch(function(res)
+        callback(nil, res)
+      end, function(err)
+        callback(err, nil)
       end)
     end
   }

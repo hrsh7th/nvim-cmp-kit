@@ -1,13 +1,14 @@
 ---@diagnostic disable: invisible
-local kit            = require('cmp-kit.kit')
-local LSP            = require('cmp-kit.kit.LSP')
-local Async          = require('cmp-kit.kit.Async')
-local RegExp         = require('cmp-kit.kit.Vim.RegExp')
+local kit = require('cmp-kit.kit')
+local LSP = require('cmp-kit.kit.LSP')
+local Async = require('cmp-kit.kit.Async')
+local RegExp = require('cmp-kit.kit.Vim.RegExp')
+local debugger = require('cmp-kit.core.debugger')
 local CompletionItem = require('cmp-kit.completion.CompletionItem')
-local DefaultConfig  = require('cmp-kit.completion.ext.DefaultConfig')
+local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 
 ---@enum cmp-kit.completion.CompletionProvider.RequestState
-local RequestState   = {
+local RequestState = {
   Waiting = 'Waiting',
   Fetching = 'Fetching',
   Completed = 'Completed',
@@ -175,7 +176,16 @@ function CompletionProvider:complete(trigger_context)
     self._state.completion_offset = completion_offset
 
     -- invoke completion.
-    local raw_response = self._source:complete(completion_context):await()
+    local raw_response = Async.new(function(resolve)
+      self._source:complete(completion_context, function(err, res)
+        if err then
+          debugger.add('cmp-kit.completion.CompletionProvider:complete', err)
+          resolve(nil)
+        else
+          resolve(res)
+        end
+      end)
+    end):await() --[[@as cmp-kit.kit.LSP.TextDocumentCompletionResponse]]
 
     -- ignore obsolete response.
     if self._state.trigger_context ~= trigger_context then
@@ -241,7 +251,15 @@ function CompletionProvider:resolve(item)
   if not self._source.resolve then
     return Async.resolve(item)
   end
-  return self._source:resolve(item)
+  return Async.new(function(resolve, reject)
+    self._source:resolve(item, function(err, res)
+      if err then
+        reject(err)
+      else
+        resolve(res)
+      end
+    end)
+  end)
 end
 
 ---Execute command (workspace/executeCommand).
@@ -251,7 +269,15 @@ function CompletionProvider:execute(command)
   if not self._source.execute then
     return Async.resolve()
   end
-  return self._source:execute(command)
+  return Async.new(function(resolve, reject)
+    self._source:execute(command, function(err, res)
+      if err then
+        reject(err)
+      else
+        resolve(res)
+      end
+    end)
+  end)
 end
 
 ---Check if the provider is capable for the trigger context.

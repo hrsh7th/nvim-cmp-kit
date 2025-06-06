@@ -1,5 +1,4 @@
 local spec = require('cmp-kit.spec')
-local Async = require('cmp-kit.kit.Async')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
@@ -22,8 +21,8 @@ local function create_provider(option)
         trigger_characters = { '.' },
       }
     end,
-    complete = function(_)
-      return Async.resolve(response)
+    complete = function(_, _, callback)
+      callback(nil, response)
     end,
   })
   return provider, {
