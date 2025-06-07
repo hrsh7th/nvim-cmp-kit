@@ -22,7 +22,15 @@ describe('cmp-kit.completion.ext.source.path', function()
     end):sync(2 * 1000)
   end
 
-  describe('skip absolute path', function()
+  describe('skip unexpected absolute path completion', function()
+    it('any symbols', function()
+      spec.setup({ buffer_text = { '#|' } })
+      assert.are_same(complete(source, {
+        triggerKind = LSP.CompletionTriggerKind.Invoked,
+        triggerCharacter = '/'
+      }), {})
+    end)
+
     it('protocol scheme', function()
       spec.setup({ buffer_text = { 'https://|' } })
       assert.are_same(complete(source, {

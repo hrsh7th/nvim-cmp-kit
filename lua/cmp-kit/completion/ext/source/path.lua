@@ -54,7 +54,9 @@ local function parse_components(before_text)
     end
     i = i - 1
   end
-  table.insert(path_parts, 1, table.concat(name_chars))
+  if #name_chars > 0 then
+    table.insert(path_parts, 1, table.concat(name_chars))
+  end
   return path_parts, table.concat(kit.slice(chars, 1, i), '')
 end
 
