@@ -433,30 +433,24 @@ do
     end
 
     -- trigger.
-    local queue = Async.resolve()
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
     local invoked = false
     for _, group in ipairs(self:_get_provider_groups()) do
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
-          -- invoke completion.
-          local task = cfg.provider:complete(trigger_context, function(step)
-            if step == 'send-request' then
-              invoked = true
-            end
-            if step == 'adopt-response' then
-              update_if_changed()
-            end
-          end)
-
-          -- queue view update in sequencial order(with timeout).
-          queue = queue:next(function()
-            return Async.race({ task, Async.timeout(self._config.performance.fetching_timeout_ms) })
-          end):next(function()
+          local task = Async.race({
+            Async.timeout(self._config.performance.fetching_timeout_ms),
+            cfg.provider:complete(trigger_context, function(step)
+              if step == 'send-request' then
+                invoked = true
+              end
+              if step == 'adopt-response' then
+                update_if_changed()
+              end
+            end)
+          }):next(function()
             update_if_changed()
           end)
-
-          -- add task to tasks.
           table.insert(tasks, task)
         end
       end
@@ -471,7 +465,9 @@ do
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
       end
-      self:matching() -- if in sync_mode, matching will be done in `select` method.
+      if self:is_menu_visible() then
+        self:matching()
+      end
     end
 
     return Async.all(tasks)

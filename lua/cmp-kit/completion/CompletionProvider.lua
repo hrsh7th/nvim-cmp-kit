@@ -358,18 +358,6 @@ function CompletionProvider:get_all_commit_characters()
   return self._source:get_configuration().all_commit_characters or {}
 end
 
----Return request state.
----@return cmp-kit.completion.CompletionProvider.RequestState
-function CompletionProvider:get_request_state()
-  return self._state.request_state
-end
-
----Return request state.
----@return integer
-function CompletionProvider:get_request_time()
-  return self._state.request_time
-end
-
 ---Return response revision.
 ---@return integer
 function CompletionProvider:get_response_revision()
@@ -417,7 +405,7 @@ function CompletionProvider:is_fetching(timeout)
   if self._state.request_state ~= RequestState.Fetching then
     return false
   end
-  return (self._state.request_time - vim.uv.hrtime() / 1e6) < timeout
+  return (vim.uv.hrtime() / 1e6 - self._state.request_time) < timeout
 end
 
 ---Return matches.
