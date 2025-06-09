@@ -570,8 +570,6 @@ function CompletionService:matching()
   if #self._state.matches > 0 then
     -- group matches are found.
     local locality_map = {}
-
-    -- For macro, the sorting should be stable.
     if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
       local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
       local min_row = math.max(1, cur - 30)
@@ -582,7 +580,6 @@ function CompletionService:matching()
         end
       end
     end
-
     local sorted_matches = self._config.sorter(self._state.matches, {
       locality_map = locality_map,
       trigger_context = trigger_context,
