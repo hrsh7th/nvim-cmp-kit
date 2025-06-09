@@ -36,7 +36,7 @@ end
 ---@field public view cmp-kit.completion.CompletionView
 ---@field public sorter cmp-kit.completion.Sorter
 ---@field public matcher cmp-kit.completion.Matcher
----@field public performance { fetching_timeout_ms?: integer }
+---@field public performance { fetching_timeout_ms?: integer, menu_hide_debounce_ms?: integer }
 ---@field public default_keyword_pattern string
 
 ---@class cmp-kit.completion.CompletionService.State
@@ -636,7 +636,7 @@ function CompletionService:matching()
     -- no completion found.
     local is_menu_visible = self._config.view:is_menu_visible()
     if is_menu_visible then
-      self._hide_timer:start(120, 0, function()
+      self._hide_timer:start(self._config.performance.menu_hide_debounce_ms, 0, function()
         if not self._config.sync_mode() then
           self._config.view:hide(self._state.matches, self._state.selection)
         end
