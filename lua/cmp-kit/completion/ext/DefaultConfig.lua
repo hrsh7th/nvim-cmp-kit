@@ -12,7 +12,7 @@ return {
   end,
   preselect = true,
   performance = {
-    fetching_timeout_ms = 120
+    fetching_timeout_ms = 48
   },
   default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
 }

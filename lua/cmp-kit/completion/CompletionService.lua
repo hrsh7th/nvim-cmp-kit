@@ -459,8 +459,8 @@ do
       end
     end
 
-    -- set new-completion position for macro.
     if not self._config.sync_mode() then
+      -- set new-completion position for macro.
       if invoked then
         if trigger_context.force then
           vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'int', true)
@@ -468,9 +468,7 @@ do
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
       end
-      if self:is_menu_visible() then
-        self:matching() -- if in sync_mode, matching will be done in `select` method.
-      end
+      self:matching() -- if in sync_mode, matching will be done in `select` method.
     end
 
     return Async.all(tasks)
@@ -532,9 +530,10 @@ function CompletionService:matching()
         in_trigger_character_completion = in_trigger_character_completion or (
           cfg.provider:in_trigger_character_completion()
         )
-        is_completion_fetching = is_completion_fetching or cfg.provider:is_fetching(
-          self._config.performance.fetching_timeout_ms
-        )
+        if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
+          is_completion_fetching = true
+          break
+        end
       end
     end
 
@@ -557,13 +556,8 @@ function CompletionService:matching()
     end
 
     -- use this group.
-    if #self._state.matches > 0 or in_trigger_character_completion then
+    if #self._state.matches > 0 or in_trigger_character_completion or is_completion_fetching then
       break
-    end
-
-    -- no lower-level groups if this group is fetching.
-    if is_completion_fetching then
-      return
     end
   end
 

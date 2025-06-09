@@ -409,7 +409,7 @@ function CompletionProvider:in_trigger_character_completion()
 end
 
 ---Check if the provider is fetching.
----@param timeout? integer
+---@param timeout integer
 ---@return boolean
 function CompletionProvider:is_fetching(timeout)
   timeout = timeout or (5 * 1000)
