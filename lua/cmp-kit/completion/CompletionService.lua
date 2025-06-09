@@ -522,6 +522,7 @@ function CompletionService:matching()
   -- update matches.
   self._state.matches = {}
   for _, group in ipairs(self:_get_provider_groups()) do
+    local is_completion_fetching = false
     local in_trigger_character_completion = false
 
     local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
@@ -530,6 +531,9 @@ function CompletionService:matching()
         table.insert(cfgs, cfg)
         in_trigger_character_completion = in_trigger_character_completion or (
           cfg.provider:in_trigger_character_completion()
+        )
+        is_completion_fetching = is_completion_fetching or cfg.provider:is_fetching(
+          self._config.performance.fetching_timeout_ms
         )
       end
     end
@@ -555,6 +559,11 @@ function CompletionService:matching()
     -- use this group.
     if #self._state.matches > 0 or in_trigger_character_completion then
       break
+    end
+
+    -- no lower-level groups if this group is fetching.
+    if is_completion_fetching then
+      return
     end
   end
 

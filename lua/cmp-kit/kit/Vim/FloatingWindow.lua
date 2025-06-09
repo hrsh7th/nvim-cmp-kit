@@ -263,6 +263,7 @@ function FloatingWindow.new()
     }),
     _config = {
       markdown = false,
+      border = #vim.o.winborder > 0 and vim.o.winborder or 'none',
     },
     _win_option = {},
     _buf_option = {},

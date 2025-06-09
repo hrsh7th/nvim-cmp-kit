@@ -408,6 +408,18 @@ function CompletionProvider:in_trigger_character_completion()
   return self._state.is_trigger_character_completion and #self:get_items() > 0
 end
 
+---Check if the provider is fetching.
+---@param timeout? integer
+---@return boolean
+function CompletionProvider:is_fetching(timeout)
+  timeout = timeout or (5 * 1000)
+
+  if self._state.request_state ~= RequestState.Fetching then
+    return false
+  end
+  return (self._state.request_time - vim.uv.hrtime() / 1e6) < timeout
+end
+
 ---Return matches.
 ---@param trigger_context cmp-kit.core.TriggerContext
 ---@param config cmp-kit.completion.CompletionService.Config
