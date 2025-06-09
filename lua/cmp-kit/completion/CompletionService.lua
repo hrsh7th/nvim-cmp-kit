@@ -432,20 +432,23 @@ do
     -- trigger.
     local queue = Async.resolve()
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
+    local invoked = false
     for _, group in ipairs(self:_get_provider_groups()) do
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
           -- invoke completion.
-          local task = Async.race({
-            Async.timeout(self._config.performance.fetching_timeout_ms),
-            cfg.provider:complete(trigger_context):next(function()
+          local task = cfg.provider:complete(trigger_context, function(step)
+            if step == 'send-request' then
+              invoked = true
+            end
+            if step == 'adopt-response' then
               update_if_changed()
-            end)
-          })
+            end
+          end)
 
-          -- queue view update in sequencial order.
+          -- queue view update in sequencial order(with timeout).
           queue = queue:next(function()
-            return task
+            return Async.race({ task, Async.timeout(self._config.performance.fetching_timeout_ms) })
           end):next(function()
             update_if_changed()
           end)
@@ -458,13 +461,19 @@ do
 
     -- set new-completion position for macro.
     if not self._config.sync_mode() then
-      if trigger_context.force then
-        vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'nt', true)
-      else
-        vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'nt', true)
+      if invoked then
+        if trigger_context.force then
+          vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'int', true)
+        else
+          vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
+        end
       end
-      self:matching() -- if in sync_mode, matching will be done in `select` method.
+      if self:is_menu_visible() then
+        self:matching() -- if in sync_mode, matching will be done in `select` method.
+      end
     end
+
+    return Async.all(tasks)
   end
 
   ---Invoke completion.
@@ -486,7 +495,7 @@ do
     self._state.complete_trigger_context = trigger_context
 
     return Async.run(function()
-      complete_inner(self, trigger_context)
+      return complete_inner(self, trigger_context)
     end)
   end
 end
@@ -513,19 +522,24 @@ function CompletionService:matching()
   -- update matches.
   self._state.matches = {}
   for _, group in ipairs(self:_get_provider_groups()) do
-    local has_fetching = false
+    local in_trigger_character_completion = false
 
     local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
-        has_fetching = (
-          cfg.provider:get_request_state() == CompletionProvider.RequestState.Fetching and
-          (vim.uv.hrtime() / 1e6 - cfg.provider:get_request_time()) < self._config.performance.fetching_timeout_ms
-        )
-        if has_fetching then
-          break
-        end
         table.insert(cfgs, cfg)
+        in_trigger_character_completion = in_trigger_character_completion or (
+          cfg.provider:in_trigger_character_completion()
+        )
+      end
+    end
+
+    -- use only trigger character completion if exists.
+    if in_trigger_character_completion then
+      for i = #cfgs, 1, -1 do
+        if not cfgs[i].provider:in_trigger_character_completion() then
+          table.remove(cfgs, i)
+        end
       end
     end
 
@@ -539,13 +553,8 @@ function CompletionService:matching()
     end
 
     -- use this group.
-    if #self._state.matches > 0 then
+    if #self._state.matches > 0 or in_trigger_character_completion then
       break
-    end
-
-    -- wait for fetching providers.
-    if has_fetching then
-      return
     end
   end
 
