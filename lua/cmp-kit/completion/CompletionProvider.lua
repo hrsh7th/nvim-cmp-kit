@@ -107,8 +107,11 @@ end
 
 ---Completion (textDocument/completion).
 ---@param trigger_context cmp-kit.core.TriggerContext
+---@param on_step? fun(step: 'skip-completion' | 'send-request' | 'ignore-outdated' | 'adopt-response')
 ---@return cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionContext?
-function CompletionProvider:complete(trigger_context)
+function CompletionProvider:complete(trigger_context, on_step)
+  on_step = on_step or function() end
+
   return Async.run(function()
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
@@ -155,7 +158,17 @@ function CompletionProvider:complete(trigger_context)
       if not keyword_offset then
         self:clear()
       end
+      on_step('skip-completion')
       return
+    end
+
+    -- if trigger completion has active response, skip simple keyword completion.
+    local in_trigger_character_completion = self:in_trigger_character_completion()
+    if in_trigger_character_completion then
+      if not trigger_context.force and completion_context.triggerKind == LSP.CompletionTriggerKind.Invoked then
+        on_step('skip-completion')
+        return
+      end
     end
 
     local is_trigger_char = false
@@ -176,6 +189,7 @@ function CompletionProvider:complete(trigger_context)
     self._state.completion_offset = completion_offset
 
     -- invoke completion.
+    on_step('send-request')
     local raw_response = Async.new(function(resolve)
       self._source:complete(completion_context, function(err, res)
         if err then
@@ -187,13 +201,24 @@ function CompletionProvider:complete(trigger_context)
       end)
     end):await() --[[@as cmp-kit.kit.LSP.TextDocumentCompletionResponse]]
 
-    -- ignore obsolete response.
+    -- ignore outdated response.
     if self._state.trigger_context ~= trigger_context then
+      on_step('ignore-outdated')
       return
     end
 
     -- adopt response.
-    self:_adopt_response(trigger_context, completion_context, to_completion_list(raw_response))
+    local list = to_completion_list(raw_response)
+    self:_adopt_response(trigger_context, completion_context, list)
+
+    -- clear if response is empty for no keyword completion.
+    -- it needed to re-completion for new keyword.
+    -- e.g.: `table.` is empty but `table.i` should be new completion.
+    if #self._state.items == 0 and not keyword_offset then
+      self:clear()
+    end
+
+    on_step('adopt-response')
 
     return completion_context
   end)
@@ -206,6 +231,8 @@ end
 function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
+
+  local prev_item_count = #self._state.items
 
   -- do not keep previous state if completion is not incomplete.
   if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
@@ -241,7 +268,10 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
   self._state.matches_before_text = nil
 
   -- increase response_revision if changed.
-  self._state.response_revision = self._state.response_revision + 1
+  local next_item_count = #self._state.items
+  if not (next_item_count == 0 and prev_item_count == 0) then
+    self._state.response_revision = self._state.response_revision + 1
+  end
 end
 
 ---Resolve completion item (completionItem/resolve).
