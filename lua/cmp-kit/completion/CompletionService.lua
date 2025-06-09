@@ -1,6 +1,7 @@
 ---@diagnostic disable: invisible
 local kit = require('cmp-kit.kit')
 local Async = require('cmp-kit.kit.Async')
+local ScheduledTimer = require('cmp-kit.kit.Async.ScheduledTimer')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
@@ -56,6 +57,7 @@ end
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
+---@field private _hide_timer cmp-kit.kit.Async.ScheduledTimer
 local CompletionService = {}
 CompletionService.__index = CompletionService
 
@@ -83,6 +85,7 @@ function CompletionService.new(config)
     },
     _config = kit.merge(config or {}, DefaultConfig),
     _provider_configurations = {},
+    _hide_timer = ScheduledTimer.new(),
     _keys = {},
     _macro_completion = {},
   } --[[@as cmp-kit.completion.CompletionService]], CompletionService)
@@ -556,8 +559,10 @@ function CompletionService:matching()
     end
 
     -- use this group.
-    if #self._state.matches > 0 or in_trigger_character_completion or is_completion_fetching then
-      break
+    if not self._state.complete_trigger_context.force then
+      if #self._state.matches > 0 or in_trigger_character_completion or is_completion_fetching then
+        break
+      end
     end
   end
 
@@ -615,6 +620,7 @@ function CompletionService:matching()
     -- completion found.
     local is_menu_visible = self._config.view:is_menu_visible()
     if not self._config.sync_mode() then
+      self._hide_timer:stop()
       self._config.view:show(self._state.matches, self._state.selection)
       emit(self._events.on_menu_update, { service = self })
     end
@@ -630,10 +636,12 @@ function CompletionService:matching()
     -- no completion found.
     local is_menu_visible = self._config.view:is_menu_visible()
     if is_menu_visible then
-      if not self._config.sync_mode() then
-        self._config.view:hide(self._state.matches, self._state.selection)
-      end
-      emit(self._events.on_menu_hide, { service = self })
+      self._hide_timer:start(120, 0, function()
+        if not self._config.sync_mode() then
+          self._config.view:hide(self._state.matches, self._state.selection)
+        end
+        emit(self._events.on_menu_hide, { service = self })
+      end)
     end
   end
 end
