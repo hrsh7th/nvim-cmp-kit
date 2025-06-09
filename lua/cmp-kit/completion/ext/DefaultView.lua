@@ -134,6 +134,7 @@ end
 ---@field docs_max_win_width_ratio number
 ---@field get_menu_position fun(preset: { offset: cmp-kit.completion.ext.DefaultView.WindowPosition, cursor: cmp-kit.completion.ext.DefaultView.WindowPosition }): cmp-kit.completion.ext.DefaultView.WindowPosition
 ---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
+---@field use_source_name_column? boolean
 
 ---Lookup table for CompletionItemKind.
 local CompletionItemKindLookup = {}
@@ -268,6 +269,28 @@ local default_config = {
           } }
         end
 
+        return {}
+      end
+    },
+    -- source_name.
+    {
+      padding_left = 0,
+      padding_right = 0,
+      align = 'right',
+      get_text = function(match, config)
+        if config.use_source_name_column then
+          return match.item:get_source_name()
+        end
+        return ''
+      end,
+      get_extmarks = function(text, _, config)
+        if config.use_source_name_column then
+          return { {
+            col = 0,
+            end_col = #text,
+            hl_group = 'Comment',
+          } }
+        end
         return {}
       end
     },
