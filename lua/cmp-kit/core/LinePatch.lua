@@ -9,12 +9,12 @@ local DEL = Keymap.termcodes('<Del>')
 local wrap_keys
 do
   local set_options = Keymap.termcodes(table.concat({
-    '<Cmd>setlocal backspace=2<CR>',
-    '<Cmd>setlocal textwidth=0<CR>',
+    '<Cmd>noautocmd setlocal backspace=2<CR>',
+    '<Cmd>noautocmd setlocal textwidth=0<CR>',
   }, ''))
   local reset_options = Keymap.termcodes(table.concat({
-    '<Cmd>setlocal textwidth=%s<CR>',
-    '<Cmd>setlocal backspace=%s<CR>',
+    '<Cmd>noautocmd setlocal textwidth=%s<CR>',
+    '<Cmd>noautocmd setlocal backspace=%s<CR>',
   }, ''))
   wrap_keys = function(keys)
     return table.concat({
