@@ -243,14 +243,17 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
     local completion_item = CompletionItem.new(trigger_context, self, list, item)
 
     -- check insert range.
-    local r = completion_item:get_insert_range()
-    local s = r.start.line < trigger_context.line or (
-      r.start.line == trigger_context.line and r.start.character <= trigger_context.character
-    )
-    local e = trigger_context.line < r['end'].line or (
-      r['end'].line == trigger_context.line and trigger_context.character <= r['end'].character
-    )
-    local is_valid_range = s and e
+    local is_valid_range = true
+    if completion_item:has_text_edit() then
+      local range = completion_item:get_insert_range()
+      local is_valid_s = range.start.line < trigger_context.line or (
+        range.start.line == trigger_context.line and range.start.character <= trigger_context.character
+      )
+      local is_valid_e = trigger_context.line < range['end'].line or (
+        range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character
+      )
+      is_valid_range = is_valid_s and is_valid_e
+    end
 
     -- check dedup.
     local is_deduped = false

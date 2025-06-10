@@ -101,8 +101,9 @@ end
 function CompletionItem:get_offset()
   local cache_key = 'get_offset'
   if not self.cache[cache_key] then
-    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
-        self._trigger_context.character + 1
+    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or (
+      self._trigger_context.character + 1
+    )
     if not self:has_text_edit() then
       self.cache[cache_key] = keyword_offset
       local filter_text = self:get_filter_text()
@@ -126,9 +127,25 @@ function CompletionItem:get_offset()
         end
       end
     else
-      local insert_range = self:get_insert_range()
-      local trigger_context_cache_key = string.format('%s:%s:%s', 'get_offset', keyword_offset,
-        insert_range.start.character)
+      local insert_range = nil
+      insert_range = insert_range or (self._item.textEdit and (
+        self._item.textEdit.insert or self._item.textEdit.range
+      ) or nil)
+      insert_range = insert_range or (
+        self._completion_list.itemDefaults and (
+          self._completion_list.itemDefaults.editRange and (
+            self._completion_list.itemDefaults.editRange.insert or self._completion_list.itemDefaults.editRange
+          )
+        )
+      )
+      local trigger_context_cache_key = string.format(
+        '%s:%s:%s',
+        'get_offset',
+        keyword_offset,
+        insert_range.start.character
+      )
+
+      -- We trim whitespace from `select_text` so we ignore whitespace changes from `textEdit`.
       if not self._trigger_context.cache[trigger_context_cache_key] then
         local offset = insert_range.start.character + 1
         for i = offset, keyword_offset do
@@ -309,16 +326,19 @@ function CompletionItem:get_commit_characters()
         table.insert(commit_characters, c)
       end
     end
-    for _, c in ipairs(self._item.commitCharacters or {}) do
-      if not uniq[c] then
-        uniq[c] = true
-        table.insert(commit_characters, c)
+    if self._item.commitCharacters then
+      for _, c in ipairs(self._item.commitCharacters) do
+        if not uniq[c] then
+          uniq[c] = true
+          table.insert(commit_characters, c)
+        end
       end
-    end
-    for _, c in ipairs(self._completion_list.itemDefaults and self._completion_list.itemDefaults.commitCharacters or {}) do
-      if not uniq[c] then
-        uniq[c] = true
-        table.insert(commit_characters, c)
+    elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.commitCharacters then
+      for _, c in ipairs(self._completion_list.itemDefaults.commitCharacters) do
+        if not uniq[c] then
+          uniq[c] = true
+          table.insert(commit_characters, c)
+        end
       end
     end
     self.cache[cache_key] = commit_characters
@@ -640,7 +660,13 @@ function CompletionItem:get_insert_range()
       -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local default_range = kit.clone(self._provider:get_default_insert_range())
       default_range.start.character = self:get_offset() - 1
-      self.cache[cache_key] = default_range
+      self.cache[cache_key] = {
+        start = {
+          line = default_range.start.line,
+          character = self:get_offset() - 1,
+        },
+        ['end'] = default_range['end']
+      }
     end
   end
   return self.cache[cache_key]
