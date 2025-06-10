@@ -393,9 +393,7 @@ end
 function CompletionProvider:in_trigger_character_completion()
   local in_trigger_char = true
   in_trigger_char = in_trigger_char and self._state.is_trigger_character_completion
-  in_trigger_char = in_trigger_char and (
-    #self:get_items() > 0 or self._state.request_state ~= RequestState.Fetching
-  )
+  in_trigger_char = in_trigger_char and #self:get_items() > 0
   return in_trigger_char
 end
 

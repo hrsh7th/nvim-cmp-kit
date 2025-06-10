@@ -449,7 +449,9 @@ do
               end
             end)
           }):next(function()
-            self:matching()
+            if self._state.complete_trigger_context == trigger_context then
+              self:matching()
+            end
           end)
           table.insert(tasks, task)
         end
