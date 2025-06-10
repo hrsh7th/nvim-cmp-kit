@@ -125,6 +125,14 @@ function CompletionService.new(config)
       local match = self:get_match_at(selection.index)
       if match and match.item then
         if vim.tbl_contains(match.item:get_commit_characters(), typed) then
+          -- remove typeahead.
+          while true do
+            local c = vim.fn.getcharstr(0)
+            if c == '' then
+              break
+            end
+          end
+
           self:commit(match.item, {
             replace = false,
           }):next(function()
