@@ -449,7 +449,7 @@ do
               end
             end)
           }):next(function()
-            update_if_changed()
+            self:matching()
           end)
           table.insert(tasks, task)
         end
@@ -668,15 +668,12 @@ function CompletionService:commit(item, option)
         local trigger_context = TriggerContext.create()
         if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
-            local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
             for _, cfg in ipairs(provider_group) do
               if cfg.provider:capable(trigger_context) then
-                table.insert(cfgs, cfg)
-              end
-            end
-            for _, provider_configuration in ipairs(cfgs) do
-              if vim.tbl_contains(provider_configuration.provider:get_trigger_characters(), trigger_context.trigger_character) then
-                return self:complete()
+                if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
+                  self._state.complete_trigger_context = TriggerContext.create_empty_context()
+                  return self:complete()
+                end
               end
             end
           end
