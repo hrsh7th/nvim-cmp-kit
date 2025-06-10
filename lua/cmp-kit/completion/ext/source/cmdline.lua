@@ -85,7 +85,8 @@ return function(option)
     name = 'cmdline',
     get_configuration = function()
       return {
-        keyword_pattern = [=[[^[:blank:]]\+]=]
+        keyword_pattern = [=[[^[:blank:]]\+]=],
+        trigger_characters = { ' ' },
       }
     end,
     capable = function()
@@ -118,7 +119,7 @@ return function(option)
           return {}
         end
 
-        -- get arg and fix for specific commands.
+        -- get and fix arguments part for specific commands.
         local arg = cmdline:sub(#cmd + 1)
         do
           if lua_expression_cmd_regex:match_str(cmd) then

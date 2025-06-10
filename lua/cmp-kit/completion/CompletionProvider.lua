@@ -121,7 +121,8 @@ function CompletionProvider:complete(trigger_context, on_step)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local is_same_offset = keyword_offset and keyword_offset == self._state.keyword_offset
+    local is_same_completion_offset = not not (keyword_offset and keyword_offset == self._state.completion_offset)
+    local is_same_keyword_offset = not not (keyword_offset and keyword_offset == self._state.keyword_offset)
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
@@ -142,13 +143,13 @@ function CompletionProvider:complete(trigger_context, on_step)
     else
       -- keyword based completion.
       if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self.config.keyword_length then
-        if is_same_offset and self._state.is_incomplete then
+        if is_same_keyword_offset and self._state.is_incomplete then
           -- keyword completion for incomplete completion.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.TriggerForIncompleteCompletions,
           }
           completion_offset = keyword_offset
-        elseif not is_same_offset then
+        elseif not is_same_keyword_offset then
           -- keyword completion for new keyword offset.
           completion_context = {
             triggerKind = LSP.CompletionTriggerKind.Invoked,
@@ -167,20 +168,21 @@ function CompletionProvider:complete(trigger_context, on_step)
       return
     end
 
-
+    -- update is_trigger_character_completion
     local is_trigger_char = false
     is_trigger_char = is_trigger_char or (
       completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter
     )
-    is_trigger_char = is_trigger_char or (
-      self:in_trigger_character_completion() and
-      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions
-    )
+    is_trigger_char = is_trigger_char or (self:in_trigger_character_completion() and is_same_completion_offset)
     self._state.is_trigger_character_completion = is_trigger_char
+
+    -- update request state.
     if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
       self._state.request_state = RequestState.Fetching
       self._state.request_time = vim.uv.hrtime() / 1e6
     end
+
+    -- update state.
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset
