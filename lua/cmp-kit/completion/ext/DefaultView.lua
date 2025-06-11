@@ -529,7 +529,6 @@ function DefaultView:show(matches, selection)
 
   -- setup default position offset.
   local row_off = 1
-  local col_off = 0
   local anchor = 'NW'
 
   -- compute outer_height.
@@ -554,15 +553,29 @@ function DefaultView:show(matches, selection)
   end
   self._menu_window:set_win_option('winblend', vim.o.pumblend)
   self._menu_window:set_win_option('cursorline', selection.index ~= 0)
+
+  local position = self._config.get_menu_position({
+    offset = {
+      anchor = anchor,
+      row = row + row_off,
+      col = col,
+    },
+    cursor = {
+      anchor = anchor,
+      row = row + row_off,
+      col = pos.col - border_size.h - 1,
+    }
+  })
+
   self._menu_window:show({
-    row = row + row_off,
-    col = col + col_off,
+    anchor = position.anchor,
+    row = position.row,
+    col = position.col,
     width = max_content_width,
     height = math.min(
       outer_height - border_size.v,
       (vim.o.pumheight ~= 0 and vim.o.pumheight) or outer_height - border_size.v
     ),
-    anchor = anchor,
     style = 'minimal',
     border = vim.o.winborder,
   })
