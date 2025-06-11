@@ -408,7 +408,7 @@ function CompletionProvider:is_fetching(timeout)
   if self._state.request_state ~= RequestState.Fetching then
     return false
   end
-  return (vim.uv.hrtime() / 1e6 - self._state.request_time) < timeout
+ return ((vim.uv.hrtime() / 1e6) - self._state.request_time) < timeout
 end
 
 ---Check the context is in completion.

@@ -13,8 +13,8 @@ return {
   preselect = true,
   performance = {
     fetching_timeout_ms = 48,
-    menu_hide_debounce_ms = 80,
+    menu_show_throttle_ms = 48,
+    menu_hide_debounce_ms = 96,
   },
   default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
 }
-

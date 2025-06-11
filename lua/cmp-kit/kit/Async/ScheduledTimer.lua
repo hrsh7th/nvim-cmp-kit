@@ -1,5 +1,6 @@
 ---@class cmp-kit.kit.Async.ScheduledTimer
 ---@field private _timer uv.uv_timer_t
+---@field private _start_time integer
 ---@field private _running boolean
 ---@field private _revision integer
 local ScheduledTimer = {}
@@ -9,6 +10,7 @@ ScheduledTimer.__index = ScheduledTimer
 function ScheduledTimer.new()
   return setmetatable({
     _timer = assert(vim.uv.new_timer()),
+    _start_time = 0,
     _running = false,
     _revision = 0,
   }, ScheduledTimer)
@@ -18,6 +20,12 @@ end
 ---@return boolean
 function ScheduledTimer:is_running()
   return self._running
+end
+
+---Get recent start time.
+---@return integer
+function ScheduledTimer:start_time()
+  return self._start_time
 end
 
 ---Start timer.
@@ -60,6 +68,7 @@ function ScheduledTimer:start(ms, repeat_ms, callback)
     on_tick()
     return
   end
+  self._start_time = vim.uv.now() / 1e6
   self._timer:stop()
   self._timer:start(ms, 0, on_tick)
 end

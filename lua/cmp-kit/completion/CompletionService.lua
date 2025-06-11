@@ -29,6 +29,11 @@ end
 ---@field public priority integer
 ---@field public provider cmp-kit.completion.CompletionProvider
 
+---@class cmp-kit.completion.CompletionService.Config.Performance
+---@field public fetching_timeout_ms? integer
+---@field public menu_show_throttle_ms? integer
+---@field public menu_hide_debounce_ms? integer
+
 ---@class cmp-kit.completion.CompletionService.Config
 ---@field public expand_snippet? cmp-kit.completion.ExpandSnippet
 ---@field public sync_mode? fun(): boolean
@@ -36,7 +41,7 @@ end
 ---@field public view cmp-kit.completion.CompletionView
 ---@field public sorter cmp-kit.completion.Sorter
 ---@field public matcher cmp-kit.completion.Matcher
----@field public performance { fetching_timeout_ms?: integer, menu_hide_debounce_ms?: integer }
+---@field public performance cmp-kit.completion.CompletionService.Config.Performance
 ---@field public default_keyword_pattern string
 
 ---@class cmp-kit.completion.CompletionService.State
@@ -57,6 +62,7 @@ end
 ---@field private _keys table<string, string>
 ---@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
+---@field private _show_timer cmp-kit.kit.Async.ScheduledTimer
 ---@field private _hide_timer cmp-kit.kit.Async.ScheduledTimer
 local CompletionService = {}
 CompletionService.__index = CompletionService
@@ -85,6 +91,7 @@ function CompletionService.new(config)
     },
     _config = kit.merge(config or {}, DefaultConfig),
     _provider_configurations = {},
+    _show_timer = ScheduledTimer.new(),
     _hide_timer = ScheduledTimer.new(),
     _keys = {},
     _macro_completion = {},
@@ -316,7 +323,8 @@ function CompletionService:clear()
     matches = kit.clear(self._state.matches),
   }
 
-  -- reset menu.
+  self._show_timer:stop()
+  self._hide_timer:stop()
   local is_menu_visible = self._config.view:is_menu_visible()
   if not self._config.sync_mode() then
     self._config.view:hide(self._state.matches, self._state.selection)
@@ -446,24 +454,26 @@ do
     for _, group in ipairs(self:_get_provider_groups()) do
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
-          local task = Async.race({
-            Async.timeout(self._config.performance.fetching_timeout_ms),
-            cfg.provider:complete(trigger_context, function(step)
-              if step == 'send-request' then
-                invoked = true
-              end
-              if step == 'adopt-response' then
-                update_if_changed()
-              end
-            end)
-          }):next(function()
-            if self._state.complete_trigger_context == trigger_context then
-              self:matching()
+          table.insert(tasks, cfg.provider:complete(trigger_context, function(step)
+            if step == 'send-request' then
+              invoked = true
             end
-          end)
-          table.insert(tasks, task)
+            if step == 'adopt-response' then
+              update_if_changed()
+            end
+          end))
         end
       end
+    end
+
+    -- reserve `fetching timeout` matching.
+    if invoked then
+      Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
+        if self._state.complete_trigger_context == trigger_context then
+          self._state.matching_trigger_context = TriggerContext.create_empty_context()
+          self:matching()
+        end
+      end)
     end
 
     if not self._config.sync_mode() then
@@ -475,9 +485,7 @@ do
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
       end
-      if self:is_menu_visible() then
-        self:matching()
-      end
+      self:matching()
     end
 
     return Async.all(tasks)
@@ -528,10 +536,9 @@ function CompletionService:matching()
 
   -- update matches.
   self._state.matches = {}
+  local is_completion_fetching = false
+  local in_trigger_character_completion = false
   for _, group in ipairs(self:_get_provider_groups()) do
-    local is_completion_fetching = false
-    local in_trigger_character_completion = false
-
     local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
@@ -621,14 +628,21 @@ function CompletionService:matching()
     end
 
     -- completion found.
-    local is_menu_visible = self._config.view:is_menu_visible()
     if not self._config.sync_mode() then
+      self._show_timer:stop()
       self._hide_timer:stop()
-      self._config.view:show(self._state.matches, self._state.selection)
-      emit(self._events.on_menu_update, { service = self })
-    end
-    if not is_menu_visible then
-      emit(self._events.on_menu_show, { service = self })
+      local timeout = math.max(0, math.min(
+        self._config.performance.menu_show_throttle_ms,
+        (vim.uv.hrtime() / 1e6) - self._show_timer:start_time()
+      ))
+      self._show_timer:start(timeout, 0, function()
+        local is_menu_visible = self._config.view:is_menu_visible()
+        self._config.view:show(self._state.matches, self._state.selection)
+        emit(self._events.on_menu_update, { service = self })
+        if not is_menu_visible then
+          emit(self._events.on_menu_show, { service = self })
+        end
+      end)
     end
 
     -- emit selection.
@@ -636,14 +650,20 @@ function CompletionService:matching()
       self:_update_selection(preselect_index --[[@as integer]], true)
     end
   else
-    -- no completion found.
-    local is_menu_visible = self._config.view:is_menu_visible()
-    if is_menu_visible then
-      self._hide_timer:start(self._config.performance.menu_hide_debounce_ms, 0, function()
-        if not self._config.sync_mode() then
-          self._config.view:hide(self._state.matches, self._state.selection)
+    if not self._config.sync_mode() then
+      self._show_timer:stop()
+      self._hide_timer:stop()
+      -- no completion found.
+      local menu_hide_debounce_ms = self._config.performance.menu_hide_debounce_ms
+      if not is_completion_fetching then
+        menu_hide_debounce_ms = 0
+      end
+      self._hide_timer:start(menu_hide_debounce_ms, 0, function()
+        local is_menu_visible = self._config.view:is_menu_visible()
+        self._config.view:hide(self._state.matches, self._state.selection)
+        if is_menu_visible then
+          emit(self._events.on_menu_hide, { service = self })
         end
-        emit(self._events.on_menu_hide, { service = self })
       end)
     end
   end
