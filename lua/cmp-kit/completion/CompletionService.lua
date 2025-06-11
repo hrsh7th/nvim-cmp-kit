@@ -543,13 +543,13 @@ function CompletionService:matching()
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
         table.insert(cfgs, cfg)
-        in_trigger_character_completion = in_trigger_character_completion or (
-          cfg.provider:in_trigger_character_completion()
-        )
         if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
           is_completion_fetching = true
           break
         end
+        in_trigger_character_completion = in_trigger_character_completion or (
+          cfg.provider:in_trigger_character_completion()
+        )
       end
     end
 
