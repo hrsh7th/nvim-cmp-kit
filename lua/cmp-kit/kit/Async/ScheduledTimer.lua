@@ -10,6 +10,9 @@ ScheduledTimer.__index = ScheduledTimer
 function ScheduledTimer.new()
   return setmetatable({
     _timer = assert(vim.uv.new_timer()),
+    _schedule_fn = function(callback)
+      vim.schedule(callback)
+    end,
     _start_time = 0,
     _running = false,
     _revision = 0,
@@ -28,6 +31,12 @@ function ScheduledTimer:start_time()
   return self._start_time
 end
 
+---Set schedule function.
+---@param schedule_fn fun(callback: fun()): nil
+function ScheduledTimer:set_schedule_fn(schedule_fn)
+  self._schedule_fn = schedule_fn
+end
+
 ---Start timer.
 function ScheduledTimer:start(ms, repeat_ms, callback)
   self._timer:stop()
@@ -42,11 +51,7 @@ function ScheduledTimer:start(ms, repeat_ms, callback)
     if revision ~= self._revision then
       return
     end
-    if vim.in_fast_event() then
-      vim.schedule(tick)
-    else
-      tick()
-    end
+    self._schedule_fn(tick)
   end
 
   tick = function()

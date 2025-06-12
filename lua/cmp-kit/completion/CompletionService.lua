@@ -117,6 +117,15 @@ function CompletionService.new(config)
     end)
   end
 
+  self:_set_schedule_fn(function(callback)
+    vim.schedule(function()
+      vim.api.nvim_create_autocmd('SafeState', {
+        once = true,
+        callback = callback,
+      })
+    end)
+  end)
+
   -- support commitCharacters.
   vim.on_key(function(_, typed)
     if not typed or #typed ~= 1 then
@@ -459,7 +468,9 @@ do
               invoked = true
             end
             if step == 'adopt-response' then
-              update_if_changed()
+              vim.schedule(function()
+                update_if_changed()
+              end)
             end
           end))
         end
@@ -714,6 +725,9 @@ end
 ---Prevent completion.
 ---@return fun(): cmp-kit.kit.Async.AsyncTask
 function CompletionService:prevent()
+  self._show_timer:stop()
+  self._hide_timer:stop()
+
   self._preventing = self._preventing + 1
   return function()
     return Async.run(function()
@@ -827,6 +841,13 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
       item_next and item_next:get_select_text() or ''
     )
   ):next(resume)
+end
+
+---Set schedule fn for testing.
+---@param schedule_fn fun(callback: fun())
+function CompletionService:_set_schedule_fn(schedule_fn)
+  self._show_timer:set_schedule_fn(schedule_fn)
+  self._hide_timer:set_schedule_fn(schedule_fn)
 end
 
 return CompletionService

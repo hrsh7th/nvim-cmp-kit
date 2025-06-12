@@ -36,6 +36,7 @@ describe('cmp-kit.completion', function()
           end,
         }
       })
+      service:_set_schedule_fn(vim.schedule)
       service:register_source(source)
       service:complete()
       vim.wait(500, function()
@@ -77,6 +78,7 @@ describe('cmp-kit.completion', function()
           end,
         }
       })
+      service:_set_schedule_fn(vim.schedule)
       service:register_source(source)
       service:complete()
       vim.wait(500, function()
