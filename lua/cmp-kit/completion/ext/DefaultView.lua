@@ -5,6 +5,38 @@ local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
+---@class cmp-kit.completion.ext.DefaultView.WindowPosition
+---@field public row integer
+---@field public col integer
+---@field public anchor 'NW' | 'NE' | 'SW' | 'SE'
+
+---@class cmp-kit.completion.ext.DefaultView.Extmark
+---@field public col integer
+---@field public end_col integer
+---@field public hl_group? string
+---@field public priority? integer
+---@field public conceal? string
+
+---@class cmp-kit.completion.ext.DefaultView.MenuComponent
+---@field padding_left integer
+---@field padding_right integer
+---@field align 'left' | 'right'
+---@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): string
+---@field get_extmarks fun(text: string, match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
+
+---@class cmp-kit.completion.ext.DefaultView.Config
+---@field menu_components cmp-kit.completion.ext.DefaultView.MenuComponent[]
+---@field menu_padding_left integer
+---@field menu_padding_right integer
+---@field menu_gap integer
+---@field menu_min_win_height integer
+---@field menu_max_win_height integer
+---@field docs_min_win_width_ratio number
+---@field docs_max_win_width_ratio number
+---@field get_menu_position fun(preset: { offset: cmp-kit.completion.ext.DefaultView.WindowPosition, cursor: cmp-kit.completion.ext.DefaultView.WindowPosition }): cmp-kit.completion.ext.DefaultView.WindowPosition
+---@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
+---@field use_source_name_column? boolean
+
 ---NOET: in cmdline, the floating-windows and incsearch-highlight are not redraw automatically.
 ---The `<Cmd>redraw<CR>` part supports floating-windows.
 ---The `<C-r>=""<CR>` part supports incsearch-highlight.
@@ -43,46 +75,50 @@ local winhl_pum = winhighlight({
 ---Trim text to a specific length.
 ---@param text string
 ---@param length integer
----@param aligh 'left' | 'right'?
-local function trim(text, length, aligh)
-  aligh = aligh or 'left'
+---@param align? 'left' | 'right'
+local function trim(text, length, align)
+  align = align or 'left'
 
   local text_length = vim.fn.strchars(text, true)
   if text_length <= length then
     return text
   end
   text_length = text_length - 3 -- 3 for '...'
-  if aligh == 'left' then
+  if align == 'left' then
     return vim.fn.strcharpart(text, 0, length) .. '...'
   end
   return '...' .. vim.fn.strcharpart(text, text_length - length, length)
 end
 
----Ensure color code highlight group.
-local ensure_color_code_highlight_group
-do
-  local cache = {}
-
+---Ensure color code highlight group with cache.
+local ensure_color_code_highlight_group = setmetatable({
+  cache = {},
+}, {
   ---Ensure color code highlight group.
   ---@param color_code string
   ---@return string
-  ensure_color_code_highlight_group = function(color_code)
+  __call = function(self, color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
     if #color_code == 3 then
-      color_code = color_code:sub(1, 1):rep(2) .. color_code:sub(2, 2):rep(2) .. color_code:sub(3, 3):rep(2)
+      color_code = ('%s%s%s'):format(
+        color_code:sub(1, 1):rep(2),
+        color_code:sub(2, 2):rep(2),
+        color_code:sub(3, 3):rep(2)
+      )
     end
-    if not cache[color_code] then
+
+    if not self.cache[color_code] then
       local name = ('cmp-kit.completion.ext.DefaultView.%s'):format(color_code):gsub('[#_-%.:]', '_')
       vim.api.nvim_set_hl(0, name, {
         fg = '#' .. color_code,
         bg = 'NONE',
         default = true,
       })
-      cache[color_code] = name
+      self.cache[color_code] = name
     end
-    return cache[color_code]
-  end
-end
+    return self.cache[color_code]
+  end,
+})
 
 ---Ensure coloring extmarks.
 ---@param item cmp-kit.completion.CompletionItem
@@ -123,48 +159,10 @@ local function get_coloring(item)
   return item.cache[cache_key]
 end
 
----@class cmp-kit.completion.ext.DefaultView.WindowPosition
----@field public row integer
----@field public col integer
----@field public anchor 'NW' | 'NE' | 'SW' | 'SE'
-
----@class cmp-kit.completion.ext.DefaultView.Extmark
----@field public col integer
----@field public end_col integer
----@field public hl_group? string
----@field public priority? integer
----@field public conceal? string
-
----@class cmp-kit.completion.ext.DefaultView.MenuComponent
----@field padding_left integer
----@field padding_right integer
----@field align 'left' | 'right'
----@field get_text fun(match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): string
----@field get_extmarks fun(text: string, match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
-
----@class cmp-kit.completion.ext.DefaultView.Config
----@field menu_components cmp-kit.completion.ext.DefaultView.MenuComponent[]
----@field menu_padding_left integer
----@field menu_padding_right integer
----@field menu_gap integer
----@field menu_min_win_height integer
----@field menu_max_win_height integer
----@field docs_min_win_width_ratio number
----@field docs_max_win_width_ratio number
----@field get_menu_position fun(preset: { offset: cmp-kit.completion.ext.DefaultView.WindowPosition, cursor: cmp-kit.completion.ext.DefaultView.WindowPosition }): cmp-kit.completion.ext.DefaultView.WindowPosition
----@field icon_resolver fun(kind: cmp-kit.kit.LSP.CompletionItemKind): { [1]: string, [2]?: string }?
----@field use_source_name_column? boolean
-
----Lookup table for CompletionItemKind.
-local CompletionItemKindLookup = {}
-for k, v in pairs(LSP.CompletionItemKind) do
-  CompletionItemKindLookup[v] = k
-end
-
 ---Redraw for cmdline.
 ---@param win integer?
 local function redraw_for_cmdline(win)
-  if vim.fn.mode(1):sub(1, 1) == 'c' then
+  if vim.api.nvim_get_mode().mode == 'c' then
     if vim.tbl_contains({ '/', '?' }, vim.fn.getcmdtype()) and vim.o.incsearch then
       vim.api.nvim_feedkeys(cmdline_redraw_keys, 'n', true)
     else
@@ -322,6 +320,13 @@ local default_config = {
   icon_resolver = (function()
     local ok, MiniIcons = pcall(require, 'mini.icons')
     local cache = {}
+
+    ---Lookup table for CompletionItemKind.
+    local CompletionItemKindLookup = {}
+    for k, v in pairs(LSP.CompletionItemKind) do
+      CompletionItemKindLookup[v] = k
+    end
+
     return function(completion_item_kind)
       if not ok then
         return { '', '' }
@@ -445,11 +450,25 @@ function DefaultView:show(matches, selection)
   local min_offset = math.huge
   for i, match in ipairs(self._matches) do
     min_offset = math.min(min_offset, match.item:get_offset())
-    for j, component in ipairs(self._config.menu_components) do
-      local text = component.get_text(match, self._config)
-      columns[j].display_width = math.max(columns[j].display_width, get_strwidth(text))
-      columns[j].byte_width = math.max(columns[j].byte_width, #text)
-      columns[j].texts[i] = text
+
+    -- create for each column data.
+    local cache_key = 'cmp-kit.completion.ext.DefaultView.compute_columns'
+    if not match.item.cache[cache_key] then
+      match.item.cache[cache_key] = {}
+      for j, component in ipairs(self._config.menu_components) do
+        local text = component.get_text(match, self._config)
+        match.item.cache[cache_key][j] = {}
+        match.item.cache[cache_key][j].text = text
+        match.item.cache[cache_key][j].display_width = get_strwidth(text)
+        match.item.cache[cache_key][j].byte_width = #text
+      end
+    end
+
+    -- update columns.
+    for j in ipairs(self._config.menu_components) do
+      columns[j].texts[i] = match.item.cache[cache_key][j].text
+      columns[j].display_width = math.max(columns[j].display_width, match.item.cache[cache_key][j].display_width)
+      columns[j].byte_width = math.max(columns[j].byte_width, match.item.cache[cache_key][j].byte_width)
     end
   end
 
