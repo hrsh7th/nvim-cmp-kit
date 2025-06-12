@@ -40,6 +40,25 @@ local winhl_pum = winhighlight({
   Search = 'None',
 })
 
+---Trim text to a specific length.
+---@param text string
+---@param length integer
+---@param aligh 'left' | 'right'?
+local function trim(text, length, aligh)
+  aligh = aligh or 'left'
+
+  local text_length = vim.fn.strchars(text, true)
+  if text_length <= length then
+    return text
+  end
+  text_length = text_length - 3 -- 3 for '...'
+  if aligh == 'left' then
+    return vim.fn.strcharpart(text, 0, length) .. '...'
+  end
+  return '...' .. vim.fn.strcharpart(text, text_length - length, length)
+end
+
+---Ensure color code highlight group.
 local ensure_color_code_highlight_group
 do
   local cache = {}
@@ -154,11 +173,6 @@ local function redraw_for_cmdline(win)
   end
 end
 
----Get string char part.
-local function strcharpart(str, start, finish)
-  return vim.fn.strcharpart(str, start, finish)
-end
-
 ---@type { clear_cache: fun() }|fun(text: string): integer
 local get_strwidth
 do
@@ -209,7 +223,7 @@ local default_config = {
       padding_right = 0,
       align = 'left',
       get_text = function(match)
-        return strcharpart(match.item:get_label_text(), 0, 48)
+        return trim(match.item:get_label_text(), 48)
       end,
       get_extmarks = function(text, match)
         local extmarks = {}
@@ -238,7 +252,7 @@ local default_config = {
       get_text = function(match)
         local details = match.item:get_label_details()
         if details.description then
-          return strcharpart(match.item:get_label_details().description, 0, 32)
+          return trim(match.item:get_label_details().description, 32, 'right')
         end
 
         -- coloring.
