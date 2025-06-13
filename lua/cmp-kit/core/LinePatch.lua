@@ -68,38 +68,39 @@ local LinePatch = {}
 function LinePatch.apply_by_func(bufnr, before, after, insert_text)
   bufnr = bufnr == 0 and vim.api.nvim_get_current_buf() or bufnr
 
-  local mode = vim.api.nvim_get_mode().mode --[[@as string]]
-  if mode == 'c' then
-    local cursor_col = vim.fn.getcmdpos() - 1
-    local cmdline = vim.fn.getcmdline()
-    local before_text = string.sub(cmdline, 1, cursor_col - before)
-    local after_text = string.sub(cmdline, cursor_col + after + 1)
-    vim.fn.setcmdline(before_text .. insert_text .. after_text, #before_text + #insert_text + 1)
-  else
-    local cursor_position = Position.cursor(LSP.PositionEncodingKind.UTF8)
-    local text_edit = {
-      range = {
-        start = shift_position(bufnr, cursor_position, -before),
-        ['end'] = shift_position(bufnr, cursor_position, after),
-      },
-      newText = insert_text,
-    }
-    vim.lsp.util.apply_text_edits({ text_edit }, bufnr, LSP.PositionEncodingKind.UTF8)
-
-    local insert_lines = vim.split(insert_text, '\n', { plain = true })
-    if #insert_lines == 1 then
-      vim.api.nvim_win_set_cursor(0, {
-        (text_edit.range.start.line + 1),
-        text_edit.range.start.character + #insert_lines[1],
-      })
+  return Async.run(function()
+    local mode = vim.api.nvim_get_mode().mode --[[@as string]]
+    if mode == 'c' then
+      local cursor_col = vim.fn.getcmdpos() - 1
+      local cmdline = vim.fn.getcmdline()
+      local before_text = string.sub(cmdline, 1, cursor_col - before)
+      local after_text = string.sub(cmdline, cursor_col + after + 1)
+      vim.fn.setcmdline(before_text .. insert_text .. after_text, #before_text + #insert_text + 1)
     else
-      vim.api.nvim_win_set_cursor(0, {
-        (text_edit.range.start.line + 1) + (#insert_lines - 1),
-        #insert_lines[#insert_lines],
-      })
+      local cursor_position = Position.cursor(LSP.PositionEncodingKind.UTF8)
+      local text_edit = {
+        range = {
+          start = shift_position(bufnr, cursor_position, -before),
+          ['end'] = shift_position(bufnr, cursor_position, after),
+        },
+        newText = insert_text,
+      }
+      vim.lsp.util.apply_text_edits({ text_edit }, bufnr, LSP.PositionEncodingKind.UTF8)
+
+      local insert_lines = vim.split(insert_text, '\n', { plain = true })
+      if #insert_lines == 1 then
+        vim.api.nvim_win_set_cursor(0, {
+          (text_edit.range.start.line + 1),
+          text_edit.range.start.character + #insert_lines[1],
+        })
+      else
+        vim.api.nvim_win_set_cursor(0, {
+          (text_edit.range.start.line + 1) + (#insert_lines - 1),
+          #insert_lines[#insert_lines],
+        })
+      end
     end
-  end
-  return Async.resolve()
+  end)
 end
 
 ---Apply oneline text patch by keys (with dot-repeat).

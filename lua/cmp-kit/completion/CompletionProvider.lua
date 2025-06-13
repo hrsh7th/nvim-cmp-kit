@@ -54,7 +54,6 @@ end
 ---@field public trigger_context? cmp-kit.core.TriggerContext
 ---@field public is_incomplete? boolean
 ---@field public is_trigger_character_completion boolean
----@field public dedup_map table<string, boolean>
 ---@field public items cmp-kit.completion.CompletionItem[]
 ---@field public matches cmp-kit.completion.Match[]
 ---@field public matches_items cmp-kit.completion.CompletionItem[]
@@ -90,7 +89,6 @@ function CompletionProvider.new(source, config)
       request_state = RequestState.Waiting,
       request_time = 0,
       response_revision = 0,
-      dedup_map = {},
       items = {},
       matches = {},
       matches_items = {},
@@ -209,7 +207,7 @@ function CompletionProvider:complete(trigger_context, on_step)
 
     -- adopt response.
     local list = to_completion_list(raw_response)
-    self:_adopt_response(trigger_context, completion_context, list)
+    self:_adopt_response(trigger_context, list)
 
     -- clear if response is empty for no keyword completion.
     -- it needed to re-completion for new keyword.
@@ -226,19 +224,15 @@ end
 
 ---Accept completion response.
 ---@param trigger_context cmp-kit.core.TriggerContext
----@param completion_context cmp-kit.kit.LSP.CompletionContext
 ---@param list cmp-kit.kit.LSP.CompletionList
-function CompletionProvider:_adopt_response(trigger_context, completion_context, list)
+function CompletionProvider:_adopt_response(trigger_context, list)
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
   local prev_item_count = #self._state.items
 
   -- do not keep previous state if completion is not incomplete.
-  if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
-    kit.clear(self._state.items)
-    kit.clear(self._state.dedup_map)
-  end
+  kit.clear(self._state.items)
 
   -- convert response to items.
   for _, item in ipairs(list.items) do
@@ -257,14 +251,8 @@ function CompletionProvider:_adopt_response(trigger_context, completion_context,
       is_valid_range = is_valid_s and is_valid_e
     end
 
-    -- check dedup.
-    local is_deduped = false
-    if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
-      is_deduped = self._state.dedup_map[completion_item:get_label_text()]
-    end
-    if is_valid_range and not is_deduped then
+    if is_valid_range then
       self._state.items[#self._state.items + 1] = completion_item
-      self._state.dedup_map[completion_item:get_label_text()] = true
     end
   end
 
