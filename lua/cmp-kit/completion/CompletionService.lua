@@ -569,10 +569,12 @@ function CompletionService:matching()
     end
 
     -- use only trigger character completion if exists.
-    if in_trigger_character_completion then
-      for i = #cfgs, 1, -1 do
-        if not cfgs[i].provider:in_trigger_character_completion() then
-          table.remove(cfgs, i)
+    if not self._state.complete_trigger_context.force then
+      if in_trigger_character_completion then
+        for i = #cfgs, 1, -1 do
+          if not cfgs[i].provider:in_trigger_character_completion() then
+            table.remove(cfgs, i)
+          end
         end
       end
     end
