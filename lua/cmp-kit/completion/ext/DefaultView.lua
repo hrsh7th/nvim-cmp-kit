@@ -58,9 +58,6 @@ local function winhighlight(map)
   end):join(',')
 end
 local winhl_bordered = winhighlight({
-  NormalFloat = 'Normal',
-  Normal = 'Normal',
-  FloatBorder = 'Normal',
   CursorLine = 'Visual',
   Search = 'None',
 })
