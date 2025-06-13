@@ -212,6 +212,14 @@ local function prepare_markdown_contents(raw_contents)
           hl_group = 'Visual',
           hl_eol = true,
         })
+      else
+        table.insert(extmarks, {
+          row = s - 1,
+          col = 0,
+          end_row = e,
+          end_col = 0,
+          hl_group = 'Normal',
+        })
       end
       if section.language then
         languages[section.language] = languages[section.language] or {}
@@ -297,7 +305,7 @@ local function prepare_markdown_contents(raw_contents)
         virt_lines = { {
           { ('#'):rep(section.level), 'FloatTitle' },
           { ' ' },
-          { section.title, 'FloatTitle' },
+          { section.title,            'FloatTitle' },
         } }
       })
     end

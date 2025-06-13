@@ -425,14 +425,14 @@ do
     self:_update_selection(0, true, trigger_context.text_before)
 
     -- update if changed handler.
-    local function update_if_changed()
+    local update_if_changed = kit.debounce(function()
       if self._disposed then
         return
       end
       if self._preventing > 0 then
         return
       end
-      if not self._config.is_macro_executing() then
+      if self._config.is_macro_executing() then
         return
       end
 
@@ -454,7 +454,7 @@ do
         self._state.matching_trigger_context = TriggerContext.create_empty_context()
         self:matching()
       end
-    end
+    end, 0)
 
     -- trigger.
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
@@ -480,7 +480,6 @@ do
     if invoked then
       table.insert(tasks, Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
         if self._state.complete_trigger_context == trigger_context then
-          self._state.matching_trigger_context = TriggerContext.create_empty_context()
           self:matching()
         end
       end))
@@ -589,7 +588,7 @@ function CompletionService:matching()
       end
     end
 
-    -- use this group.
+    -- check should use this group?
     if not self._state.complete_trigger_context.force then
       if #self._state.matches > 0 or in_trigger_character_completion then
         break

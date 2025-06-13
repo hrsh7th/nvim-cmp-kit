@@ -60,6 +60,7 @@ end
 local winhl_bordered = winhighlight({
   CursorLine = 'Visual',
   Search = 'None',
+  EndOfBuffer = '',
 })
 local winhl_pum = winhighlight({
   NormalFloat = 'Pmenu',
@@ -67,6 +68,7 @@ local winhl_pum = winhighlight({
   FloatBorder = 'Pmenu',
   CursorLine = 'PmenuSel',
   Search = 'None',
+  EndOfBuffer = '',
 })
 
 ---Trim text to a specific length.
@@ -264,7 +266,7 @@ local default_config = {
           return { {
             col = 0,
             end_col = #text,
-            hl_group = 'Comment',
+            hl_group = 'PmenuExtra',
           } }
         end
 
