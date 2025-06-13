@@ -52,6 +52,9 @@ function Indexer.new(bufnr, regex)
         self:_update(0, max, max)
       end
     end,
+    on_detach = function()
+      self:dispose()
+    end
   })
 
   do
@@ -138,6 +141,10 @@ end
 ---Run indexing.
 ---NOTE: Extract anonymous functions because they impact LuaJIT performance.
 function Indexer:_run_index()
+  if self._disposed then
+    return
+  end
+
   local s = vim.uv.hrtime() / 1e6
   local c = 0
   local regex = get_regex(self._regex)

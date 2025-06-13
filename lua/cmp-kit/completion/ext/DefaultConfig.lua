@@ -15,7 +15,7 @@ return {
   end,
   preselect = true,
   performance = {
-    fetch_waiting_ms = 120,
+    fetch_waiting_ms = 48,
     menu_show_throttle_ms = 16,
     menu_hide_debounce_ms = 64,
   },

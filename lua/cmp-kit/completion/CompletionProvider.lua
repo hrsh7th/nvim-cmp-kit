@@ -175,12 +175,8 @@ function CompletionProvider:complete(trigger_context, on_step)
     self._state.is_trigger_character_completion = is_trigger_char
 
     -- update request state.
-    if completion_context.triggerKind ~= LSP.CompletionTriggerKind.TriggerForIncompleteCompletions then
-      self._state.request_state = RequestState.Fetching
-      self._state.request_time = vim.uv.hrtime() / 1e6
-    end
-
-    -- update state.
+    self._state.request_state = RequestState.Fetching
+    self._state.request_time = vim.uv.hrtime() / 1e6
     self._state.trigger_context = trigger_context
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset

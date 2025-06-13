@@ -478,12 +478,14 @@ do
 
     -- reserve `fetching timeout` matching.
     if invoked then
-      Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
+      table.insert(tasks, Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
         if self._state.complete_trigger_context == trigger_context then
           self._state.matching_trigger_context = TriggerContext.create_empty_context()
           self:matching()
         end
-      end)
+      end))
+    else
+      self:matching()
     end
 
     if not self._config.is_macro_executing() then
@@ -495,7 +497,6 @@ do
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
       end
-      self:matching()
     end
 
     return Async.all(tasks)
