@@ -30,13 +30,14 @@ end
 ---@field public provider cmp-kit.completion.CompletionProvider
 
 ---@class cmp-kit.completion.CompletionService.Config.Performance
----@field public fetching_timeout_ms? integer
+---@field public fetch_waiting_ms? integer
 ---@field public menu_show_throttle_ms? integer
 ---@field public menu_hide_debounce_ms? integer
 
 ---@class cmp-kit.completion.CompletionService.Config
 ---@field public expand_snippet? cmp-kit.completion.ExpandSnippet
----@field public sync_mode? fun(): boolean
+---@field public is_macro_recording? fun(): boolean
+---@field public is_macro_executing? fun(): boolean
 ---@field public preselect? boolean
 ---@field public view cmp-kit.completion.CompletionView
 ---@field public sorter cmp-kit.completion.Sorter
@@ -60,8 +61,8 @@ end
 ---@field private _config cmp-kit.completion.CompletionService.Config
 ---@field private _state cmp-kit.completion.CompletionService.State
 ---@field private _keys table<string, string>
----@field private _macro_completion cmp-kit.kit.Async.AsyncTask[]
 ---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
+---@field private _macro_completions cmp-kit.kit.Async.AsyncTask[]
 ---@field private _show_timer cmp-kit.kit.Async.ScheduledTimer
 ---@field private _hide_timer cmp-kit.kit.Async.ScheduledTimer
 local CompletionService = {}
@@ -91,28 +92,28 @@ function CompletionService.new(config)
     },
     _config = kit.merge(config or {}, DefaultConfig),
     _provider_configurations = {},
+    _macro_completions = {},
     _show_timer = ScheduledTimer.new(),
     _hide_timer = ScheduledTimer.new(),
     _keys = {},
-    _macro_completion = {},
   } --[[@as cmp-kit.completion.CompletionService]], CompletionService)
 
   -- support macro.
   do
-    self._keys.macro_complete_auto = ('<Plug>(cmp-kit:complete:%s:a)'):format(self._id)
+    self._keys.macro_complete_auto = ('<Plug>(cmp-kit:c:%s:auto)'):format(self._id)
     self._keys.macro_complete_auto_termcodes = Keymap.termcodes(self._keys.macro_complete_auto)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_auto, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
-      if is_valid_mode and self._config.sync_mode() then
-        table.insert(self._macro_completion, self:complete({ force = false }))
+      if is_valid_mode and self._config.is_macro_executing() then
+        self:complete({ force = false })
       end
     end)
-    self._keys.macro_complete_force = ('<Plug>(cmp-kit:complete:%s:f)'):format(self._id)
+    self._keys.macro_complete_force = ('<Plug>(cmp-kit:c:%s:force)'):format(self._id)
     self._keys.macro_complete_force_termcodes = Keymap.termcodes(self._keys.macro_complete_force)
     vim.keymap.set({ 'i', 's', 'c', 'n', 'x', 't' }, self._keys.macro_complete_force, function()
       local is_valid_mode = vim.tbl_contains({ 'i', 'c' }, vim.api.nvim_get_mode().mode)
-      if is_valid_mode and self._config.sync_mode() then
-        table.insert(self._macro_completion, self:complete({ force = true }))
+      if is_valid_mode and self._config.is_macro_executing() then
+        self:complete({ force = true })
       end
     end)
   end
@@ -138,7 +139,7 @@ function CompletionService.new(config)
 
     local selection = self:get_selection()
     if selection.index > 0 then
-      local match = self:get_match_at(selection.index)
+      local match = self:get_matches()[selection.index]
       if match and match.item then
         if vim.tbl_contains(match.item:get_commit_characters(), typed) then
           -- remove typeahead.
@@ -335,7 +336,7 @@ function CompletionService:clear()
   self._show_timer:stop()
   self._hide_timer:stop()
   local is_menu_visible = self._config.view:is_menu_visible()
-  if not self._config.sync_mode() then
+  if not self._config.is_macro_executing() then
     self._config.view:hide(self._state.matches, self._state.selection)
   end
   if is_menu_visible then
@@ -360,10 +361,9 @@ end
 ---@param preselect? boolean
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionService:select(index, preselect)
-  if self._config.sync_mode() then
-    local tasks = self._macro_completion
-    self._macro_completion = {}
-    Async.all(tasks):sync(2 * 1000)
+  if self._config.is_macro_executing() then
+    self:_wait_for_stable()
+    self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
 
@@ -378,6 +378,7 @@ function CompletionService:select(index, preselect)
   if prev_index == 0 then
     text_before = TriggerContext.create().text_before
   end
+  self:_update_selection(next_index, not not preselect, text_before)
 
   -- inesrt selection.
   return Async.run(function()
@@ -390,7 +391,6 @@ function CompletionService:select(index, preselect)
         prev_match and prev_match.item
       ):await()
     end
-    self:_update_selection(next_index, not not preselect, text_before)
   end)
 end
 
@@ -403,20 +403,18 @@ end
 ---Get selection.
 ---@return cmp-kit.completion.Selection
 function CompletionService:get_selection()
-  if self._config.sync_mode() then
-    local tasks = self._macro_completion
-    self._macro_completion = {}
-    Async.all(tasks):sync(2 * 1000)
+  if self._config.is_macro_executing() then
+    self:_wait_for_stable()
+    self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
   return kit.clone(self._state.selection)
 end
 
----Get match at index.
----@param index integer
----@return cmp-kit.completion.Match
-function CompletionService:get_match_at(index)
-  return self._state.matches[index]
+---Get matches.
+---@return cmp-kit.completion.Match[]
+function CompletionService:get_matches()
+  return self._state.matches
 end
 
 do
@@ -432,6 +430,9 @@ do
         return
       end
       if self._preventing > 0 then
+        return
+      end
+      if not self._config.is_macro_executing() then
         return
       end
 
@@ -450,10 +451,8 @@ do
 
       -- view update forcely.
       if has_changed then
-        if not self._config.sync_mode() then
-          self._state.matching_trigger_context = TriggerContext.create_empty_context()
-          self:matching()
-        end
+        self._state.matching_trigger_context = TriggerContext.create_empty_context()
+        self:matching()
       end
     end
 
@@ -479,7 +478,7 @@ do
 
     -- reserve `fetching timeout` matching.
     if invoked then
-      Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
+      Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
         if self._state.complete_trigger_context == trigger_context then
           self._state.matching_trigger_context = TriggerContext.create_empty_context()
           self:matching()
@@ -487,7 +486,7 @@ do
       end)
     end
 
-    if not self._config.sync_mode() then
+    if not self._config.is_macro_executing() then
       -- set new-completion position for macro.
       if invoked then
         if trigger_context.force then
@@ -520,9 +519,13 @@ do
     end
     self._state.complete_trigger_context = trigger_context
 
-    return Async.run(function()
+    local task = Async.run(function()
       return complete_inner(self, trigger_context)
     end)
+    if self._config.is_macro_executing() then
+      table.insert(self._macro_completions, task)
+    end
+    return task
   end
 end
 
@@ -554,7 +557,7 @@ function CompletionService:matching()
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
         table.insert(cfgs, cfg)
-        if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
+        if cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms) then
           is_completion_fetching = true
           break
         end
@@ -579,14 +582,18 @@ function CompletionService:matching()
       for _, match in ipairs(cfg.provider:get_matches(trigger_context, self._config)) do
         match.score = match.score + score_boost
         self._state.matches[#self._state.matches + 1] = match
+        match.index = #self._state.matches
       end
     end
 
     -- use this group.
     if not self._state.complete_trigger_context.force then
-      if #self._state.matches > 0 or in_trigger_character_completion or is_completion_fetching then
+      if #self._state.matches > 0 or in_trigger_character_completion then
         break
       end
+    end
+    if is_completion_fetching then
+      break
     end
   end
 
@@ -594,7 +601,7 @@ function CompletionService:matching()
   if #self._state.matches > 0 then
     -- group matches are found.
     local locality_map = {}
-    if not self._config.sync_mode() and vim.fn.reg_recording() == '' and vim.api.nvim_get_mode().mode == 'i' then
+    if not self._config.is_macro_executing() and not self._config.is_macro_recording() then
       local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
       local min_row = math.max(1, cur - 30)
       local max_row = cur
@@ -638,8 +645,13 @@ function CompletionService:matching()
       self._state.matches = limited_matches
     end
 
+    -- emit selection.
+    if preselect_index then
+      self:_update_selection(preselect_index --[[@as integer]], true)
+    end
+
     -- completion found.
-    if not self._config.sync_mode() then
+    if not self._config.is_macro_executing() then
       self._show_timer:stop()
       self._hide_timer:stop()
       local timeout = math.max(0, math.min(
@@ -653,15 +665,14 @@ function CompletionService:matching()
         if not is_menu_visible then
           emit(self._events.on_menu_show, { service = self })
         end
+        -- re-emit selection.
+        if preselect_index then
+          self:_update_selection(preselect_index --[[@as integer]], true)
+        end
       end)
     end
-
-    -- emit selection.
-    if preselect_index then
-      self:_update_selection(preselect_index --[[@as integer]], true)
-    end
   else
-    if not self._config.sync_mode() then
+    if not self._config.is_macro_executing() then
       self._show_timer:stop()
       self._hide_timer:stop()
       -- no completion found.
@@ -688,10 +699,9 @@ function CompletionService:commit(item, option)
   option.replace = option.replace or false
   option.no_snippet = option.no_snippet or false
 
-  if self._config.sync_mode() then
-    local tasks = self._macro_completion
-    self._macro_completion = {}
-    Async.all(tasks):sync(2 * 1000)
+  if self._config.is_macro_executing() then
+    self:_wait_for_stable()
+    self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
 
@@ -731,12 +741,14 @@ function CompletionService:prevent()
   self._preventing = self._preventing + 1
   return function()
     return Async.run(function()
-      Async.new(function(resolve)
-        vim.api.nvim_create_autocmd('SafeState', {
-          once = true,
-          callback = resolve
-        })
-      end):await()
+      if not self._config.is_macro_executing() then
+        Async.new(function(resolve)
+          vim.api.nvim_create_autocmd('SafeState', {
+            once = true,
+            callback = resolve
+          })
+        end):await()
+      end
       self._state.complete_trigger_context = TriggerContext.create()
       self._state.matching_trigger_context = TriggerContext.create()
       self._preventing = self._preventing - 1
@@ -759,9 +771,6 @@ function CompletionService:_get_provider_groups()
     if a.group ~= b.group then
       return a.group < b.group
     end
-    if a.priority ~= b.priority then
-      return a.priority > b.priority
-    end
     return a.index < b.index
   end)
 
@@ -783,6 +792,15 @@ function CompletionService:_get_provider_groups()
   for _, group_index in ipairs(group_indexes) do
     table.insert(sorted_groups, groups[group_index])
   end
+  for _, group in ipairs(sorted_groups) do
+    -- sort by priority.
+    table.sort(group, function(a, b)
+      if a.priority ~= b.priority then
+        return a.priority > b.priority
+      end
+      return a.index < b.index
+    end)
+  end
   return sorted_groups
 end
 
@@ -790,18 +808,14 @@ end
 ---@param provider cmp-kit.completion.CompletionProvider
 ---@return number
 function CompletionService:_get_score_boost(provider)
-  local cur_priority = 0
-  local max_priority = 0
-  for _, provider_configuration in ipairs(self._provider_configurations) do
-    max_priority = math.max(max_priority, provider_configuration.priority or 0)
-    if provider == provider_configuration.provider then
-      cur_priority = provider_configuration.priority
+  for _, group in ipairs(self:_get_provider_groups()) do
+    for i, cfg in ipairs(group) do
+      if cfg.provider == provider then
+        return (#group - i) * 5
+      end
     end
   end
-  if max_priority == 0 then
-    return 0
-  end
-  return 5 * (cur_priority / max_priority)
+  return 0
 end
 
 ---Update selection
@@ -814,7 +828,7 @@ function CompletionService:_update_selection(index, preselect, text_before)
     preselect = preselect,
     text_before = text_before or self._state.selection.text_before
   }
-  if not self._config.sync_mode() then
+  if not self._config.is_macro_executing() then
     if self._config.view:is_menu_visible() then
       self._config.view:select(self._state.matches, self._state.selection)
     end
@@ -841,6 +855,16 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
       item_next and item_next:get_select_text() or ''
     )
   ):next(resume)
+end
+
+---Wait for stable state.
+---@param timeout? integer
+function CompletionService:_wait_for_stable(timeout)
+  timeout = timeout or (2 * 1000)
+
+  local tasks = self._macro_completions
+  self._macro_completions = {}
+  Async.all(tasks):sync(2 * 1000)
 end
 
 ---Set schedule fn for testing.

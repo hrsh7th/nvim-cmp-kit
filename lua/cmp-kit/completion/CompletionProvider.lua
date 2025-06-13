@@ -408,7 +408,7 @@ function CompletionProvider:is_fetching(timeout)
   if self._state.request_state ~= RequestState.Fetching then
     return false
   end
- return ((vim.uv.hrtime() / 1e6) - self._state.request_time) < timeout
+  return ((vim.uv.hrtime() / 1e6) - self._state.request_time) < timeout
 end
 
 ---Check the context is in completion.
@@ -446,7 +446,7 @@ function CompletionProvider:get_matches(trigger_context, config)
   -- filtering items.
   kit.clear(self._state.matches)
   kit.clear(self._state.matches_items)
-  for i, item in ipairs(self._state.items) do
+  for _, item in ipairs(self._state.items) do
     local query_text = trigger_context:get_query(item:get_offset())
     local filter_text = item:get_filter_text()
     local score, match_positions = config.matcher(query_text, filter_text)
@@ -461,7 +461,7 @@ function CompletionProvider:get_matches(trigger_context, config)
         provider = self,
         item = item,
         score = score,
-        index = i,
+        index = 0, -- assign later.
         match_positions = match_positions,
       }
     end

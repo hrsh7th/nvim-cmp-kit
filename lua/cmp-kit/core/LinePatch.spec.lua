@@ -22,7 +22,7 @@ describe('cmp-kit.completion', function()
                 } },
               })
               local bufnr = vim.api.nvim_get_current_buf()
-              local match = service:get_match_at(1)
+              local match = service:get_matches()[1]
               local range = match.item:get_insert_range()
               local before = trigger_context.character - range.start.character
               local after = range['end'].character - trigger_context.character
@@ -47,7 +47,7 @@ describe('cmp-kit.completion', function()
                 } },
               })
               local bufnr = vim.api.nvim_get_current_buf()
-              local match = service:get_match_at(1)
+              local match = service:get_matches()[1]
               local range = (match.item:get_replace_range() or match.item._provider:get_default_replace_range())
               local before = trigger_context.character - range.start.character
               local after = range['end'].character - trigger_context.character

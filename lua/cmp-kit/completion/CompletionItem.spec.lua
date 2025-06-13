@@ -36,7 +36,7 @@ describe('cmp-kit.completion', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = service:get_match_at(1)
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'obj' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), '.p')
           assert.are.equal(match.item:get_filter_text(), '.prop')
@@ -63,7 +63,7 @@ describe('cmp-kit.completion', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = service:get_match_at(1)
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'[]' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), '.S')
           assert.are.equal(match.item:get_filter_text(), '.Symbol')
@@ -93,7 +93,7 @@ describe('cmp-kit.completion', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = service:get_match_at(1)
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'\t' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), '</d')
           assert.are.equal(match.item:get_select_text(), '</div')
@@ -141,7 +141,7 @@ describe('cmp-kit.completion', function()
             end,
           })
           local trigger_context = TriggerContext.create()
-          local match = service:get_match_at(1)
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'    .' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), 'd')
           assert.are.equal(match.item:get_select_text(), 'dbg!')
@@ -199,7 +199,7 @@ describe('cmp-kit.completion', function()
             } },
           })
           local trigger_context = TriggerContext.create()
-          local match = service:get_match_at(1)
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'    .' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), 'b')
           assert.are.equal(match.item:get_select_text(), 'box')
@@ -241,9 +241,9 @@ describe('cmp-kit.completion', function()
             },
           })
           local trigger_context = TriggerContext.create()
-          assert.are_not.is_nil(service:get_match_at(1))
-          assert.are.is_nil(service:get_match_at(2))
-          local match = service:get_match_at(1)
+          assert.are_not.is_nil(service:get_matches()[1])
+          assert.are.is_nil(service:get_matches()[2])
+          local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'---@param a ' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), 'cmp-kit.')
           assert.are.equal(match.item:get_select_text(), 'cmp-kit.kit.LSP.CompletionItemLabelDetails')
@@ -280,7 +280,7 @@ describe('cmp-kit.completion', function()
           },
         })
         local trigger_context = TriggerContext.create()
-        local match = service:get_match_at(1)
+        local match = service:get_matches()[1]
         assert.are.equal(match.item:get_offset(), #'' + 1)
         assert.are.equal(trigger_context:get_query(match.item:get_offset()), '"repo')
         assert.are.equal(match.item:get_select_text(), '"repository')
@@ -315,7 +315,7 @@ describe('cmp-kit.completion', function()
           },
         })
         local trigger_context = TriggerContext.create()
-        local match = service:get_match_at(1)
+        local match = service:get_matches()[1]
         assert.are.equal(match.item:get_offset(), #'' + 1)
         assert.are.equal(trigger_context:get_query(match.item:get_offset()), '\\d')
         assert.are.equal(match.item:get_select_text(), '2024-12-25')

@@ -10,26 +10,28 @@ local function compare(a, b, context)
     return offset_a < offset_b
   end
 
-  local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
-  local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
-  if exact_a ~= exact_b then
-    return exact_a
-  end
-
   local preselect_a = a.item:is_preselect()
   local preselect_b = b.item:is_preselect()
   if preselect_a ~= preselect_b then
     return preselect_a
   end
 
+  local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
+  local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
+
   local locality_a = context.locality_map[a.item:get_select_text()] or math.huge
   local locality_b = context.locality_map[b.item:get_select_text()] or math.huge
 
-  local score_boost_a = locality_a < locality_b and 0.5 or 0
-  local score_boost_b = locality_a > locality_b and 0.5 or 0
+  local score_bonus_a = 0
+  local score_bonus_b = 0
 
-  local score_a = a.score + score_boost_a
-  local score_b = b.score + score_boost_b
+  score_bonus_a = score_bonus_a +locality_a < locality_b and 0.5 or 0
+  score_bonus_b = score_bonus_b + locality_a > locality_b and 0.5 or 0
+  score_bonus_a = score_bonus_a + (exact_a and 3 or 0)
+  score_bonus_b = score_bonus_b + (exact_b and 3 or 0)
+
+  local score_a = a.score + score_bonus_a
+  local score_b = b.score + score_bonus_b
   if score_a ~= score_b then
     return score_a > score_b
   end
