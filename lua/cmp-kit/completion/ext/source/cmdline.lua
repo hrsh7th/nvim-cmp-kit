@@ -80,6 +80,9 @@ local lua_expression_cmd_regex = create_head_regex({
 return function(option)
   option = option or {}
 
+  local dedup = {} --[=[@as table<string, boolean>]=]
+  local items = {} --[=[@as cmp-kit.kit.LSP.CompletionItem[]]=]
+
   ---@type cmp-kit.completion.CompletionSource
   return {
     name = 'cmdline',
@@ -92,7 +95,12 @@ return function(option)
     capable = function()
       return vim.api.nvim_get_mode().mode == 'c'
     end,
-    complete = function(_, _, callback)
+    complete = function(_, completion_context, callback)
+      if completion_context.triggerKind ~= vim.lsp.protocol.CompletionTriggerKind.TriggerForIncompleteCompletions then
+        dedup = {}
+        items = {}
+      end
+
       Async.run(function()
         -- create normalized cmdline.
         -- - remove modifiers
@@ -152,7 +160,6 @@ return function(option)
         local last_arg = arg:sub(offset + 1)
 
         -- convert to LSP items.
-        local items = {}
         for _, completion in ipairs(completions) do
           local label = completion
 
@@ -161,16 +168,22 @@ return function(option)
             label = label:find(last_arg, 1, true) and label or last_arg .. label
           end
 
-          table.insert(items, {
-            label = label,
-          })
+          if not dedup[label] then
+            table.insert(items, {
+              label = label,
+            })
+            dedup[label] = true
+          end
 
           -- add `no` prefix for boolean options.
           if set_option_cmd_regex:match_str(cmd) and is_boolean_option(label) then
-            table.insert(items, {
-              label = 'no' .. completion,
-              filterText = completion,
-            })
+            if not dedup[label] then
+              table.insert(items, {
+                label = 'no' .. completion,
+                filterText = completion,
+              })
+              dedup[label] = true
+            end
           end
         end
 
