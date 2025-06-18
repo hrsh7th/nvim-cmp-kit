@@ -426,10 +426,7 @@ do
 
     -- update if changed handler.
     local update_if_changed = kit.debounce(function()
-      if self._disposed then
-        return
-      end
-      if self._preventing > 0 then
+      if self:_dispose_or_preventing() then
         return
       end
       if self._config.is_macro_executing() then
@@ -479,6 +476,9 @@ do
     -- reserve `fetching timeout` matching.
     if invoked then
       table.insert(tasks, Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
+        if self:_dispose_or_preventing() then
+          return
+        end
         if self._state.complete_trigger_context == trigger_context then
           self:matching()
         end
@@ -505,17 +505,14 @@ do
   ---@param option? { force: boolean? }
   ---@return cmp-kit.kit.Async.AsyncTask
   function CompletionService:complete(option)
-    if self._disposed then
-      return Async.resolve({})
-    end
-    if self._preventing > 0 then
-      return Async.resolve({})
+    if self:_dispose_or_preventing() then
+      return Async.resolve()
     end
 
     local trigger_context = TriggerContext.create(option)
     local changed = self._state.complete_trigger_context:changed(trigger_context)
     if not changed then
-      return Async.resolve({})
+      return Async.resolve()
     end
     self._state.complete_trigger_context = trigger_context
 
@@ -531,10 +528,7 @@ end
 
 ---Match completion items.
 function CompletionService:matching()
-  if self._disposed then
-    return
-  end
-  if self._preventing > 0 then
+  if self:_dispose_or_preventing() then
     return
   end
   if self:_is_active_selection() then
@@ -741,6 +735,8 @@ function CompletionService:prevent()
   self._hide_timer:stop()
 
   self._preventing = self._preventing + 1
+  self._state.complete_trigger_context = TriggerContext.create()
+  self._state.matching_trigger_context = TriggerContext.create()
   return function()
     return Async.run(function()
       if not self._config.is_macro_executing() then
@@ -874,6 +870,18 @@ end
 function CompletionService:_set_schedule_fn(schedule_fn)
   self._show_timer:set_schedule_fn(schedule_fn)
   self._hide_timer:set_schedule_fn(schedule_fn)
+end
+
+---Check invalid state.
+---@return boolean
+function CompletionService:_dispose_or_preventing()
+  if self._disposed then
+    return true
+  end
+  if self._preventing > 0 then
+    return true
+  end
+  return false
 end
 
 return CompletionService
