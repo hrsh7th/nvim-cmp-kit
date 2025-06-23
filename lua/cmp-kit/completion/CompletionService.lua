@@ -336,9 +336,7 @@ function CompletionService:clear()
   self._show_timer:stop()
   self._hide_timer:stop()
   local is_menu_visible = self._config.view:is_menu_visible()
-  if not self._config.is_macro_executing() then
-    self._config.view:hide(self._state.matches, self._state.selection)
-  end
+  self._config.view:hide(self._state.matches, self._state.selection)
   if is_menu_visible then
     emit(self._events.on_menu_hide, { service = self })
   end

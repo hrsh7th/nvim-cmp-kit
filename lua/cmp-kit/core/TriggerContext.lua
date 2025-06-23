@@ -74,10 +74,15 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
   local in_string = false
   local in_comment = false
   if mode == 'i' then
-    local captures = vim.treesitter.get_captures_at_cursor(0)
+    local captures = vim.treesitter.get_captures_at_pos(bufnr, line, character)
     for _, capture in ipairs(captures) do
-      in_string = in_string or capture:match('.*string.*')
-      in_comment = in_comment or capture:match('.*comment.*')
+      in_string = in_string or (capture.capture:match('string'))
+      in_comment = in_comment or (capture.capture:match('comment'))
+    end
+    local hlname = vim.fn.synIDattr(vim.fn.synID(line + 1, character + 1, 1), 'name')
+    if hlname then
+      in_string = in_string or (hlname:match('String'))
+      in_comment = in_comment or (hlname:match('Comment'))
     end
   end
 

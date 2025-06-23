@@ -7,7 +7,6 @@ SelectText.StopCharacters = {
   [string.byte("'")] = true,
   [string.byte('"')] = true,
   [string.byte('=')] = true,
-  [string.byte('$')] = true,
   [string.byte('(')] = true,
   [string.byte(')')] = true,
   [string.byte('[')] = true,
