@@ -361,11 +361,16 @@ function CompletionProvider:clear()
     request_state = RequestState.Waiting,
     request_time = 0,
     response_revision = self._state.response_revision,
-    dedup_map = kit.clear(self._state.dedup_map),
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
     matches_items = kit.clear(self._state.matches_items),
   }
+end
+
+---Return completion offset.
+---@return integer?
+function CompletionProvider:get_completion_offset()
+  return self._state.completion_offset
 end
 
 ---Return items.

@@ -545,38 +545,44 @@ function CompletionService:matching()
   local is_completion_fetching = false
   local in_trigger_character_completion = false
   for _, group in ipairs(self:_get_provider_groups()) do
-    local cfgs = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
+    local cfgs_keyword = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
+    local cfgs_trigger_character = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
-        table.insert(cfgs, cfg)
         if cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms) then
           is_completion_fetching = true
           break
         end
-        in_trigger_character_completion = in_trigger_character_completion or (
-          cfg.provider:in_trigger_character_completion()
-        )
-      end
-    end
-
-    -- use only trigger character completion if exists.
-    if not self._state.complete_trigger_context.force then
-      if in_trigger_character_completion then
-        for i = #cfgs, 1, -1 do
-          if not cfgs[i].provider:in_trigger_character_completion() then
-            table.remove(cfgs, i)
-          end
+        if cfg.provider:in_trigger_character_completion() then
+          table.insert(cfgs_trigger_character, cfg)
+          in_trigger_character_completion = true
+        else
+          table.insert(cfgs_keyword, cfg)
         end
       end
     end
 
-    -- gather items.
-    for _, cfg in ipairs(cfgs) do
+    -- gather trigger character items.
+    local offsets = {}
+    for _, cfg in ipairs(cfgs_trigger_character) do
       local score_boost = self:_get_score_boost(cfg.provider)
       for _, match in ipairs(cfg.provider:get_matches(trigger_context, self._config)) do
         match.score = match.score + score_boost
         self._state.matches[#self._state.matches + 1] = match
+        offsets[match.item:get_offset()] = true
         match.index = #self._state.matches
+      end
+    end
+
+    -- gather keyword items.
+    for _, cfg in ipairs(cfgs_keyword) do
+      if #self._state.matches == 0 or not offsets[cfg.provider:get_completion_offset()] then
+        local score_boost = self:_get_score_boost(cfg.provider)
+        for _, match in ipairs(cfg.provider:get_matches(trigger_context, self._config)) do
+          match.score = match.score + score_boost
+          self._state.matches[#self._state.matches + 1] = match
+          match.index = #self._state.matches
+        end
       end
     end
 
@@ -804,14 +810,17 @@ end
 ---@param provider cmp-kit.completion.CompletionProvider
 ---@return number
 function CompletionService:_get_score_boost(provider)
+  local boost = 0
   for _, group in ipairs(self:_get_provider_groups()) do
     for i, cfg in ipairs(group) do
       if cfg.provider == provider then
-        return (#group - i) * 5
+        boost = boost + (#group - i) * 5
+        boost = boost + (provider:in_trigger_character_completion() and 10 or 0)
+        break
       end
     end
   end
-  return 0
+  return boost
 end
 
 ---Update selection
