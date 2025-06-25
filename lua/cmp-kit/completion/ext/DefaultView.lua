@@ -49,6 +49,12 @@ local tmp_tbls = {
   rendering_lines = {},
 }
 
+---Lookup table for CompletionItemKind.
+local CompletionItemKindLookup = {}
+for k, v in pairs(LSP.CompletionItemKind) do
+  CompletionItemKindLookup[v] = k
+end
+
 ---Create winhighlight.
 ---@param map table<string, string>
 ---@return string
@@ -200,18 +206,32 @@ local default_config = {
       padding_right = 0,
       align = 'right',
       get_text = function(match, config)
-        return config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text)[1]
-      end,
-      get_extmarks = function(_, match, config)
-        local icon, hl_group = unpack(config.icon_resolver(match.item:get_kind() or LSP.CompletionItemKind.Text) or {})
-        if icon then
-          return { {
-            col = 0,
-            end_col = #icon,
-            hl_group = hl_group,
-          } }
+        local kind = match.item:get_kind() or LSP.CompletionItemKind.Text
+        if config.icon_resolver then
+          local icon = (config.icon_resolver(kind) or {})[1]
+          if icon and #icon > 0 then
+            return icon
+          end
         end
-        return {}
+        return CompletionItemKindLookup[kind] or ''
+      end,
+      get_extmarks = function(text, match, config)
+        local kind = match.item:get_kind() or LSP.CompletionItemKind.Text
+        if config.icon_resolver then
+          local icon, hl_group = unpack(config.icon_resolver(kind) or {})
+          if icon and #icon > 0 then
+            return { {
+              col = 0,
+              end_col = #icon,
+              hl_group = hl_group or ('CmpKitCompletionItemKind_%s'):format(text),
+            } }
+          end
+        end
+        return { {
+          col = 0,
+          end_col = #text,
+          hl_group = ('CmpKitCompletionItemKind_%s'):format(text),
+        } }
       end,
     },
     -- label.
@@ -224,11 +244,16 @@ local default_config = {
       end,
       get_extmarks = function(text, match)
         local extmarks = {}
+        table.insert(extmarks, {
+          col = 0,
+          end_col = #text,
+          hl_group = 'CmpKitCompletionItemLabel',
+        })
         for _, position in ipairs(match.match_positions) do
           table.insert(extmarks, {
             col = position.start_index - 1,
             end_col = position.end_index,
-            hl_group = position.hl_group or 'PmenuMatch',
+            hl_group = position.hl_group or 'CmpKitCompletionItemMatch',
           })
         end
         if match.item:get_tags()[LSP.CompletionItemTag.Deprecated] then
@@ -266,7 +291,7 @@ local default_config = {
           return { {
             col = 0,
             end_col = #text,
-            hl_group = 'PmenuExtra',
+            hl_group = 'CmpKitCompletionItemDescription',
           } }
         end
 
@@ -299,7 +324,7 @@ local default_config = {
           return { {
             col = 0,
             end_col = #text,
-            hl_group = 'Comment',
+            hl_group = 'CmpKitCompletionItemExtra',
           } }
         end
         return {}
@@ -319,12 +344,6 @@ local default_config = {
   icon_resolver = (function()
     local ok, MiniIcons = pcall(require, 'mini.icons')
     local cache = {}
-
-    ---Lookup table for CompletionItemKind.
-    local CompletionItemKindLookup = {}
-    for k, v in pairs(LSP.CompletionItemKind) do
-      CompletionItemKindLookup[v] = k
-    end
 
     return function(completion_item_kind)
       if not ok then
