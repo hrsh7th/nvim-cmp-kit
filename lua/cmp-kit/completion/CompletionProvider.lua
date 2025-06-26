@@ -382,8 +382,7 @@ end
 ---Return current completion is triggered by character or not.
 ---@return boolean
 function CompletionProvider:in_trigger_character_completion()
-  local in_trigger_char = true
-  in_trigger_char = in_trigger_char and self._state.is_trigger_character_completion
+  local in_trigger_char = self._state.is_trigger_character_completion
 
   local in_trigger_char_loose = false
   if self._state.trigger_context then

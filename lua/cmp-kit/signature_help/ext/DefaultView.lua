@@ -15,6 +15,7 @@ end
 local winhl_bordered = winhighlight({
   CursorLine = 'Visual',
   Search = 'None',
+  EndOfBuffer = '',
 })
 local winhl_pum = winhighlight({
   NormalFloat = 'Pmenu',
@@ -22,6 +23,7 @@ local winhl_pum = winhighlight({
   FloatBorder = 'Pmenu',
   CursorLine = 'PmenuSel',
   Search = 'None',
+  EndOfBuffer = '',
 })
 
 ---Convert documentation to string.
