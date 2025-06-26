@@ -540,6 +540,8 @@ function CompletionService:matching()
   end
   self._state.matching_trigger_context = trigger_context
 
+  local is_menu_visible = self:is_menu_visible()
+
   -- update matches.
   self._state.matches = {}
   local is_completion_fetching = false
@@ -552,7 +554,7 @@ function CompletionService:matching()
         local is_fetching = true
         is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms)
         is_fetching = is_fetching and #cfg.provider:get_matches(trigger_context, self._config) == 0
-        if is_fetching then
+        if not is_menu_visible and is_fetching then
           is_completion_fetching = true
           break
         end
