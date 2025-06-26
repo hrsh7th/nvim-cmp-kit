@@ -127,25 +127,14 @@ function CompletionItem:get_offset()
         end
       end
     else
-      local insert_range = nil
-      insert_range = insert_range or (self._item.textEdit and (
-        self._item.textEdit.insert or self._item.textEdit.range
-      ) or nil)
-      insert_range = insert_range or (
-        self._completion_list.itemDefaults and (
-          self._completion_list.itemDefaults.editRange and (
-            self._completion_list.itemDefaults.editRange.insert or self._completion_list.itemDefaults.editRange
-          )
-        )
-      )
-      local trigger_context_cache_key = string.format(
-        '%s:%s:%s',
+      local insert_range = self:get_insert_range()
+
+      -- We trim whitespace from `select_text` so we ignore whitespace changes from `textEdit`.
+      local trigger_context_cache_key = ('%s:%s:%s'):format(
         'get_offset',
         keyword_offset,
         insert_range.start.character
       )
-
-      -- We trim whitespace from `select_text` so we ignore whitespace changes from `textEdit`.
       if not self._trigger_context.cache[trigger_context_cache_key] then
         local offset = insert_range.start.character + 1
         for i = offset, keyword_offset do
@@ -706,20 +695,36 @@ function CompletionItem:_convert_range_encoding(range)
     return range
   end
 
-  local cache_key = string.format('%s:%s', 'CompletionItem:_convert_range_encoding', range.start.character,
-    range['end'].character, from_encoding)
+  local cache_key = ('%s:%s:%s:%s'):format(
+    'CompletionItem:_convert_range_encoding',
+    range.start.character,
+    range['end'].character,
+    from_encoding
+  )
   if not self._trigger_context.cache[cache_key] then
-    local start_cache_key = string.format('%s:%s:%s', 'CompletionItem:_convert_range_encoding:start',
-      range.start.character, from_encoding)
+    local start_cache_key = ('%s:%s:%s'):format(
+      'CompletionItem:_convert_range_encoding:start',
+      range.start.character,
+      from_encoding
+    )
     if not self._trigger_context.cache[start_cache_key] then
-      self._trigger_context.cache[start_cache_key] = Position.to_utf8(self._trigger_context.text, range.start,
-        from_encoding)
+      self._trigger_context.cache[start_cache_key] = Position.to_utf8(
+        self._trigger_context.text,
+        range.start,
+        from_encoding
+      )
     end
-    local end_cache_key = string.format('%s:%s:%s', 'CompletionItem:_convert_range_encoding:end', range['end'].character,
-      from_encoding)
+    local end_cache_key = ('%s:%s:%s'):format(
+      'CompletionItem:_convert_range_encoding:end',
+      range['end'].character,
+      from_encoding
+    )
     if not self._trigger_context.cache[end_cache_key] then
-      self._trigger_context.cache[end_cache_key] = Position.to_utf8(self._trigger_context.text, range['end'],
-        from_encoding)
+      self._trigger_context.cache[end_cache_key] = Position.to_utf8(
+        self._trigger_context.text,
+        range['end'],
+        from_encoding
+      )
     end
     self._trigger_context.cache[cache_key] = {
       start = self._trigger_context.cache[start_cache_key],
