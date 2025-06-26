@@ -549,7 +549,10 @@ function CompletionService:matching()
     local cfgs_trigger_character = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
-        if cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms) then
+        local is_fetching = true
+        is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms)
+        is_fetching = is_fetching and #cfg.provider:get_matches(trigger_context, self._config) == 0
+        if is_fetching then
           is_completion_fetching = true
           break
         end

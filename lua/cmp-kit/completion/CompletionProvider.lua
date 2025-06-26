@@ -384,8 +384,19 @@ end
 function CompletionProvider:in_trigger_character_completion()
   local in_trigger_char = true
   in_trigger_char = in_trigger_char and self._state.is_trigger_character_completion
-  in_trigger_char = in_trigger_char and #self:get_items() > 0
-  return in_trigger_char
+
+  local in_trigger_char_loose = false
+  if self._state.trigger_context then
+    local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or (
+      self._state.trigger_context.character + 1
+    )
+    in_trigger_char_loose = vim.tbl_contains(
+      self:get_trigger_characters(),
+      self._state.trigger_context.text_before:sub(keyword_offset - 1, keyword_offset - 1)
+    )
+  end
+
+  return in_trigger_char or in_trigger_char_loose
 end
 
 ---Check if the provider is fetching.
