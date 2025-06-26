@@ -16,7 +16,7 @@ return {
   preselect = true,
   performance = {
     fetch_waiting_ms = 64,
-    menu_show_throttle_ms = 64,
+    menu_show_throttle_ms = 32,
     menu_hide_debounce_ms = 160,
   },
   default_keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],

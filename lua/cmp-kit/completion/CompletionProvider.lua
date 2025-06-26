@@ -396,7 +396,7 @@ function CompletionProvider:in_trigger_character_completion()
     )
   end
 
-  return in_trigger_char or in_trigger_char_loose
+  return #self._state.items > 0 and (in_trigger_char or in_trigger_char_loose)
 end
 
 ---Check if the provider is fetching.
