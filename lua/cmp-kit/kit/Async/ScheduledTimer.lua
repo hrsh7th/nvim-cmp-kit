@@ -69,13 +69,13 @@ function ScheduledTimer:start(ms, repeat_ms, callback)
     end
   end
 
+  self._start_time = vim.uv.hrtime() / 1e6
+  self._timer:stop()
   if ms == 0 then
     on_tick()
-    return
+  else
+    self._timer:start(ms, 0, on_tick)
   end
-  self._start_time = vim.uv.now() / 1e6
-  self._timer:stop()
-  self._timer:start(ms, 0, on_tick)
 end
 
 ---Stop timer.
