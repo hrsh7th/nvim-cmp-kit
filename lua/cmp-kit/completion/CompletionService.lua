@@ -30,7 +30,7 @@ end
 ---@field public provider cmp-kit.completion.CompletionProvider
 
 ---@class cmp-kit.completion.CompletionService.Config.Performance
----@field public fetch_waiting_ms? integer
+---@field public fetching_timeout_ms? integer
 ---@field public menu_show_throttle_ms? integer
 ---@field public menu_hide_debounce_ms? integer
 
@@ -449,7 +449,7 @@ do
         self._state.matching_trigger_context = TriggerContext.create_empty_context()
         self:matching()
       end
-    end, 0)
+    end, 1)
 
     -- trigger.
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
@@ -462,9 +462,9 @@ do
               invoked = true
             end
             if step == 'adopt-response' then
-              vim.schedule(function()
+              if not self:_is_prior_provider_fetching(cfg.provider) then
                 update_if_changed()
-              end)
+              end
             end
           end))
         end
@@ -473,13 +473,8 @@ do
 
     -- reserve `fetching timeout` matching.
     if invoked then
-      table.insert(tasks, Async.timeout(self._config.performance.fetch_waiting_ms):next(function()
-        if self:_dispose_or_preventing() then
-          return
-        end
-        if self._state.complete_trigger_context == trigger_context then
-          self:matching()
-        end
+      table.insert(tasks, Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
+        self:matching()
       end))
     else
       self:matching()
@@ -552,8 +547,8 @@ function CompletionService:matching()
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
         local is_fetching = true
-        is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetch_waiting_ms)
-        is_fetching = is_fetching and #cfg.provider:get_matches(trigger_context, self._config) == 0
+        is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms)
+        is_fetching = is_fetching and #cfg.provider:get_items() == 0
         if not is_menu_visible and is_fetching then
           is_completion_fetching = true
           break
@@ -581,7 +576,7 @@ function CompletionService:matching()
 
     -- gather keyword items.
     for _, cfg in ipairs(cfgs_keyword) do
-      if #self._state.matches == 0 or not offsets[cfg.provider:get_completion_offset()] then
+      if #self._state.matches == 0 or not offsets[cfg.provider:get_completion_offset()] or trigger_context.force then
         local score_boost = self:_get_score_boost(cfg.provider)
         for _, match in ipairs(cfg.provider:get_matches(trigger_context, self._config)) do
           match.score = match.score + score_boost
@@ -607,12 +602,12 @@ function CompletionService:matching()
     -- group matches are found.
     local locality_map = {}
     if not self._config.is_macro_executing() and not self._config.is_macro_recording() then
-      local cur = vim.api.nvim_win_get_cursor(0)[1] - 1
-      local min_row = math.max(1, cur - 30)
-      local max_row = cur
+      local cur_above = vim.api.nvim_win_get_cursor(0)[1] - 1
+      local min_row = math.max(1, cur_above - 30)
+      local max_row = cur_above
       for row = min_row, max_row do
         for _, word in ipairs(Buffer.ensure(0):get_words(self._config.default_keyword_pattern, row)) do
-          locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur - row))
+          locality_map[word] = math.min(locality_map[word] or math.huge, math.abs(cur_above - row))
         end
       end
     end
@@ -659,12 +654,10 @@ function CompletionService:matching()
     if not self._config.is_macro_executing() then
       self._show_timer:stop()
       self._hide_timer:stop()
-      local timeout = math.max(0, math.min(
-        self._config.performance.menu_show_throttle_ms,
-        (vim.uv.hrtime() / 1e6) - self._show_timer:start_time()
-      ))
-      self._show_timer:start(timeout, 0, function()
-        local is_menu_visible = self._config.view:is_menu_visible()
+      local elapsed_ms = (vim.uv.hrtime() / 1e6) - self._show_timer:start_time()
+      local timeout_ms = math.max(1, self._config.performance.menu_show_throttle_ms - elapsed_ms)
+      self._show_timer:start(timeout_ms, 0, function()
+        is_menu_visible = self._config.view:is_menu_visible()
         self._config.view:show(self._state.matches, self._state.selection)
         emit(self._events.on_menu_update, { service = self })
         if not is_menu_visible then
@@ -681,12 +674,19 @@ function CompletionService:matching()
       self._show_timer:stop()
       self._hide_timer:stop()
       -- no completion found.
-      local menu_hide_debounce_ms = self._config.performance.menu_hide_debounce_ms
-      if not is_completion_fetching then
-        menu_hide_debounce_ms = 0
+
+      local menu_hide_debounce_ms = 1
+      for _, provider_group in ipairs(self:_get_provider_groups()) do
+        for _, cfg in ipairs(provider_group) do
+          if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
+            menu_hide_debounce_ms = self._config.performance.menu_hide_debounce_ms
+            break
+          end
+        end
       end
+
       self._hide_timer:start(menu_hide_debounce_ms, 0, function()
-        local is_menu_visible = self._config.view:is_menu_visible()
+        is_menu_visible = self._config.view:is_menu_visible()
         self._config.view:hide(self._state.matches, self._state.selection)
         if is_menu_visible then
           emit(self._events.on_menu_hide, { service = self })
@@ -778,6 +778,9 @@ function CompletionService:_get_provider_groups()
     if a.group ~= b.group then
       return a.group < b.group
     end
+    if a.priority ~= b.priority then
+      return a.priority > b.priority
+    end
     return a.index < b.index
   end)
 
@@ -798,15 +801,6 @@ function CompletionService:_get_provider_groups()
   local sorted_groups = {}
   for _, group_index in ipairs(group_indexes) do
     table.insert(sorted_groups, groups[group_index])
-  end
-  for _, group in ipairs(sorted_groups) do
-    -- sort by priority.
-    table.sort(group, function(a, b)
-      if a.priority ~= b.priority then
-        return a.priority > b.priority
-      end
-      return a.index < b.index
-    end)
   end
   return sorted_groups
 end
@@ -892,6 +886,23 @@ function CompletionService:_dispose_or_preventing()
   end
   if self._preventing > 0 then
     return true
+  end
+  return false
+end
+
+---Check if prior provider is fetching.
+---@param provider cmp-kit.completion.CompletionProvider
+---@return boolean
+function CompletionService:_is_prior_provider_fetching(provider)
+  for _, group in ipairs(self:_get_provider_groups()) do
+    for _, cfg in ipairs(group) do
+      if cfg.provider == provider then
+        return false
+      end
+      if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
+        return true
+      end
+    end
   end
   return false
 end

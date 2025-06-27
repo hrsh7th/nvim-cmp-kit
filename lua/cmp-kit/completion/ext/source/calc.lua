@@ -66,15 +66,17 @@ return function()
           isIncomplete = true,
           items = {
             {
-              label = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
-              insertText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
-              filterText = candidate_text,
-            },
-            {
               label = ('= %s'):format(output),
               insertText = tostring(output),
               filterText = candidate_text,
-            }
+              sortText = '1',
+            },
+            {
+              label = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
+              insertText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
+              filterText = candidate_text,
+              sortText = '2',
+            },
           }
         }
       end):dispatch(function(res)

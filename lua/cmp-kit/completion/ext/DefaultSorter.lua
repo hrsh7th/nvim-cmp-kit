@@ -1,3 +1,10 @@
+local Bonus = {
+  exact = 1,
+  locality = 0.5,
+  preselect = 3,
+  score_text = 1,
+}
+
 ---Compare two items.
 ---@param a cmp-kit.completion.Match
 ---@param b cmp-kit.completion.Match
@@ -12,9 +19,6 @@ local function compare(a, b, context)
 
   local preselect_a = a.item:is_preselect()
   local preselect_b = b.item:is_preselect()
-  if preselect_a ~= preselect_b then
-    return preselect_a
-  end
 
   local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
   local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
@@ -22,32 +26,40 @@ local function compare(a, b, context)
   local locality_a = context.locality_map[a.item:get_select_text()] or math.huge
   local locality_b = context.locality_map[b.item:get_select_text()] or math.huge
 
+  local sort_text_a = a.item:get_sort_text()
+  local sort_text_b = b.item:get_sort_text()
+
+  local sort_text_bonus_a = 0
+  local sort_text_bonus_b = 0
+  if sort_text_a and not sort_text_b then
+    sort_text_bonus_a = Bonus.score_text
+  end
+  if not sort_text_a and sort_text_b then
+    sort_text_bonus_b = Bonus.score_text
+  end
+  if sort_text_a and sort_text_b then
+    if sort_text_a < sort_text_b then
+      sort_text_bonus_a = Bonus.score_text
+    elseif sort_text_a > sort_text_b then
+      sort_text_bonus_b = Bonus.score_text
+    end
+  end
+
   local score_bonus_a = 0
   local score_bonus_b = 0
-
-  score_bonus_a = score_bonus_a +locality_a < locality_b and 0.5 or 0
-  score_bonus_b = score_bonus_b + locality_a > locality_b and 0.5 or 0
-  score_bonus_a = score_bonus_a + (exact_a and 3 or 0)
-  score_bonus_b = score_bonus_b + (exact_b and 3 or 0)
+  score_bonus_a = score_bonus_a + (preselect_a and Bonus.preselect or 0)
+  score_bonus_b = score_bonus_b + (preselect_b and Bonus.preselect or 0)
+  score_bonus_a = score_bonus_a + locality_a < locality_b and Bonus.locality or 0
+  score_bonus_b = score_bonus_b + locality_a > locality_b and Bonus.locality or 0
+  score_bonus_a = score_bonus_a + (exact_a and Bonus.exact or 0)
+  score_bonus_b = score_bonus_b + (exact_b and Bonus.exact or 0)
+  score_bonus_a = score_bonus_a + sort_text_bonus_a
+  score_bonus_b = score_bonus_b + sort_text_bonus_b
 
   local score_a = a.score + score_bonus_a
   local score_b = b.score + score_bonus_b
   if score_a ~= score_b then
     return score_a > score_b
-  end
-
-  local sort_text_a = a.item:get_sort_text()
-  local sort_text_b = b.item:get_sort_text()
-  if sort_text_a and not sort_text_b then
-    return true
-  end
-  if not sort_text_a and sort_text_b then
-    return false
-  end
-  if sort_text_a and sort_text_b then
-    if sort_text_a ~= sort_text_b then
-      return sort_text_a < sort_text_b
-    end
   end
 
   local label_text_a = a.item:get_label_text()

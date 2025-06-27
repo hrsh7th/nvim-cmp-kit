@@ -621,6 +621,12 @@ function CompletionItem:has_text_edit()
   return not not (self._item.textEdit or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange))
 end
 
+---Return this has additionalTextEdits or not.
+---@return boolean
+function CompletionItem:has_additional_text_edits()
+  return not not self._item.additionalTextEdits
+end
+
 ---Return insert range.
 ---NOTE: This method ignores the `position.line` because CompletionItem does not consider line posision.
 ---NOTE: This range is utf-8 byte length based.
