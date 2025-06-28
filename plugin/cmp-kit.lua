@@ -67,6 +67,16 @@ local function on_color_scheme()
     sp = 'fg',
     bold = true,
   })
+  inherit_hl('CmpKitMarkdownAnnotateCodeBlock', { 'CursorColumn' }, { 'bg' }, {
+    default = true,
+    blend = 30,
+  })
+  for _, i in ipairs({ 1, 2, 3, 4, 5, 6 }) do
+    inherit_hl(('CmpKitMarkdownAnnotateHeading%s'):format(i), { 'Title' }, { 'fg', 'bg'  }, {
+      default = true,
+      blend = 30,
+    })
+  end
 
   -- completion utilities.
   inherit_hl('CmpKitDeprecated', { 'CmpItemAbbrDeprecated', 'Comment' }, { 'fg', 'bg' }, {

@@ -209,7 +209,7 @@ local function prepare_markdown_contents(raw_contents)
           col = 0,
           end_row = e,
           end_col = 0,
-          hl_group = 'Visual',
+          hl_group = 'CmpKitMarkdownAnnotateCodeBlock',
           hl_eol = true,
         })
       else
