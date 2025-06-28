@@ -18,7 +18,6 @@ local function inherit_hl(name, parents, keys, opts)
     return false
   end)
   if parent then
-    opts.link = parent
     local synid = vim.fn.synIDtrans(vim.fn.hlID(parent))
     for _, key in ipairs(keys) do
       if not opts[key] then
@@ -40,29 +39,22 @@ end
 
 local function on_color_scheme()
   -- markdown rendering utilities.
-  inherit_hl('CmpKitMarkdownAnnotateUnderlined', { 'SpecialKey' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitMarkdownAnnotateUnderlined', { 'Special' }, { 'fg', 'bg' }, {
     default = true,
     sp = 'fg',
     underline = true,
   })
-  inherit_hl('CmpKitMarkdownAnnotateBold', { 'SpecialKey' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitMarkdownAnnotateBold', { 'Special' }, { 'fg', 'bg' }, {
     default = true,
     bold = true,
   })
-  inherit_hl('CmpKitMarkdownAnnotateEm', { 'SpecialKey' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitMarkdownAnnotateEm', { 'Special' }, { 'fg', 'bg' }, {
     default = true,
     sp = 'fg',
-    italic = true,
-    underline = true,
-  })
-  inherit_hl('CmpKitMarkdownAnnotateStrong', { 'SpecialKey' }, { 'fg', 'bg' }, {
-    default = true,
-    sp = 'fg',
-    italic = true,
     bold = true,
     underline = true,
   })
-  inherit_hl('CmpKitMarkdownAnnotateCode', { 'SpecialKey' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitMarkdownAnnotateStrong', { 'Visual' }, { 'fg', 'bg' }, {
     default = true,
     sp = 'fg',
     bold = true,

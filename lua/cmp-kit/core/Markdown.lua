@@ -95,6 +95,31 @@ local function trim_empty_lines(contents)
   return contents
 end
 
+---Resolve special highlights.
+---@param text string
+---@return string, cmp-kit.completion.Markdown.Extmark[]
+local function resolve_special_highlights(text)
+  local extmarks = {}
+  for _, highlight in ipairs(special_highlights) do
+    local s_idx1, s_idx2 = text:find(highlight.s, 1, true)
+    if s_idx1 and s_idx2 then
+      text = text:sub(1, s_idx1 - 1) .. text:sub(s_idx2 + 1)
+      local e_idx1, e_idx2 = text:find(highlight.e, s_idx2 + 1, true)
+      if e_idx1 and e_idx2 then
+        text = text:sub(1, e_idx1 - 1) .. text:sub(e_idx2 + 1)
+        table.insert(extmarks, {
+          col = s_idx1 - 1,
+          end_col = e_idx1 - 1,
+          hl_group = highlight.hl_group,
+          hl_mode = 'combine',
+          priority = 20000,
+        })
+      end
+    end
+  end
+  return text, extmarks
+end
+
 ---Prepare markdown contents.
 ---@param raw_contents string[]
 ---@return string[], table<string, cmp-kit.completion.Markdown.Range[]>, cmp-kit.completion.Markdown.Extmark[]
@@ -157,7 +182,7 @@ local function prepare_markdown_contents(raw_contents)
     table.insert(sections, current)
   end
 
-  -- prune sections.
+  -- fix sections for readability.
   for i = #sections, 1, -1 do
     local section = sections[i]
     if section.type == 'code_block' then
@@ -192,18 +217,28 @@ local function prepare_markdown_contents(raw_contents)
     end
 
     if section.type == 'code_block' then
+      -- add empty lines for top and bottom.
+      if i > 1 and #contents > 1 then
+        table.insert(section.contents, 1, '')
+        table.insert(section.contents, '')
+      end
+
+      -- add concrete contents.
       local s = #contents + 1
       for _, content in ipairs(section.contents) do
-        table.insert(contents, content)
+        local sp_content, sp_marks = resolve_special_highlights(content)
+        table.insert(contents, sp_content)
+        for _, mark in ipairs(sp_marks) do
+          mark.row = #contents - 1
+          mark.end_row = #contents - 1
+          table.insert(extmarks, mark)
+        end
       end
       local e = #contents
 
       -- 1. first code_block does not have area highlight.
       -- 2. oneline code_block does not have area highlight.
-      if i > 1 and e - s > 0 then
-        table.insert(contents, s, '')
-        table.insert(contents, '')
-        e = e + 2
+      if i > 1 and #contents > 1 then
         table.insert(extmarks, {
           row = s - 1,
           col = 0,
@@ -219,6 +254,7 @@ local function prepare_markdown_contents(raw_contents)
           end_row = e,
           end_col = 0,
           hl_group = 'Normal',
+          hl_mode = 'combine',
         })
       end
       if section.language then
@@ -277,13 +313,20 @@ local function prepare_markdown_contents(raw_contents)
                 end_row = #contents,
                 end_col = j + #name - 1,
                 hl_group = '@markup.link.label.markdown_inline',
+                hl_mode = 'combine',
                 url = url,
               })
               j = j + #name - 1
             end
           end
         end
-        table.insert(contents, content)
+        local sp_content, sp_marks = resolve_special_highlights(content)
+        table.insert(contents, sp_content)
+        for _, mark in ipairs(sp_marks) do
+          mark.row = #contents - 1
+          mark.end_row = #contents - 1
+          table.insert(extmarks, mark)
+        end
       end
       local e = #contents
       languages['markdown_inline'] = languages['markdown_inline'] or {}
@@ -327,6 +370,7 @@ function Markdown.set(bufnr, ns_id, raw_contents)
   vim.b[bufnr].cmp_kit_markdown_revision = vim.b[bufnr].cmp_kit_markdown_revision or 0
   vim.b[bufnr].cmp_kit_markdown_revision = vim.b[bufnr].cmp_kit_markdown_revision + 1
 
+  -- language highlights.
   local contents, languages, extmarks = prepare_markdown_contents(raw_contents)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
   vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
@@ -375,6 +419,7 @@ function Markdown.set(bufnr, ns_id, raw_contents)
                 end_row = end_row,
                 end_col = end_col,
                 hl_group = hl_id,
+                hl_mode = 'combine',
                 priority = tonumber(metadata.priority or metadata[capture] and metadata[capture].priority),
                 conceal = conceal,
               })
@@ -385,37 +430,6 @@ function Markdown.set(bufnr, ns_id, raw_contents)
       end)
     end
   end
-
-  -- special highlights.
-  for i, text in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
-    for _, highlight in ipairs(special_highlights) do
-      local s_idx1, s_idx2 = text:find(highlight.s, 1, true)
-      if s_idx1 and s_idx2 then
-        local e_idx1, e_idx2 = text:find(highlight.e, s_idx2 + 1, true)
-        if e_idx1 and e_idx2 then
-          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, s_idx1 - 1, {
-            end_row = i - 1,
-            end_col = s_idx2,
-            conceal = '',
-            priority = 20000,
-          })
-          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, s_idx2 - 1, {
-            end_row = i - 1,
-            end_col = e_idx1 - 1,
-            hl_group = highlight.hl_group,
-            priority = 20000,
-          })
-          vim.api.nvim_buf_set_extmark(bufnr, ns_id, i - 1, e_idx1 - 1, {
-            end_row = i - 1,
-            end_col = e_idx2,
-            conceal = '',
-            priority = 20000,
-          })
-        end
-      end
-    end
-  end
-
   for _, extmark in ipairs(extmarks) do
     local row = extmark.row
     local col = extmark.col

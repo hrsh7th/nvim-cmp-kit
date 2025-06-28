@@ -517,9 +517,9 @@ function DefaultView:show(matches, selection)
               end_row = row,
               end_col = off + right_align_off + extmark.end_col,
               hl_group = extmark.hl_group,
+              hl_mode = 'combine',
               priority = extmark.priority,
               conceal = extmark.conceal,
-              hl_mode = 'combine',
               ephemeral = true,
             })
           end
