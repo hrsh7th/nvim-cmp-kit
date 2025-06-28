@@ -11,6 +11,7 @@ nvim's completion core module.
     - CmpKitMarkdownAnnotateStrong
     - CmpKitMarkdownAnnotateCode
     - CmpKitMarkdownAnnotateCodeBlock
+    - CmpKitMarkdownAnnotateHeading{1,2,3,4,5,6}
 
 - completion related highlights
     - CmpKitDeprecated

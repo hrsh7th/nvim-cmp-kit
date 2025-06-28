@@ -297,16 +297,22 @@ local function prepare_markdown_contents(raw_contents)
         virt_lines = { { { ('─'):rep(vim.o.columns) } } }
       })
     elseif section.type == 'heading' then
+      local heading_hl_group = ('CmpKitMarkdownAnnotateHeading%s'):format(section.level)
       table.insert(extmarks, {
         row = #contents - 1,
         col = 0,
         end_row = #contents - 1,
         end_col = 0,
-        virt_lines = { {
-          { ('#'):rep(section.level), 'FloatTitle' },
-          { ' ' },
-          { section.title,            'FloatTitle' },
-        } }
+        virt_lines = {
+          {
+            { ('#'):rep(section.level), heading_hl_group },
+            { ' ' },
+            { section.title,            heading_hl_group },
+          },
+          {
+            { ('─'):rep(vim.o.columns) }
+          }
+        }
       })
     end
   end

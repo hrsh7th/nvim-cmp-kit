@@ -157,6 +157,22 @@ function Indexer:_run_index()
           if not is_inserting or cursor[1] ~= i or cursor[2] < (off + sidx) or (off + eidx) < cursor[2] then
             local word = text:sub(sidx + 1, eidx)
             table.insert(self._words[i], word)
+
+            -- → neovim-completion-engine
+            --   → neovim
+            --   → neovim-completion
+            --   → completion-engine
+            --   → engine
+            local p = 1
+            while true do
+              local s_pos, e_pos = word:find('[_-]', p)
+              if not s_pos or not e_pos then
+                break
+              end
+              table.insert(self._words[i], word:sub(1, s_pos - 1))
+              table.insert(self._words[i], word:sub(e_pos + 1))
+              p = e_pos + 1
+            end
           end
           off = off + eidx
 

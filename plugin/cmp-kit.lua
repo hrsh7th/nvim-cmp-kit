@@ -72,7 +72,7 @@ local function on_color_scheme()
     blend = 30,
   })
   for _, i in ipairs({ 1, 2, 3, 4, 5, 6 }) do
-    inherit_hl(('CmpKitMarkdownAnnotateHeading%s'):format(i), { 'Title' }, { 'fg', 'bg'  }, {
+    inherit_hl(('CmpKitMarkdownAnnotateHeading%s'):format(i), { 'Title' }, { 'fg', 'bg' }, {
       default = true,
       blend = 30,
     })
