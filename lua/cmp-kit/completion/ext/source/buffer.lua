@@ -1,11 +1,9 @@
 local Async = require('cmp-kit.kit.Async')
 local Buffer = require('cmp-kit.core.Buffer')
-local TriggerContext = require('cmp-kit.core.TriggerContext')
 local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 
 ---@class cmp-kit.completion.ext.source.buffer.Option
 ---@field public keyword_pattern? string
----@field public required_keyword_length? integer
 ---@field public gather_keyword_length? integer
 ---@field public get_bufnrs? fun(): integer[]
 ---@field public label_details? cmp-kit.kit.LSP.CompletionItemLabelDetails
@@ -13,7 +11,6 @@ local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 return function(option)
   local keyword_pattern = option and option.keyword_pattern or DefaultConfig.default_keyword_pattern
   local gather_keyword_length = option and option.gather_keyword_length or 3
-  local required_keyword_length = option and option.required_keyword_length or 1
   local get_bufnrs = option and option.get_bufnrs or function()
     return vim.iter(vim.api.nvim_list_wins()):map(vim.api.nvim_win_get_buf):totable()
   end
@@ -25,7 +22,6 @@ return function(option)
     local uniq = {}
     local items = {}
     for _, buf in ipairs(bufs) do
-      is_indexing = is_indexing or Buffer.ensure(buf):is_indexing(keyword_pattern)
       local max = vim.api.nvim_buf_line_count(buf)
       for i = 0, max do
         for _, word in ipairs(Buffer.ensure(buf):get_words(keyword_pattern, i)) do
@@ -41,6 +37,7 @@ return function(option)
           end
         end
       end
+      is_indexing = is_indexing or Buffer.ensure(buf):is_indexing(keyword_pattern)
     end
     return {
       isIncomplete = is_indexing,
@@ -58,17 +55,6 @@ return function(option)
     end,
     complete = function(_, _, callback)
       Async.run(function()
-        local ctx = TriggerContext.create()
-
-        -- check required_keyword_length.
-        local keyword_offset = ctx:get_keyword_offset(keyword_pattern)
-        if not keyword_offset or (ctx.character + 1 - keyword_offset) < required_keyword_length then
-          return {
-            isIncomplete = false,
-            items = {},
-          }
-        end
-
         return get_items(get_bufnrs())
       end):dispatch(function(res)
         callback(nil, res)

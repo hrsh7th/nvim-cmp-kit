@@ -1,3 +1,4 @@
+local kit = require('cmp-kit.kit')
 local tailwindcss_fixture = require('cmp-kit.spec.fixtures.tailwindcss')
 
 -- luacheck: ignore 511
@@ -42,6 +43,11 @@ describe('cmp-kit.misc.spec.benchmark', function()
         is_incomplete = response.isIncomplete,
         items = response.items,
       })
+      service:set_config(kit.merge({
+        performance = {
+          fetching_timeout_ms = 0
+        }
+      }, service:get_config()))
       for i = 1, 3 do
         vim.cmd.enew()
         run(('isIncomplete=%s: %s'):format(isIncomplete, i), function()

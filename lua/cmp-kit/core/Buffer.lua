@@ -62,12 +62,12 @@ function Indexer.new(bufnr, regex)
     if is_current_win then
       self._s_idx = vim.fn.line('w0')
       self._e_idx = vim.fn.line('w$')
-      self:_index()
+      self:_run_index()
     end
   end
   self._s_idx = 1
   self._e_idx = vim.api.nvim_buf_line_count(bufnr) + 1
-  self:_index()
+  self:_run_index()
   return self
 end
 
@@ -126,22 +126,17 @@ function Indexer:_update(toprow, botrow, botrow_updated)
   self._s_idx = self._s_idx and math.min(self._s_idx, s) or s
   self._e_idx = self._e_idx and math.max(self._e_idx, e) or e
   if self._s_idx and self._e_idx then
-    self:_index()
-  end
-end
-
----Start indexing.
-function Indexer:_index()
-  self._timer:stop()
-  self._timer:start(0, 0, function()
     self:_run_index()
-  end)
+  end
 end
 
 ---Run indexing.
 ---NOTE: Extract anonymous functions because they impact LuaJIT performance.
 function Indexer:_run_index()
   if self._disposed then
+    return
+  end
+  if not self._s_idx or not self._e_idx then
     return
   end
 

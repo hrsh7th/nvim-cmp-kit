@@ -205,14 +205,6 @@ function CompletionProvider:complete(trigger_context, on_step)
     -- adopt response.
     local list = to_completion_list(raw_response)
 
-    -- clear if response is empty for no keyword completion.
-    -- it needed to re-completion for new keyword.
-    -- e.g.: `table.` is empty but `table.i` should be new completion.
-    if #list.items == 0 then
-      on_step('skip-completion')
-      return
-    end
-
     self:_adopt_response(trigger_context, list)
 
     on_step('adopt-response')

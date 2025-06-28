@@ -2,6 +2,7 @@
 local kit = require('cmp-kit.kit')
 local Async = require('cmp-kit.kit.Async')
 local ScheduledTimer = require('cmp-kit.kit.Async.ScheduledTimer')
+local Timing = require('cmp-kit.kit.Async.Timing')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
@@ -31,8 +32,7 @@ end
 
 ---@class cmp-kit.completion.CompletionService.Config.Performance
 ---@field public fetching_timeout_ms? integer
----@field public menu_show_throttle_ms? integer
----@field public menu_hide_debounce_ms? integer
+---@field public menu_update_throttle_ms? integer
 
 ---@class cmp-kit.completion.CompletionService.Config
 ---@field public expand_snippet? cmp-kit.completion.ExpandSnippet
@@ -60,11 +60,11 @@ end
 ---@field private _events table<string, function[]>
 ---@field private _config cmp-kit.completion.CompletionService.Config
 ---@field private _state cmp-kit.completion.CompletionService.State
----@field private _keys table<string, string>
 ---@field private _provider_configurations (cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer })[]
+---@field private _keys table<string, string>
 ---@field private _macro_completions cmp-kit.kit.Async.AsyncTask[]
----@field private _show_timer cmp-kit.kit.Async.ScheduledTimer
----@field private _hide_timer cmp-kit.kit.Async.ScheduledTimer
+---@field private _matching_throttled cmp-kit.kit.Async.Timing.TimingFunction
+---@field private _menu_hide_timer cmp-kit.kit.Async.ScheduledTimer
 local CompletionService = {}
 CompletionService.__index = CompletionService
 
@@ -92,11 +92,15 @@ function CompletionService.new(config)
     },
     _config = kit.merge(config or {}, DefaultConfig),
     _provider_configurations = {},
-    _macro_completions = {},
-    _show_timer = ScheduledTimer.new(),
-    _hide_timer = ScheduledTimer.new(),
     _keys = {},
-  } --[[@as cmp-kit.completion.CompletionService]], CompletionService)
+    _macro_completions = {},
+    _menu_hide_timer = ScheduledTimer.new(),
+  }, CompletionService)
+
+  -- create throttled matching function.
+  self._matching_throttled = Timing.throttle(function()
+    self:matching()
+  end, self._config.performance.menu_update_throttle_ms)
 
   -- support macro.
   do
@@ -117,15 +121,6 @@ function CompletionService.new(config)
       end
     end)
   end
-
-  self:_set_schedule_fn(function(callback)
-    vim.schedule(function()
-      vim.api.nvim_create_autocmd('SafeState', {
-        once = true,
-        callback = callback,
-      })
-    end)
-  end)
 
   -- support commitCharacters.
   vim.on_key(function(_, typed)
@@ -333,8 +328,7 @@ function CompletionService:clear()
     matches = kit.clear(self._state.matches),
   }
 
-  self._show_timer:stop()
-  self._hide_timer:stop()
+  self._menu_hide_timer:stop()
   local is_menu_visible = self._config.view:is_menu_visible()
   self._config.view:hide(self._state.matches, self._state.selection)
   if is_menu_visible then
@@ -422,35 +416,6 @@ do
     -- reset selection for new completion.
     self:_update_selection(0, true, trigger_context.text_before)
 
-    -- update if changed handler.
-    local update_if_changed = kit.debounce(function()
-      if self:_dispose_or_preventing() then
-        return
-      end
-      if self._config.is_macro_executing() then
-        return
-      end
-
-      -- check provider's state was changed.
-      local has_changed = false
-      for _, group in ipairs(self:_get_provider_groups()) do
-        for _, cfg in ipairs(group) do
-          if cfg.provider:capable(trigger_context) then
-            if self._state.provider_response_revision[cfg.provider] ~= cfg.provider:get_response_revision() then
-              self._state.provider_response_revision[cfg.provider] = cfg.provider:get_response_revision()
-              has_changed = true
-            end
-          end
-        end
-      end
-
-      -- view update forcely.
-      if has_changed then
-        self._state.matching_trigger_context = TriggerContext.create_empty_context()
-        self:matching()
-      end
-    end, 1)
-
     -- trigger.
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
     local invoked = false
@@ -463,7 +428,8 @@ do
             end
             if step == 'adopt-response' then
               if not self:_is_prior_provider_fetching(cfg.provider) then
-                update_if_changed()
+                self._state.matching_trigger_context = TriggerContext.create_empty_context()
+                self._matching_throttled()
               end
             end
           end))
@@ -471,23 +437,22 @@ do
       end
     end
 
-    -- reserve `fetching timeout` matching.
     if invoked then
-      table.insert(tasks, Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
-        self:matching()
-      end))
-    else
-      self:matching()
-    end
-
-    if not self._config.is_macro_executing() then
-      -- set new-completion position for macro.
-      if invoked then
+      if not self._config.is_macro_executing() then
+        -- set new-completion position for macro.
         if trigger_context.force then
           vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'int', true)
         else
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
+      end
+      -- reserve `fetching timeout` matching.
+      table.insert(tasks, Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
+        self._matching_throttled()
+      end))
+    else
+      if self:is_menu_visible() then
+        self._matching_throttled()
       end
     end
 
@@ -546,12 +511,14 @@ function CompletionService:matching()
     local cfgs_trigger_character = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
       if cfg.provider:capable(trigger_context) then
-        local is_fetching = true
-        is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms)
-        is_fetching = is_fetching and #cfg.provider:get_items() == 0
-        if not is_menu_visible and is_fetching then
-          is_completion_fetching = true
-          break
+        if not is_menu_visible and not trigger_context.force then
+          local is_fetching = true
+          is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms)
+          is_fetching = is_fetching and #cfg.provider:get_items() == 0
+          if is_fetching then
+            is_completion_fetching = true
+            break
+          end
         end
         if cfg.provider:in_trigger_character_completion() then
           table.insert(cfgs_trigger_character, cfg)
@@ -596,6 +563,8 @@ function CompletionService:matching()
       break
     end
   end
+
+  self._menu_hide_timer:stop()
 
   -- check this group should be accepted?
   if #self._state.matches > 0 then
@@ -652,41 +621,28 @@ function CompletionService:matching()
 
     -- completion found.
     if not self._config.is_macro_executing() then
-      self._show_timer:stop()
-      self._hide_timer:stop()
-      local elapsed_ms = (vim.uv.hrtime() / 1e6) - self._show_timer:start_time()
-      local timeout_ms = math.max(1, self._config.performance.menu_show_throttle_ms - elapsed_ms)
-      self._show_timer:start(timeout_ms, 0, function()
-        is_menu_visible = self._config.view:is_menu_visible()
-        self._config.view:show(self._state.matches, self._state.selection)
-        emit(self._events.on_menu_update, { service = self })
-        if not is_menu_visible then
-          emit(self._events.on_menu_show, { service = self })
-        end
-        -- re-emit selection.
-        if preselect_index then
-          self:_update_selection(preselect_index --[[@as integer]], true)
-        end
-      end)
+      self._config.view:show(self._state.matches, self._state.selection)
+      emit(self._events.on_menu_update, { service = self })
+      if not is_menu_visible then
+        emit(self._events.on_menu_show, { service = self })
+      end
+      -- re-emit selection.
+      if preselect_index then
+        self:_update_selection(preselect_index --[[@as integer]], true)
+      end
     end
   else
     if not self._config.is_macro_executing() then
-      self._show_timer:stop()
-      self._hide_timer:stop()
-      -- no completion found.
-
-      local menu_hide_debounce_ms = 1
-      for _, provider_group in ipairs(self:_get_provider_groups()) do
-        for _, cfg in ipairs(provider_group) do
+      local timeout_ms = 1
+      for _, group in ipairs(self:_get_provider_groups()) do
+        for _, cfg in ipairs(group) do
           if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
-            menu_hide_debounce_ms = self._config.performance.menu_hide_debounce_ms
-            break
+            timeout_ms = self._config.performance.fetching_timeout_ms
           end
         end
       end
-
-      self._hide_timer:start(menu_hide_debounce_ms, 0, function()
-        is_menu_visible = self._config.view:is_menu_visible()
+      self._menu_hide_timer:start(timeout_ms, 0, function()
+        is_menu_visible = self:is_menu_visible()
         self._config.view:hide(self._state.matches, self._state.selection)
         if is_menu_visible then
           emit(self._events.on_menu_hide, { service = self })
@@ -740,9 +696,6 @@ end
 ---Prevent completion.
 ---@return fun(): cmp-kit.kit.Async.AsyncTask
 function CompletionService:prevent()
-  self._show_timer:stop()
-  self._hide_timer:stop()
-
   self._preventing = self._preventing + 1
   self._state.complete_trigger_context = TriggerContext.create()
   self._state.matching_trigger_context = TriggerContext.create()
@@ -869,13 +822,6 @@ function CompletionService:_wait_for_stable(timeout)
   local tasks = self._macro_completions
   self._macro_completions = {}
   Async.all(tasks):sync(2 * 1000)
-end
-
----Set schedule fn for testing.
----@param schedule_fn fun(callback: fun())
-function CompletionService:_set_schedule_fn(schedule_fn)
-  self._show_timer:set_schedule_fn(schedule_fn)
-  self._hide_timer:set_schedule_fn(schedule_fn)
 end
 
 ---Check invalid state.

@@ -86,11 +86,8 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     end
   end
 
-  local trigger_character = text_before:match('(.)$')
-  local trigger_character_typed = nil
-  if trigger_character == state.last_typed_char then
-    trigger_character_typed = trigger_character
-  end
+  local trigger_character = text_before:match('^%s*$') and text_before:match('(.)$') or text_before:match('(.)%s*$')
+  local trigger_character_typed = trigger_character == state.last_typed_char and trigger_character
 
   -- NOTE: cmp-kit's specific implementation.
   -- In the vim ecosystem, there is a convention of using <Tab> to exit a closing brackets, and to support this, `before character' is used as the trigger character.
