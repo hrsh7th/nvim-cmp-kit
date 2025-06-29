@@ -330,7 +330,7 @@ function CompletionService:clear()
 
   self._menu_hide_timer:stop()
   local is_menu_visible = self._config.view:is_menu_visible()
-  self._config.view:hide(self._state.matches, self._state.selection)
+  self._config.view:hide()
   if is_menu_visible then
     emit(self._events.on_menu_hide, { service = self })
   end
@@ -346,6 +346,16 @@ end
 ---@return boolean
 function CompletionService:is_docs_visible()
   return self._config.view:is_docs_visible()
+end
+
+---Show documentation window.
+function CompletionService:show_docs()
+  self._config.view:show_docs()
+end
+
+---Hide documentation window.
+function CompletionService:hide_docs()
+  self._config.view:hide_docs()
 end
 
 ---Select completion.
@@ -451,9 +461,7 @@ do
         self._matching_throttled()
       end))
     else
-      if self:is_menu_visible() then
-        self._matching_throttled()
-      end
+      self._matching_throttled()
     end
 
     return Async.all(tasks)
@@ -621,7 +629,10 @@ function CompletionService:matching()
 
     -- completion found.
     if not self._config.is_macro_executing() then
-      self._config.view:show(self._state.matches, self._state.selection)
+      self._config.view:show({
+        matches = self._state.matches,
+        selection = self._state.selection
+      })
       emit(self._events.on_menu_update, { service = self })
       if not is_menu_visible then
         emit(self._events.on_menu_show, { service = self })
@@ -643,7 +654,7 @@ function CompletionService:matching()
       end
       self._menu_hide_timer:start(timeout_ms, 0, function()
         is_menu_visible = self:is_menu_visible()
-        self._config.view:hide(self._state.matches, self._state.selection)
+        self._config.view:hide()
         if is_menu_visible then
           emit(self._events.on_menu_hide, { service = self })
         end
@@ -787,7 +798,7 @@ function CompletionService:_update_selection(index, preselect, text_before)
   }
   if not self._config.is_macro_executing() then
     if self._config.view:is_menu_visible() then
-      self._config.view:select(self._state.matches, self._state.selection)
+      self._config.view:select({ selection = self._state.selection })
     end
   end
 end

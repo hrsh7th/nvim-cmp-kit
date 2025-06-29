@@ -25,6 +25,7 @@ local TriggerContext = require('cmp-kit.core.TriggerContext')
 ---@field get_extmarks fun(text: string, match: cmp-kit.completion.Match, config: cmp-kit.completion.ext.DefaultView.Config): cmp-kit.completion.ext.DefaultView.Extmark[]
 
 ---@class cmp-kit.completion.ext.DefaultView.Config
+---@field auto_docs boolean
 ---@field menu_components cmp-kit.completion.ext.DefaultView.MenuComponent[]
 ---@field menu_padding_left integer
 ---@field menu_padding_right integer
@@ -199,6 +200,7 @@ local border_padding_side = { '', '', '', ' ', '', '', '', ' ' }
 
 ---@type cmp-kit.completion.ext.DefaultView.Config
 local default_config = {
+  auto_docs = true,
   menu_components = {
     -- kind icon.
     {
@@ -360,6 +362,7 @@ local default_config = {
 
 ---@class cmp-kit.completion.ext.DefaultView: cmp-kit.completion.CompletionView
 ---@field private _ns integer
+---@field private _show_docs boolean
 ---@field private _config cmp-kit.completion.ext.DefaultView.Config
 ---@field private _service cmp-kit.completion.CompletionService
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
@@ -379,6 +382,7 @@ function DefaultView.new(config)
   local self = setmetatable({
     _ns = vim.api.nvim_create_namespace(('cmp-kit.completion.ext.DefaultView.%s'):format(vim.uv.now())),
     _config = config,
+    _show_docs = config.auto_docs,
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
     _matches = {},
@@ -403,6 +407,7 @@ function DefaultView.new(config)
     win:set_buf_option('tabstop', 1)
     win:set_buf_option('shiftwidth', 1)
     win:set_win_option('scrolloff', 0)
+    win:set_win_option('cursorline', false)
     win:set_win_option('conceallevel', 2)
     win:set_win_option('concealcursor', 'n')
     win:set_win_option('cursorlineopt', 'line')
@@ -443,11 +448,10 @@ function DefaultView:is_docs_visible()
 end
 
 ---Show completion menu.
----@param matches cmp-kit.completion.Match[]
----@param selection cmp-kit.completion.Selection
-function DefaultView:show(matches, selection)
+---@param params { matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection }
+function DefaultView:show(params)
   -- hide window if no matches.
-  self._matches = matches
+  self._matches = params.matches
   if #self._matches == 0 then
     self:hide()
     return
@@ -603,7 +607,7 @@ function DefaultView:show(matches, selection)
     self._menu_window:set_win_option('winhighlight', winhl_pum)
   end
   self._menu_window:set_win_option('winblend', vim.o.pumblend)
-  self._menu_window:set_win_option('cursorline', selection.index ~= 0)
+  self._menu_window:set_win_option('cursorline', params.selection.index ~= 0)
 
   local position = self._config.get_menu_position({
     offset = {
@@ -639,28 +643,45 @@ function DefaultView:hide()
   get_strwidth.clear_cache()
   self._menu_window:hide()
   self._docs_window:hide()
+  self._show_docs = self._config.auto_docs
+end
+
+---Show documentation if possible.
+function DefaultView:show_docs()
+  self._show_docs = true
+  local match = self:_get_selected_match()
+  if match then
+    self:_update_docs(match.item)
+  end
+end
+
+---Hide documentation if possible
+function DefaultView:hide_docs()
+  self._show_docs = false
+  self:_update_docs(nil)
 end
 
 ---Apply selection.
----@param matches cmp-kit.completion.Match[]
----@param selection cmp-kit.completion.Selection
-function DefaultView:select(matches, selection)
+---@param params { selection: cmp-kit.completion.Selection }
+function DefaultView:select(params)
   if not self._menu_window:is_visible() then
     return
   end
 
   -- apply selection.
-  if selection.index == 0 then
+  if params.selection.index == 0 then
     self._menu_window:set_win_option('cursorline', false)
     vim.api.nvim_win_set_cursor(self._menu_window:get_win() --[[@as integer]], { 1, 0 })
   else
     self._menu_window:set_win_option('cursorline', true)
-    vim.api.nvim_win_set_cursor(self._menu_window:get_win() --[[@as integer]], { selection.index, 0 })
+    vim.api.nvim_win_set_cursor(self._menu_window:get_win() --[[@as integer]], { params.selection.index, 0 })
   end
 
   -- show documentation.
-  local match = matches[selection.index]
-  self:_update_docs(match and match.item)
+  if self._show_docs then
+    local match = self:_get_selected_match()
+    self:_update_docs(match and match.item)
+  end
 end
 
 ---Dispose view.
@@ -670,10 +691,9 @@ function DefaultView:dispose()
 end
 
 ---Update documentation.
----@param item? cmp-kit.completion.CompletionItem
+---@param item cmp-kit.completion.CompletionItem?
 function DefaultView:_update_docs(item)
   self._selected_item = item
-
   self._resolving = self._resolving:next(function()
     return Async.run(function()
       if not item then
@@ -787,6 +807,20 @@ function DefaultView:scroll_docs(delta)
     return
   end
   self._docs_window:scroll(delta)
+end
+
+---Return selected item.
+---@return cmp-kit.completion.Match?
+function DefaultView:_get_selected_match()
+  if not self._menu_window:is_visible() then
+    return
+  end
+  local cursorline = self._menu_window:get_win_option('cursorline')
+  if not cursorline then
+    return
+  end
+  local index = vim.api.nvim_win_get_cursor(self._menu_window:get_win() --[[@as integer]])[1]
+  return self._matches[index]
 end
 
 return DefaultView

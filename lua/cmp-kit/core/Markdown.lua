@@ -104,7 +104,7 @@ local function resolve_special_highlights(text)
     local s_idx1, s_idx2 = text:find(highlight.s, 1, true)
     if s_idx1 and s_idx2 then
       text = text:sub(1, s_idx1 - 1) .. text:sub(s_idx2 + 1)
-      local e_idx1, e_idx2 = text:find(highlight.e, s_idx2 + 1, true)
+      local e_idx1, e_idx2 = text:find(highlight.e, s_idx1 + 1, true)
       if e_idx1 and e_idx2 then
         text = text:sub(1, e_idx1 - 1) .. text:sub(e_idx2 + 1)
         table.insert(extmarks, {

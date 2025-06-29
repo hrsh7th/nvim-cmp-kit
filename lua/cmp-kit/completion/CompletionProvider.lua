@@ -204,7 +204,6 @@ function CompletionProvider:complete(trigger_context, on_step)
 
     -- adopt response.
     local list = to_completion_list(raw_response)
-
     self:_adopt_response(trigger_context, list)
 
     on_step('adopt-response')
@@ -358,7 +357,7 @@ function CompletionProvider:clear()
     response_revision = self._state.response_revision,
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
-    matches_items = kit.clear(self._state.matches_items),
+    matches_items = kit.clear(self._state.matches_items)
   }
 end
 
@@ -440,10 +439,19 @@ function CompletionProvider:get_matches(trigger_context, config)
     return self._state.matches
   end
 
+  local target_items = self._state.items
+  if prev_before_text then
+    if #next_before_text > #prev_before_text and next_before_text:find(prev_before_text, 1, true) then
+      target_items = kit.concat({}, self._state.matches_items)
+    else
+      kit.clear(self._state.matches_items)
+    end
+  end
+
   -- filtering items.
   kit.clear(self._state.matches)
   kit.clear(self._state.matches_items)
-  for _, item in ipairs(self._state.items) do
+  for _, item in ipairs(target_items) do
     local query_text = trigger_context:get_query(item:get_offset())
     local filter_text = item:get_filter_text()
     local score, match_positions = config.matcher(query_text, filter_text)

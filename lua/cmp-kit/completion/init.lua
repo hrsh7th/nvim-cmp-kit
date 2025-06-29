@@ -35,10 +35,12 @@
 ---@field public text_before string
 
 ---@class cmp-kit.completion.CompletionView
----@field public show fun(self: cmp-kit.completion.CompletionView, matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection)
----@field public hide fun(self: cmp-kit.completion.CompletionView, matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection)
+---@field public show fun(self: cmp-kit.completion.CompletionView, params: { matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection })
+---@field public hide fun(self: cmp-kit.completion.CompletionView)
+---@field public show_docs fun(self: cmp-kit.completion.CompletionView)
+---@field public hide_docs fun(self: cmp-kit.completion.CompletionView)
+---@field public scroll_docs fun(self: cmp-kit.completion.CompletionView, delta: integer)
 ---@field public is_menu_visible fun(): boolean
 ---@field public is_docs_visible fun(): boolean
----@field public select fun(self: cmp-kit.completion.CompletionView, matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection)
----@field public scroll_docs fun(self: cmp-kit.completion.CompletionView, delta: integer)
+---@field public select fun(self: cmp-kit.completion.CompletionView, params: { selection: cmp-kit.completion.Selection })
 ---@field public dispose fun(self: cmp-kit.completion.CompletionView)
