@@ -125,30 +125,32 @@ function RPC:start()
         -- request.
         local request_callback = self._on_request_map[data.method]
         if request_callback then
-          Async.resolve():next(function()
-            return request_callback(data)
-          end):dispatch(function(res)
-            -- request success.
-            self._transport:send({
-              jsonrpc = '2.0',
-              id = data.id,
-              result = res,
-            })
-          end, function(err)
-            -- request failure.
-            self._transport:send({
-              jsonrpc = '2.0',
-              id = data.id,
-              error = {
-                code = -32603,
-                message = tostring(err),
-              },
-            })
-          end)
+          Async.resolve()
+            :next(function()
+              return request_callback(data)
+            end)
+            :dispatch(function(res)
+              -- request success.
+              self._transport:send({
+                jsonrpc = '2.0',
+                id = data.id,
+                result = res,
+              })
+            end, function(err)
+              -- request failure.
+              self._transport:send({
+                jsonrpc = '2.0',
+                id = data.id,
+                error = {
+                  code = -32603,
+                  message = tostring(err),
+                },
+              })
+            end)
         else
           -- request not found.
           self._transport:send({
-            jsonrpc = "2.0",
+            jsonrpc = '2.0',
             id = data.id,
             error = {
               code = -32601,

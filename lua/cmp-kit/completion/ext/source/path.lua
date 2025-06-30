@@ -28,9 +28,12 @@ local escape_chars = {
 ---@param before_text string
 ---@return string[], string
 local function parse_components(before_text)
-  local chars = vim.iter(vim.fn.str2list(before_text, true)):map(function(n)
-    return vim.fn.nr2char(n, true)
-  end):totable()
+  local chars = vim
+    .iter(vim.fn.str2list(before_text, true))
+    :map(function(n)
+      return vim.fn.nr2char(n, true)
+    end)
+    :totable()
 
   local path_parts = {}
   local name_chars = {}
@@ -183,9 +186,14 @@ return function(option)
       Async.run(function()
         if item.data.type == 'file' and option.enable_file_document then
           -- read file.
-          local contents = vim.split(IO.read_file(item.data.path):catch(function()
-            return ''
-          end):await(), '\n')
+          local contents = vim.split(
+            IO.read_file(item.data.path)
+              :catch(function()
+                return ''
+              end)
+              :await(),
+            '\n'
+          )
 
           -- resolve filetype
           local filetype = vim.filetype.match({
@@ -215,6 +223,6 @@ return function(option)
       end, function(err)
         callback(err, nil)
       end)
-    end
+    end,
   }
 end

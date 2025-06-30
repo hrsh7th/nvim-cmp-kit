@@ -26,7 +26,7 @@ return function(option)
         trigger_characters = kit.get(option.client, {
           'server_capabilities',
           'completionProvider',
-          'triggerCharacters'
+          'triggerCharacters',
         }, {}),
         keyword_pattern = option.keyword_pattern,
       }
@@ -84,11 +84,13 @@ return function(option)
             line = position_params.position.line,
             character = position_params.position.character,
           },
-          context = completion_context
+          context = completion_context,
         })
-        local response = request:catch(function()
-          return nil
-        end):await()
+        local response = request
+          :catch(function()
+            return nil
+          end)
+          :await()
         request = nil
         return response
       end):dispatch(function(res)
@@ -96,6 +98,6 @@ return function(option)
       end, function(err)
         callback(err, nil)
       end)
-    end
+    end,
   }
 end

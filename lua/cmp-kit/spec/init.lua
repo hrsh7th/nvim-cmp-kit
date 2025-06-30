@@ -1,4 +1,5 @@
 local LSP = require('cmp-kit.kit.LSP')
+local kit = require('cmp-kit.kit')
 local Async = require('cmp-kit.kit.Async')
 local assert = select(2, pcall(require, 'luassert')) or _G.assert
 local TriggerContext = require('cmp-kit.core.TriggerContext')
@@ -97,6 +98,11 @@ function spec.setup(option)
     group = 1,
   })
 
+  service:set_config(kit.merge({
+    performance = {
+      fetching_timeout_ms = 0
+    }
+  } --[[@as cmp-kit.completion.CompletionService.Config]], service:get_config()))
   service:complete({ force = true }):sync(5000)
 
   -- Insert filtering query after request.

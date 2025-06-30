@@ -25,46 +25,64 @@ describe('cmp-kit.completion.ext.source.path', function()
   describe('skip unexpected absolute path completion', function()
     it('any symbols', function()
       spec.setup({ buffer_text = { '#|' } })
-      assert.are_same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
     end)
 
     it('protocol scheme', function()
       spec.setup({ buffer_text = { 'https://|' } })
-      assert.are_same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
 
       spec.setup({ buffer_text = { 'file:///|' } })
-      assert.are_not.same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_not.same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
     end)
 
     it('html closing tag', function()
       spec.setup({ buffer_text = { '</|' } })
-      assert.are_same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
     end)
 
     it('math expression', function()
       spec.setup({ buffer_text = { '1 /|' } })
-      assert.are_same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
 
       spec.setup({ buffer_text = { '(1 + 2) /|' } })
-      assert.are_same(complete(source, {
-        triggerKind = LSP.CompletionTriggerKind.Invoked,
-        triggerCharacter = '/'
-      }), {})
+      assert.are_same(
+        complete(source, {
+          triggerKind = LSP.CompletionTriggerKind.Invoked,
+          triggerCharacter = '/',
+        }),
+        {}
+      )
     end)
 
     it('commentstring=// %s', function()
@@ -72,34 +90,46 @@ describe('cmp-kit.completion.ext.source.path', function()
       do
         spec.setup({ buffer_text = { '  /|' } })
         vim.o.commentstring = '// %s'
-        assert.are_same(complete(source, {
-          triggerKind = LSP.CompletionTriggerKind.Invoked,
-          triggerCharacter = '/'
-        }), {})
+        assert.are_same(
+          complete(source, {
+            triggerKind = LSP.CompletionTriggerKind.Invoked,
+            triggerCharacter = '/',
+          }),
+          {}
+        )
 
         spec.setup({ buffer_text = { '  //|' } })
         vim.o.commentstring = '// %s'
-        assert.are_same(complete(source, {
-          triggerKind = LSP.CompletionTriggerKind.Invoked,
-          triggerCharacter = '/'
-        }), {})
+        assert.are_same(
+          complete(source, {
+            triggerKind = LSP.CompletionTriggerKind.Invoked,
+            triggerCharacter = '/',
+          }),
+          {}
+        )
 
         spec.setup({ buffer_text = { '  */|' } })
         vim.o.commentstring = '// %s'
-        assert.are_same(complete(source, {
-          triggerKind = LSP.CompletionTriggerKind.Invoked,
-          triggerCharacter = '/'
-        }), {})
+        assert.are_same(
+          complete(source, {
+            triggerKind = LSP.CompletionTriggerKind.Invoked,
+            triggerCharacter = '/',
+          }),
+          {}
+        )
       end
 
       -- should complete.
       do
         spec.setup({ buffer_text = { '  // /|' } })
         vim.o.commentstring = '// %s'
-        assert.are_not.same(complete(source, {
-          triggerKind = LSP.CompletionTriggerKind.Invoked,
-          triggerCharacter = '/'
-        }), {})
+        assert.are_not.same(
+          complete(source, {
+            triggerKind = LSP.CompletionTriggerKind.Invoked,
+            triggerCharacter = '/',
+          }),
+          {}
+        )
       end
     end)
   end)

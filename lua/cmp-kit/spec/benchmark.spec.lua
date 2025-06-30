@@ -45,8 +45,8 @@ describe('cmp-kit.misc.spec.benchmark', function()
       })
       service:set_config(kit.merge({
         performance = {
-          fetching_timeout_ms = 0
-        }
+          fetching_timeout_ms = 0,
+        },
       }, service:get_config()))
       for i = 1, 3 do
         vim.cmd.enew()

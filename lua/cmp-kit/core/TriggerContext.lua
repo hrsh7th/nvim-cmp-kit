@@ -5,7 +5,7 @@ local Character = require('cmp-kit.core.Character')
 local state = {
   ns = vim.api.nvim_create_namespace('cmp-kit.core.TriggerContext'),
   last_typed_char = nil,
-  trigger_context = nil
+  trigger_context = nil,
 }
 
 do

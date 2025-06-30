@@ -17,24 +17,22 @@ describe('cmp-kit.completion', function()
       local state = {}
       local service = CompletionService.new({
         view = {
-          show = function(_, matches)
-            state.matches = matches
+          show = function(_, params)
+            state.matches = params.matches
           end,
-          hide = function()
-          end,
+          hide = function() end,
           is_menu_visible = function()
             return true
           end,
           is_docs_visible = function()
             return false
           end,
-          select = function()
-          end,
-          scroll_docs = function()
-          end,
-          dispose = function()
-          end,
-        }
+          show_docs = function() end,
+          hide_docs = function() end,
+          select = function() end,
+          scroll_docs = function() end,
+          dispose = function() end,
+        },
       })
       service:register_source(source)
       service:complete()
@@ -61,21 +59,19 @@ describe('cmp-kit.completion', function()
           show = function()
             state.show_count = (state.show_count or 0) + 1
           end,
-          hide = function()
-          end,
+          hide = function() end,
           is_menu_visible = function()
             return true
           end,
           is_docs_visible = function()
             return false
           end,
-          select = function()
-          end,
-          scroll_docs = function()
-          end,
-          dispose = function()
-          end,
-        }
+          show_docs = function() end,
+          hide_docs = function() end,
+          select = function() end,
+          scroll_docs = function() end,
+          dispose = function() end,
+        },
       })
       service:register_source(source)
       service:complete()

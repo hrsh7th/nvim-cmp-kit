@@ -145,21 +145,23 @@ function CompletionService.new(config)
             end
           end
 
-          self:commit(match.item, {
-            replace = false,
-          }):next(function()
-            -- NOTE: cmp-kit's specific implementation.
-            -- after commit character, send canceled key if possible.
-            local trigger_context = TriggerContext.create()
-            local select_text = match.item:get_select_text()
+          self
+            :commit(match.item, {
+              replace = false,
+            })
+            :next(function()
+              -- NOTE: cmp-kit's specific implementation.
+              -- after commit character, send canceled key if possible.
+              local trigger_context = TriggerContext.create()
+              local select_text = match.item:get_select_text()
 
-            local can_feedkeys = true
-            can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
-            can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #select_text) == select_text
-            if can_feedkeys then
-              vim.api.nvim_feedkeys(typed, 'i', true)
-            end
-          end)
+              local can_feedkeys = true
+              can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
+              can_feedkeys = can_feedkeys and trigger_context.text_before:sub(-#select_text) == select_text
+              if can_feedkeys then
+                vim.api.nvim_feedkeys(typed, 'i', true)
+              end
+            end)
           return ''
         end
       end
@@ -387,11 +389,7 @@ function CompletionService:select(index, preselect)
     if not preselect then
       local prev_match = self._state.matches[prev_index]
       local next_match = self._state.matches[next_index]
-      self:_insert_selection(
-        self._state.selection.text_before,
-        next_match and next_match.item,
-        prev_match and prev_match.item
-      ):await()
+      self:_insert_selection(self._state.selection.text_before, next_match and next_match.item, prev_match and prev_match.item):await()
     end
   end)
 end
@@ -432,17 +430,20 @@ do
     for _, group in ipairs(self:_get_provider_groups()) do
       for _, cfg in ipairs(group) do
         if cfg.provider:capable(trigger_context) then
-          table.insert(tasks, cfg.provider:complete(trigger_context, function(step)
-            if step == 'send-request' then
-              invoked = true
-            end
-            if step == 'adopt-response' then
-              if not self:_is_prior_provider_fetching(cfg.provider) then
-                self._state.matching_trigger_context = TriggerContext.create_empty_context()
-                self._matching_throttled()
+          table.insert(
+            tasks,
+            cfg.provider:complete(trigger_context, function(step)
+              if step == 'send-request' then
+                invoked = true
               end
-            end
-          end))
+              if step == 'adopt-response' then
+                if not self:_is_prior_provider_fetching(cfg.provider) then
+                  self._state.matching_trigger_context = TriggerContext.create_empty_context()
+                  self._matching_throttled()
+                end
+              end
+            end)
+          )
         end
       end
     end
@@ -457,9 +458,12 @@ do
         end
       end
       -- reserve `fetching timeout` matching.
-      table.insert(tasks, Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
-        self._matching_throttled()
-      end))
+      table.insert(
+        tasks,
+        Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
+          self._matching_throttled()
+        end)
+      )
     else
       self._matching_throttled()
     end
@@ -631,7 +635,7 @@ function CompletionService:matching()
     if not self._config.is_macro_executing() then
       self._config.view:show({
         matches = self._state.matches,
-        selection = self._state.selection
+        selection = self._state.selection,
       })
       emit(self._events.on_menu_update, { service = self })
       if not is_menu_visible then
@@ -678,30 +682,30 @@ function CompletionService:commit(item, option)
   end
 
   return item
-      :commit({
-        replace = option and option.replace,
-        expand_snippet = not option.no_snippet and self._config.expand_snippet or nil,
-      })
-      :next(self:prevent())
-      :next(function()
-        self:clear()
-        emit(self._events.on_commit, { service = self })
+    :commit({
+      replace = option and option.replace,
+      expand_snippet = not option.no_snippet and self._config.expand_snippet or nil,
+    })
+    :next(self:prevent())
+    :next(function()
+      self:clear()
+      emit(self._events.on_commit, { service = self })
 
-        -- re-trigger completion for trigger characters.
-        local trigger_context = TriggerContext.create()
-        if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
-          for _, provider_group in ipairs(self:_get_provider_groups()) do
-            for _, cfg in ipairs(provider_group) do
-              if cfg.provider:capable(trigger_context) then
-                if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
-                  self._state.complete_trigger_context = TriggerContext.create_empty_context()
-                  return self:complete()
-                end
+      -- re-trigger completion for trigger characters.
+      local trigger_context = TriggerContext.create()
+      if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
+        for _, provider_group in ipairs(self:_get_provider_groups()) do
+          for _, cfg in ipairs(provider_group) do
+            if cfg.provider:capable(trigger_context) then
+              if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
+                self._state.complete_trigger_context = TriggerContext.create_empty_context()
+                return self:complete()
               end
             end
           end
         end
-      end)
+      end
+    end)
 end
 
 ---Prevent completion.
@@ -716,7 +720,7 @@ function CompletionService:prevent()
         Async.new(function(resolve)
           vim.api.nvim_create_autocmd('SafeState', {
             once = true,
-            callback = resolve
+            callback = resolve,
           })
         end):await()
       end
@@ -794,7 +798,7 @@ function CompletionService:_update_selection(index, preselect, text_before)
   self._state.selection = {
     index = index,
     preselect = preselect,
-    text_before = text_before or self._state.selection.text_before
+    text_before = text_before or self._state.selection.text_before,
   }
   if not self._config.is_macro_executing() then
     if self._config.view:is_menu_visible() then
@@ -814,15 +818,7 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
   local next_offset = item_next and item_next:get_offset() - 1 or #text_before
   local to_remove_offset = math.min(prev_offset, next_offset, #text_before)
   local resume = self:prevent()
-  return LinePatch.apply_by_keys(
-    0,
-    trigger_context.character - to_remove_offset,
-    0,
-    ('%s%s'):format(
-      text_before:sub(prev_offset + 1, next_offset),
-      item_next and item_next:get_select_text() or ''
-    )
-  ):next(resume)
+  return LinePatch.apply_by_keys(0, trigger_context.character - to_remove_offset, 0, ('%s%s'):format(text_before:sub(prev_offset + 1, next_offset), item_next and item_next:get_select_text() or '')):next(resume)
 end
 
 ---Wait for stable state.

@@ -54,7 +54,7 @@ function Indexer.new(bufnr, regex)
     end,
     on_detach = function()
       self:dispose()
-    end
+    end,
   })
 
   do
@@ -235,7 +235,7 @@ local Buffer = {}
 Buffer.__index = Buffer
 
 local internal = {
-  bufs = {} --[[@as table<integer, cmp-kit.completion.Buffer>]]
+  bufs = {},--[[@as table<integer, cmp-kit.completion.Buffer>]]
 }
 
 ---Get or create buffer instance.
@@ -261,7 +261,7 @@ function Buffer.new(bufnr)
     pattern = ('<buffer=%s>'):format(bufnr),
     callback = function()
       self:dispose()
-    end
+    end,
   })
   return self
 end

@@ -4,4 +4,3 @@ local DefaultView = require('cmp-kit.signature_help.ext.DefaultView')
 return {
   view = DefaultView.new(),
 }
-

@@ -101,9 +101,7 @@ end
 function CompletionItem:get_offset()
   local cache_key = 'get_offset'
   if not self.cache[cache_key] then
-    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or (
-      self._trigger_context.character + 1
-    )
+    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or (self._trigger_context.character + 1)
     if not self:has_text_edit() then
       self.cache[cache_key] = keyword_offset
       local filter_text = self:get_filter_text()
@@ -130,11 +128,7 @@ function CompletionItem:get_offset()
       local insert_range = self:get_insert_range()
 
       -- We trim whitespace from `select_text` so we ignore whitespace changes from `textEdit`.
-      local trigger_context_cache_key = ('%s:%s:%s'):format(
-        'get_offset',
-        keyword_offset,
-        insert_range.start.character
-      )
+      local trigger_context_cache_key = ('%s:%s:%s'):format('get_offset', keyword_offset, insert_range.start.character)
       if not self._trigger_context.cache[trigger_context_cache_key] then
         local offset = insert_range.start.character + 1
         for i = offset, keyword_offset do
@@ -241,8 +235,7 @@ function CompletionItem:get_filter_text()
 
     -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
     -- Fix filter_text for non-VSCode compliant servers such as clangd.
-    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
-        self._trigger_context.character + 1
+    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or self._trigger_context.character + 1
     if self:has_text_edit() then
       local delta = keyword_offset - self:get_offset()
       if delta > 0 then
@@ -348,13 +341,13 @@ function CompletionItem:get_text_edit()
         if self._completion_list.itemDefaults.editRange.start then
           self.cache[cache_key] = {
             range = self._completion_list.itemDefaults.editRange,
-            newText = self._item.textEditText
+            newText = self._item.textEditText,
           }
         elseif self._completion_list.itemDefaults.editRange.insert then
           self.cache[cache_key] = {
             insert = self._completion_list.itemDefaults.editRange.insert,
             replace = self._completion_list.itemDefaults.editRange.replace,
-            newText = self._item.textEditText
+            newText = self._item.textEditText,
           }
         end
       end
@@ -408,8 +401,7 @@ function CompletionItem:get_documentation()
     if label_details.detail then
       local has_already = documentation.value:find(label_details.detail, 1, true)
       if not has_already then
-        local value = ('```%s\n%s\n```'):format(
-          vim.api.nvim_get_option_value('filetype', { buf = self._trigger_context.bufnr }), label_details.detail)
+        local value = ('```%s\n%s\n```'):format(vim.api.nvim_get_option_value('filetype', { buf = self._trigger_context.bufnr }), label_details.detail)
         if documentation.value ~= '' then
           value = ('%s\n%s'):format(value, documentation.value)
         end
@@ -421,9 +413,7 @@ function CompletionItem:get_documentation()
     if documentation.value == '' then
       documentation = nil
     else
-      documentation.value = documentation.value
-          :gsub('\r\n', '\n')
-          :gsub('\r', '\n')
+      documentation.value = documentation.value:gsub('\r\n', '\n'):gsub('\r', '\n')
     end
     self.cache[cache_key] = { output = documentation }
   end
@@ -433,41 +423,42 @@ end
 ---Resolve completion item (completionItem/resolve).
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionItem:resolve()
-  self._resolving = self._resolving or (function()
-    return self._provider:resolve(
-      kit.merge({
-        commitCharacters = self:get_commit_characters(),
-        textEdit = self:get_text_edit(),
-        insertTextFormat = self:get_insert_text_format(),
-        insertTextMode = self:get_insert_text_mode(),
-        data = self._item.data or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.data),
-      }, self._item)
-    ):dispatch(function(resolved_item)
-      if debugger.enable() then
-        debugger.add('cmp-kit.completion.CompletionItem:resolve.next', {
-          item = self._item,
-          resolved_item = resolved_item,
-          trigger_context = self._trigger_context,
-        })
-      end
-      if resolved_item then
-        self._item = kit.merge(resolved_item, self._item)
-        self.cache = {}
-      else
-        -- Clear resolving cache if null was returned from server.
-        self._resolving = nil
-      end
-    end, function(err)
-      if debugger.enable() then
-        debugger.add('cmp-kit.completion.CompletionItem:resolve.catch', {
-          item = self._item,
-          resolved_item = nil,
-          trigger_context = self._trigger_context,
-          err = err,
-        })
-      end
-    end)
-  end)()
+  self._resolving = self._resolving
+    or (function()
+      return self._provider
+        :resolve(kit.merge({
+          commitCharacters = self:get_commit_characters(),
+          textEdit = self:get_text_edit(),
+          insertTextFormat = self:get_insert_text_format(),
+          insertTextMode = self:get_insert_text_mode(),
+          data = self._item.data or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.data),
+        }, self._item))
+        :dispatch(function(resolved_item)
+          if debugger.enable() then
+            debugger.add('cmp-kit.completion.CompletionItem:resolve.next', {
+              item = self._item,
+              resolved_item = resolved_item,
+              trigger_context = self._trigger_context,
+            })
+          end
+          if resolved_item then
+            self._item = kit.merge(resolved_item, self._item)
+            self.cache = {}
+          else
+            -- Clear resolving cache if null was returned from server.
+            self._resolving = nil
+          end
+        end, function(err)
+          if debugger.enable() then
+            debugger.add('cmp-kit.completion.CompletionItem:resolve.catch', {
+              item = self._item,
+              resolved_item = nil,
+              trigger_context = self._trigger_context,
+              err = err,
+            })
+          end
+        end)
+    end)()
   return self._resolving
 end
 
@@ -535,18 +526,14 @@ function CompletionItem:commit(option)
     if self._item.additionalTextEdits then
       vim.lsp.util.apply_text_edits(
         vim
-        .iter(self._item.additionalTextEdits)
-        :map(function(text_edit)
-          return {
-            range = Range.to_buf(
-              self._trigger_context.bufnr,
-              text_edit.range,
-              self._provider:get_position_encoding_kind()
-            ),
-            newText = text_edit.newText,
-          }
-        end)
-        :totable(),
+          .iter(self._item.additionalTextEdits)
+          :map(function(text_edit)
+            return {
+              range = Range.to_buf(self._trigger_context.bufnr, text_edit.range, self._provider:get_position_encoding_kind()),
+              newText = text_edit.newText,
+            }
+          end)
+          :totable(),
         bufnr,
         LSP.PositionEncodingKind.UTF8
       )
@@ -589,18 +576,15 @@ function CompletionItem:commit(option)
             if not should_skip then
               vim.cmd.undojoin()
               vim.lsp.util.apply_text_edits(
-                vim.iter(self._item.additionalTextEdits)
-                :map(function(text_edit)
-                  return {
-                    range = Range.to_buf(
-                      self._trigger_context.bufnr,
-                      text_edit.range,
-                      self._provider:get_position_encoding_kind()
-                    ),
-                    newText = text_edit.newText,
-                  }
-                end)
-                :totable(),
+                vim
+                  .iter(self._item.additionalTextEdits)
+                  :map(function(text_edit)
+                    return {
+                      range = Range.to_buf(self._trigger_context.bufnr, text_edit.range, self._provider:get_position_encoding_kind()),
+                      newText = text_edit.newText,
+                    }
+                  end)
+                  :totable(),
                 bufnr,
                 LSP.PositionEncodingKind.UTF8
               )
@@ -660,7 +644,7 @@ function CompletionItem:get_insert_range()
           line = default_range.start.line,
           character = self:get_offset() - 1,
         },
-        ['end'] = default_range['end']
+        ['end'] = default_range['end'],
       }
     end
   end
@@ -701,36 +685,15 @@ function CompletionItem:_convert_range_encoding(range)
     return range
   end
 
-  local cache_key = ('%s:%s:%s:%s'):format(
-    'CompletionItem:_convert_range_encoding',
-    range.start.character,
-    range['end'].character,
-    from_encoding
-  )
+  local cache_key = ('%s:%s:%s:%s'):format('CompletionItem:_convert_range_encoding', range.start.character, range['end'].character, from_encoding)
   if not self._trigger_context.cache[cache_key] then
-    local start_cache_key = ('%s:%s:%s'):format(
-      'CompletionItem:_convert_range_encoding:start',
-      range.start.character,
-      from_encoding
-    )
+    local start_cache_key = ('%s:%s:%s'):format('CompletionItem:_convert_range_encoding:start', range.start.character, from_encoding)
     if not self._trigger_context.cache[start_cache_key] then
-      self._trigger_context.cache[start_cache_key] = Position.to_utf8(
-        self._trigger_context.text,
-        range.start,
-        from_encoding
-      )
+      self._trigger_context.cache[start_cache_key] = Position.to_utf8(self._trigger_context.text, range.start, from_encoding)
     end
-    local end_cache_key = ('%s:%s:%s'):format(
-      'CompletionItem:_convert_range_encoding:end',
-      range['end'].character,
-      from_encoding
-    )
+    local end_cache_key = ('%s:%s:%s'):format('CompletionItem:_convert_range_encoding:end', range['end'].character, from_encoding)
     if not self._trigger_context.cache[end_cache_key] then
-      self._trigger_context.cache[end_cache_key] = Position.to_utf8(
-        self._trigger_context.text,
-        range['end'],
-        from_encoding
-      )
+      self._trigger_context.cache[end_cache_key] = Position.to_utf8(self._trigger_context.text, range['end'], from_encoding)
     end
     self._trigger_context.cache[cache_key] = {
       start = self._trigger_context.cache[start_cache_key],

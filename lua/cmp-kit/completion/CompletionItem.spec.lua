@@ -169,33 +169,33 @@ describe('cmp-kit.completion', function()
             },
             items = { {
               additionalTextEdits = { {
-                newText = "",
+                newText = '',
                 range = {
-                  ["end"] = {
+                  ['end'] = {
                     character = 5,
-                    line = 2
+                    line = 2,
                   },
                   start = {
                     character = 2,
-                    line = 1
-                  }
-                }
+                    line = 1,
+                  },
+                },
               } },
-              filterText = "box",
-              label = "box",
+              filterText = 'box',
+              label = 'box',
               textEdit = {
                 newText = 'Box::new("")',
                 range = {
-                  ["end"] = {
+                  ['end'] = {
                     character = 5,
-                    line = 2
+                    line = 2,
                   },
                   start = {
                     character = 5,
-                    line = 2
-                  }
-                }
-              }
+                    line = 2,
+                  },
+                },
+              },
             } },
           })
           local trigger_context = TriggerContext.create()
@@ -225,19 +225,19 @@ describe('cmp-kit.completion', function()
             },
             items = {
               {
-                label = "cmp-kit.kit.LSP.CompletionItemLabelDetails",
+                label = 'cmp-kit.kit.LSP.CompletionItemLabelDetails',
                 textEdit = {
-                  newText = "cmp-kit.kit.LSP.CompletionItemLabelDetails",
-                  range = range(0, 12, 0, 21)
-                }
+                  newText = 'cmp-kit.kit.LSP.CompletionItemLabelDetails',
+                  range = range(0, 12, 0, 21),
+                },
               },
               {
-                label = "dansa.kit.LSP.CompletionItemLabelDetails",
+                label = 'dansa.kit.LSP.CompletionItemLabelDetails',
                 textEdit = {
-                  newText = "dansa.kit.LSP.CompletionItemLabelDetails",
-                  range = range(0, 12, 0, 21)
-                }
-              }
+                  newText = 'dansa.kit.LSP.CompletionItemLabelDetails',
+                  range = range(0, 12, 0, 21),
+                },
+              },
             },
           })
           local trigger_context = TriggerContext.create()
@@ -271,12 +271,12 @@ describe('cmp-kit.completion', function()
               insertText = '"repository": {$1},',
               insertTextFormat = 2,
               kind = 10,
-              label = "repository",
+              label = 'repository',
               textEdit = {
                 newText = '"repository": {$1},',
-                range = range(0, 0, 0, 3)
-              }
-            }
+                range = range(0, 0, 0, 3),
+              },
+            },
           },
         })
         local trigger_context = TriggerContext.create()
@@ -285,12 +285,14 @@ describe('cmp-kit.completion', function()
         assert.are.equal(trigger_context:get_query(match.item:get_offset()), '"repo')
         assert.are.equal(match.item:get_select_text(), '"repository')
         assert.are.equal(match.item:get_filter_text(), '"repository"')
-        match.item:commit({
-          replace = true,
-          expand_snippet = function(s)
-            return vim.snippet.expand(s)
-          end
-        }):await()
+        match.item
+          :commit({
+            replace = true,
+            expand_snippet = function(s)
+              return vim.snippet.expand(s)
+            end,
+          })
+          :await()
         spec.assert({
           '"repository": {|},',
         })
@@ -311,7 +313,7 @@ describe('cmp-kit.completion', function()
             {
               label = '\\date',
               insertText = '2024-12-25',
-            }
+            },
           },
         })
         local trigger_context = TriggerContext.create()

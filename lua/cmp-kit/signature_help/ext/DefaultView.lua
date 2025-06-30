@@ -1,6 +1,6 @@
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
-local FloatingWindow = require("cmp-kit.kit.Vim.FloatingWindow")
+local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Markdown = require('cmp-kit.core.Markdown')
 
@@ -8,9 +8,12 @@ local Markdown = require('cmp-kit.core.Markdown')
 ---@param map table<string, string>
 ---@return string
 local function winhighlight(map)
-  return vim.iter(pairs(map)):map(function(k, v)
-    return ('%s:%s'):format(k, v)
-  end):join(',')
+  return vim
+    .iter(pairs(map))
+    :map(function(k, v)
+      return ('%s:%s'):format(k, v)
+    end)
+    :join(',')
 end
 local winhl_bordered = winhighlight({
   CursorLine = 'Visual',
@@ -75,18 +78,26 @@ function DefaultView.new(config)
   self._window:set_win_option('foldenable', false)
   self._window:set_win_option('wrap', true)
 
-  self._window:set_win_option('winhighlight', winhighlight({
-    NormalFloat = 'PmenuSbar',
-    Normal = 'PmenuSbar',
-    EndOfBuffer = 'PmenuSbar',
-    Search = 'None',
-  }), 'scrollbar_track')
-  self._window:set_win_option('winhighlight', winhighlight({
-    NormalFloat = 'PmenuThumb',
-    Normal = 'PmenuThumb',
-    EndOfBuffer = 'PmenuThumb',
-    Search = 'None',
-  }), 'scrollbar_thumb')
+  self._window:set_win_option(
+    'winhighlight',
+    winhighlight({
+      NormalFloat = 'PmenuSbar',
+      Normal = 'PmenuSbar',
+      EndOfBuffer = 'PmenuSbar',
+      Search = 'None',
+    }),
+    'scrollbar_track'
+  )
+  self._window:set_win_option(
+    'winhighlight',
+    winhighlight({
+      NormalFloat = 'PmenuThumb',
+      Normal = 'PmenuThumb',
+      EndOfBuffer = 'PmenuThumb',
+      Search = 'None',
+    }),
+    'scrollbar_thumb'
+  )
 
   return self
 end
@@ -169,12 +180,16 @@ function DefaultView:show(data)
   end
 
   -- Update buffer contents.
-  Markdown.set(self._window:get_buf('main'), self._ns, vim.iter(contents):fold({}, function(acc, v)
-    for _, t in ipairs(vim.split(v.value, '\n')) do
-      table.insert(acc, t)
-    end
-    return acc
-  end))
+  Markdown.set(
+    self._window:get_buf('main'),
+    self._ns,
+    vim.iter(contents):fold({}, function(acc, v)
+      for _, t in ipairs(vim.split(v.value, '\n')) do
+        table.insert(acc, t)
+      end
+      return acc
+    end)
+  )
 
   -- Compute screen position.
   local trigger_context = TriggerContext.create()
@@ -210,7 +225,7 @@ function DefaultView:show(data)
   end
 
   -- update border config.
-  if (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') then
+  if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
     self._window:set_win_option('winhighlight', winhl_bordered)
   else
     self._window:set_win_option('winhighlight', winhl_pum)

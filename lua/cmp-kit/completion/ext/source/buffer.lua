@@ -30,7 +30,7 @@ return function(option)
             if #word >= gather_keyword_length then
               table.insert(items, {
                 label = word,
-                labelDetails = option and option.label_details
+                labelDetails = option and option.label_details,
               } --[[@as cmp-kit.kit.LSP.CompletionItem]])
             end
             Async.interrupt(8, 16)
@@ -61,6 +61,6 @@ return function(option)
       end, function(err)
         callback(err, nil)
       end)
-    end
+    end,
   }
 end

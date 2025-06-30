@@ -41,8 +41,8 @@ function debugger.add(name, entry)
     mark = {
       end_row = #lines - 1,
       end_col = #name,
-      hl_group = 'Special'
-    }
+      hl_group = 'Special',
+    },
   })
 
   -- insert inspected values.
@@ -74,7 +74,7 @@ function debugger.open()
   end
   private.win = vim.api.nvim_open_win(private.buf, true, {
     vertical = true,
-    split = 'right'
+    split = 'right',
   })
 end
 

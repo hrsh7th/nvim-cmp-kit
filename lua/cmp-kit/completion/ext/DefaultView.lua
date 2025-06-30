@@ -60,9 +60,12 @@ end
 ---@param map table<string, string>
 ---@return string
 local function winhighlight(map)
-  return vim.iter(pairs(map)):map(function(k, v)
-    return ('%s:%s'):format(k, v)
-  end):join(',')
+  return vim
+    .iter(pairs(map))
+    :map(function(k, v)
+      return ('%s:%s'):format(k, v)
+    end)
+    :join(',')
 end
 local winhl_bordered = winhighlight({
   CursorLine = 'Visual',
@@ -106,11 +109,7 @@ local ensure_color_code_highlight_group = setmetatable({
   __call = function(self, color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
     if #color_code == 3 then
-      color_code = ('%s%s%s'):format(
-        color_code:sub(1, 1):rep(2),
-        color_code:sub(2, 2):rep(2),
-        color_code:sub(3, 3):rep(2)
-      )
+      color_code = ('%s%s%s'):format(color_code:sub(1, 1):rep(2), color_code:sub(2, 2):rep(2), color_code:sub(3, 3):rep(2))
     end
 
     if not self.cache[color_code] then
@@ -191,7 +190,7 @@ do
         cache[text] = vim.api.nvim_strwidth(text)
       end
       return cache[text]
-    end
+    end,
   })
 end
 
@@ -266,7 +265,7 @@ local default_config = {
           })
         end
         return extmarks
-      end
+      end,
     },
     -- description.
     {
@@ -308,7 +307,7 @@ local default_config = {
         end
 
         return {}
-      end
+      end,
     },
     -- source_name.
     {
@@ -330,7 +329,7 @@ local default_config = {
           } }
         end
         return {}
-      end
+      end,
     },
   },
   menu_padding_left = 1,
@@ -386,17 +385,20 @@ function DefaultView.new(config)
     _menu_window = FloatingWindow.new(),
     _docs_window = FloatingWindow.new(),
     _matches = {},
-    _columns = vim.iter(config.menu_components):map(function(component)
-      return {
-        display_width = 0,
-        byte_width = 0,
-        padding_left = component.padding_left,
-        padding_right = component.padding_right,
-        align = component.align,
-        texts = {},
-        component = component,
-      }
-    end):totable(),
+    _columns = vim
+      .iter(config.menu_components)
+      :map(function(component)
+        return {
+          display_width = 0,
+          byte_width = 0,
+          padding_left = component.padding_left,
+          padding_right = component.padding_right,
+          align = component.align,
+          texts = {},
+          component = component,
+        }
+      end)
+      :totable(),
     _selected_item = nil,
     _resolving = Async.resolve(),
   }, DefaultView)
@@ -414,18 +416,26 @@ function DefaultView.new(config)
     win:set_win_option('foldenable', false)
     win:set_win_option('wrap', false)
 
-    win:set_win_option('winhighlight', winhighlight({
-      NormalFloat = 'PmenuSbar',
-      Normal = 'PmenuSbar',
-      EndOfBuffer = 'PmenuSbar',
-      Search = 'None',
-    }), 'scrollbar_track')
-    win:set_win_option('winhighlight', winhighlight({
-      NormalFloat = 'PmenuThumb',
-      Normal = 'PmenuThumb',
-      EndOfBuffer = 'PmenuThumb',
-      Search = 'None',
-    }), 'scrollbar_thumb')
+    win:set_win_option(
+      'winhighlight',
+      winhighlight({
+        NormalFloat = 'PmenuSbar',
+        Normal = 'PmenuSbar',
+        EndOfBuffer = 'PmenuSbar',
+        Search = 'None',
+      }),
+      'scrollbar_track'
+    )
+    win:set_win_option(
+      'winhighlight',
+      winhighlight({
+        NormalFloat = 'PmenuThumb',
+        Normal = 'PmenuThumb',
+        EndOfBuffer = 'PmenuThumb',
+        Search = 'None',
+      }),
+      'scrollbar_thumb'
+    )
   end
 
   -- docs window config.
@@ -601,7 +611,7 @@ function DefaultView:show(params)
     end
   end
 
-  if (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') then
+  if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
     self._menu_window:set_win_option('winhighlight', winhl_bordered)
   else
     self._menu_window:set_win_option('winhighlight', winhl_pum)
@@ -619,7 +629,7 @@ function DefaultView:show(params)
       anchor = anchor,
       row = row + row_off,
       col = pos.col - border_size.h - 1,
-    }
+    },
   })
 
   self._menu_window:show({
@@ -627,10 +637,7 @@ function DefaultView:show(params)
     row = position.row,
     col = position.col,
     width = max_content_width,
-    height = math.min(
-      outer_height - border_size.v,
-      (vim.o.pumheight ~= 0 and vim.o.pumheight) or outer_height - border_size.v
-    ),
+    height = math.min(outer_height - border_size.v, (vim.o.pumheight ~= 0 and vim.o.pumheight) or outer_height - border_size.v),
     style = 'minimal',
     border = vim.o.winborder,
   })
@@ -733,8 +740,7 @@ function DefaultView:_update_docs(item)
       local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
       local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
       local menu_viewport = self._menu_window:get_viewport()
-      local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and vim.o.winborder or
-          border_padding_side
+      local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and vim.o.winborder or border_padding_side
       local border_size = FloatingWindow.get_border_size(docs_border)
       local content_size = FloatingWindow.get_content_size({
         bufnr = self._docs_window:get_buf(),
@@ -778,7 +784,7 @@ function DefaultView:_update_docs(item)
         col = menu_viewport.col - restricted_size.outer_width
       end
 
-      if (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') then
+      if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
         self._docs_window:set_win_option('winhighlight', winhl_bordered)
       else
         self._docs_window:set_win_option('winhighlight', winhl_pum)

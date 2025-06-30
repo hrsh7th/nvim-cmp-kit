@@ -77,13 +77,13 @@ return function()
               filterText = candidate_text,
               sortText = '2',
             },
-          }
+          },
         }
       end):dispatch(function(res)
         callback(nil, res)
       end, function(err)
         callback(err, nil)
       end)
-    end
+    end,
   }
 end

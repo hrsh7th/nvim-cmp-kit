@@ -94,7 +94,7 @@ function CompletionProvider.new(source, config)
       matches = {},
       matches_items = {},
       matches_before_text = nil,
-    } --[[@as cmp-kit.completion.CompletionProvider.State]],
+    },--[[@as cmp-kit.completion.CompletionProvider.State]]
   }, CompletionProvider)
   return self
 end
@@ -169,9 +169,7 @@ function CompletionProvider:complete(trigger_context, on_step)
 
     -- update is_trigger_character_completion
     local is_trigger_char = false
-    is_trigger_char = is_trigger_char or (
-      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter
-    )
+    is_trigger_char = is_trigger_char or (completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter)
     is_trigger_char = is_trigger_char or (self:in_trigger_character_completion() and is_same_completion_offset)
     self._state.is_trigger_character_completion = is_trigger_char
 
@@ -232,12 +230,8 @@ function CompletionProvider:_adopt_response(trigger_context, list)
     local is_valid_range = true
     if completion_item:has_text_edit() then
       local range = completion_item:get_insert_range()
-      local is_valid_s = range.start.line < trigger_context.line or (
-        range.start.line == trigger_context.line and range.start.character <= trigger_context.character
-      )
-      local is_valid_e = trigger_context.line < range['end'].line or (
-        range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character
-      )
+      local is_valid_s = range.start.line < trigger_context.line or (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
+      local is_valid_e = trigger_context.line < range['end'].line or (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
       is_valid_range = is_valid_s and is_valid_e
     end
 
@@ -357,7 +351,7 @@ function CompletionProvider:clear()
     response_revision = self._state.response_revision,
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
-    matches_items = kit.clear(self._state.matches_items)
+    matches_items = kit.clear(self._state.matches_items),
   }
 end
 
@@ -380,15 +374,10 @@ function CompletionProvider:in_trigger_character_completion()
 
   local in_trigger_char_loose = false
   if self._state.trigger_context then
-    local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or (
-      self._state.trigger_context.character + 1
-    )
+    local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or (self._state.trigger_context.character + 1)
     local maybe_trigger_char = self._state.trigger_context.text_before:sub(keyword_offset - 1, keyword_offset - 1)
     if not Character.is_white(maybe_trigger_char:byte(1)) then
-      in_trigger_char_loose = vim.tbl_contains(
-        self:get_trigger_characters(),
-        maybe_trigger_char
-      )
+      in_trigger_char_loose = vim.tbl_contains(self:get_trigger_characters(), maybe_trigger_char)
     end
   end
 

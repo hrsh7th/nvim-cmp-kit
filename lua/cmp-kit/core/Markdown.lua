@@ -337,7 +337,7 @@ local function prepare_markdown_contents(raw_contents)
         col = 0,
         end_row = #contents - 1,
         end_col = 0,
-        virt_lines = { { { ('─'):rep(vim.o.columns) } } }
+        virt_lines = { { { ('─'):rep(vim.o.columns) } } },
       })
     elseif section.type == 'heading' then
       local heading_hl_group = ('CmpKitMarkdownAnnotateHeading%s'):format(section.level)
@@ -350,12 +350,12 @@ local function prepare_markdown_contents(raw_contents)
           {
             { ('#'):rep(section.level), heading_hl_group },
             { ' ' },
-            { section.title,            heading_hl_group },
+            { section.title, heading_hl_group },
           },
           {
-            { ('─'):rep(vim.o.columns) }
-          }
-        }
+            { ('─'):rep(vim.o.columns) },
+          },
+        },
       })
     end
   end
@@ -379,14 +379,12 @@ function Markdown.set(bufnr, ns_id, raw_contents)
     local ok, parser = pcall(vim.treesitter.languagetree.new, bufnr, language)
     if ok then
       ---@diagnostic disable-next-line: invisible
-      parser:set_included_regions(
-        vim
+      parser:set_included_regions(vim
         .iter(ranges)
         :map(function(range)
           return { range }
         end)
-        :totable()
-      )
+        :totable())
       parser:parse(true, function(err)
         if vim.b[bufnr].cmp_kit_markdown_revision ~= vim.b[bufnr].cmp_kit_markdown_revision then
           parser:destroy()

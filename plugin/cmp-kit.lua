@@ -103,3 +103,64 @@ vim.api.nvim_create_autocmd({ 'ColorScheme', 'UIEnter' }, {
   pattern = '*',
   callback = on_color_scheme,
 })
+
+-- Advertise nvi-cmp-kit's capabilities to LSP servers.
+vim.lsp.config('*', {
+  capabilities = {
+    textDocument = {
+      completion = {
+        dynamicRegistration = true,
+        completionItem = {
+          snippetSupport = true,
+          commitCharactersSupport = true,
+          deprecatedSupport = true,
+          preselectSupport = true,
+          tagSupport = {
+            valueSet = {
+              1, -- Deprecated
+            }
+          },
+          insertReplaceSupport = true,
+          resolveSupport = {
+            properties = {
+              "documentation",
+              "additionalTextEdits",
+              "insertTextFormat",
+              "insertTextMode",
+              "command",
+            },
+          },
+          insertTextModeSupport = {
+            valueSet = {
+              1, -- asIs
+              2, -- adjustIndentation
+            }
+          },
+          labelDetailsSupport = true,
+        },
+        contextSupport = true,
+        insertTextMode = 1,
+        completionList = {
+          itemDefaults = {
+            'commitCharacters',
+            'editRange',
+            'insertTextFormat',
+            'insertTextMode',
+            'data',
+          }
+        }
+      },
+      signatureHelp = {
+        dynamicRegistration = true,
+        signatureInformation = {
+          documentationFormat = { 'markdown', 'plaintext' },
+          parameterInformation = {
+            labelOffsetSupport = true,
+          },
+          activeParameterSupport = true,
+        },
+        contextSupport = true,
+      }
+    },
+  }
+})

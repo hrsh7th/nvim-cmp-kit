@@ -63,7 +63,7 @@ function Timing.throttle(callback, timeout_ms)
         callback(unpack(arguments))
         arguments = nil
       end
-    end
+    end,
   }, {
     __call = function(self, ...)
       arguments = { ... }

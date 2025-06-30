@@ -18,7 +18,7 @@ describe('cmp-kit.completion', function()
           end, function(err)
             callback(err, nil)
           end)
-        end
+        end,
       }
     end
 
@@ -27,16 +27,16 @@ describe('cmp-kit.completion', function()
 
       local service = CompletionService.new({
         performance = {
-          fetch_waiting_ms = 120
+          fetch_waiting_ms = 120,
         },
       })
       service:register_source(create_source('group1-slow-high', 80), {
         group = 1,
-        priority = 1000
+        priority = 1000,
       })
       service:register_source(create_source('group1-fast-low', 20), {
         group = 1,
-        priority = 1
+        priority = 1,
       })
       vim.keymap.set('i', '<Plug>(complete)', function()
         if vim.fn.reg_executing() ~= '' then
@@ -58,11 +58,7 @@ describe('cmp-kit.completion', function()
         service:clear()
       end, { buffer = 0 })
       vim.keymap.set('i', '<Plug>(show_state)', function()
-        vim.print(('reg_exec="%s", count="%s", line="%s"\n'):format(
-          vim.fn.reg_executing(),
-          #service:get_matches(),
-          vim.api.nvim_get_current_line()
-        ))
+        vim.print(('reg_exec="%s", count="%s", line="%s"\n'):format(vim.fn.reg_executing(), #service:get_matches(), vim.api.nvim_get_current_line()))
       end, { buffer = 0 })
 
       vim.api.nvim_feedkeys('qx', 'n', true)

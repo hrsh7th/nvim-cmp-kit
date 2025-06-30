@@ -21,12 +21,12 @@ return function(option)
       local trigger_characters = kit.get(option.client, {
         'server_capabilities',
         'signatureHelpProvider',
-        'triggerCharacters'
+        'triggerCharacters',
       }, {})
       local retrigger_characters = kit.get(option.client, {
         'server_capabilities',
         'signatureHelpProvider',
-        'retriggerCharacters'
+        'retriggerCharacters',
       }, {})
       return {
         position_encoding_kind = option.client.offset_encoding,
@@ -59,7 +59,7 @@ return function(option)
             line = position_params.position.line,
             character = position_params.position.character,
           },
-          context = signature_help_context
+          context = signature_help_context,
         })
         return request:catch(function()
           return nil

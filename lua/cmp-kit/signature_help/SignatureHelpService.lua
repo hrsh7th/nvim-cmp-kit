@@ -48,7 +48,7 @@ function SignatureHelpService.new(config)
     _state = {
       trigger_context = TriggerContext.create_empty_context(),
       active_provider = nil,
-    }
+    },
   }, SignatureHelpService)
 end
 
@@ -160,7 +160,7 @@ function SignatureHelpService:prevent()
       Async.new(function(resolve)
         vim.api.nvim_create_autocmd('SafeState', {
           once = true,
-          callback = resolve
+          callback = resolve,
         })
       end):await()
       self._state.trigger_context = TriggerContext.create()

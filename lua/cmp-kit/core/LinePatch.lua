@@ -20,10 +20,7 @@ do
     return table.concat({
       set_options,
       keys,
-      reset_options:format(
-        vim.bo.textwidth or 0,
-        vim.go.backspace or 2
-      )
+      reset_options:format(vim.bo.textwidth or 0, vim.go.backspace or 2),
     }, '')
   end
 end
@@ -125,7 +122,7 @@ function LinePatch.apply_by_keys(bufnr, before, after, insert_text)
   return Keymap.send(wrap_keys(table.concat({
     BS:rep(vim.fn.strchars(before_text, true)),
     DEL:rep(vim.fn.strchars(after_text, true)),
-    insert_text
+    insert_text,
   }, '')))
 end
 

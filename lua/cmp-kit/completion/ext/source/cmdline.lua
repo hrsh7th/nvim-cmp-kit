@@ -196,6 +196,6 @@ return function(option)
       end, function(err)
         callback(err, nil)
       end)
-    end
+    end,
   }
 end
