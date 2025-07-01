@@ -13,20 +13,20 @@ function cmp_kit.get_completion_capabilities()
           deprecatedSupport = true,
           preselectSupport = true,
           tagSupport = {
-            valueSet = { 1 }
+            valueSet = { 1 },
           },
           insertReplaceSupport = true,
           resolveSupport = {
             properties = {
-              "documentation",
-              "additionalTextEdits",
-              "insertTextFormat",
-              "insertTextMode",
-              "command",
+              'documentation',
+              'additionalTextEdits',
+              'insertTextFormat',
+              'insertTextMode',
+              'command',
             },
           },
           insertTextModeSupport = {
-            valueSet = { 1, 2 }
+            valueSet = { 1, 2 },
           },
           labelDetailsSupport = true,
         },
@@ -39,8 +39,8 @@ function cmp_kit.get_completion_capabilities()
             'insertTextFormat',
             'insertTextMode',
             'data',
-          }
-        }
+          },
+        },
       },
     },
   }
@@ -61,7 +61,7 @@ function cmp_kit.get_signature_help_capabilities()
           activeParameterSupport = true,
         },
         contextSupport = true,
-      }
+      },
     },
   }
 end

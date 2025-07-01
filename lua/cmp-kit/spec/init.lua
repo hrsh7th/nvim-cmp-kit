@@ -100,8 +100,8 @@ function spec.setup(option)
 
   service:set_config(kit.merge({
     performance = {
-      fetching_timeout_ms = 0
-    }
+      fetching_timeout_ms = 0,
+    },
   } --[[@as cmp-kit.completion.CompletionService.Config]], service:get_config()))
   service:complete({ force = true }):sync(5000)
 
