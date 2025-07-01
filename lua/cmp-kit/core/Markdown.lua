@@ -203,6 +203,10 @@ local function prepare_markdown_contents(raw_contents)
       if #section.contents == 0 then
         table.remove(sections, i)
       end
+    elseif section.type == 'heading' then
+      if sections[i + 1] and sections[i + 1].type == 'separator' then
+        table.remove(sections, i + 1)
+      end
     end
   end
 
@@ -350,10 +354,7 @@ local function prepare_markdown_contents(raw_contents)
           {
             { ('#'):rep(section.level), heading_hl_group },
             { ' ' },
-            { section.title, heading_hl_group },
-          },
-          {
-            { ('─'):rep(vim.o.columns) },
+            { section.title,            heading_hl_group },
           },
         },
       })

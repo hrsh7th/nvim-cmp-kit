@@ -147,7 +147,7 @@ return function(option)
           table.insert(query_parts, arg)
         end
         local query = table.concat(query_parts, ' ')
-        local completions = vim.fn.getcompletion(query, 'cmdline')
+        local completions = vim.fn.getcompletion(query, 'cmdline', false)
 
         -- get last argment for fixing lua expression completion.
         local offset = 0
