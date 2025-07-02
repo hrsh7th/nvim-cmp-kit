@@ -100,7 +100,9 @@ function CompletionService.new(config)
   -- create throttled matching function.
   self._matching_throttled = Timing.throttle(function()
     self:matching()
-  end, self._config.performance.menu_update_throttle_ms)
+  end, {
+    timeout_ms = self._config.performance.menu_update_throttle_ms
+  })
 
   -- support macro.
   do

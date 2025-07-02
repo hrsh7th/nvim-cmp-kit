@@ -11,7 +11,11 @@ function ScheduledTimer.new()
   return setmetatable({
     _timer = assert(vim.uv.new_timer()),
     _schedule_fn = function(callback)
-      vim.schedule(callback)
+      if vim.in_fast_event() then
+        vim.schedule(callback)
+      else
+        callback()
+      end
     end,
     _start_time = 0,
     _running = false,

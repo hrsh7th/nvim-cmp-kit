@@ -16,13 +16,13 @@ local Timing = {}
 
 ---Create debounced callback.
 ---@param callback fun()
----@param timeout_ms integer
+---@param option { timeout_ms: integer,  }
 ---@return cmp-kit.kit.Async.Timing.TimingFunction
-function Timing.debounce(callback, timeout_ms)
+function Timing.debounce(callback, option)
   local timer = ScheduledTimer.new()
   local arguments --[=[@as unknown[]?]=]
   return setmetatable({
-    timeout_ms = timeout_ms,
+    timeout_ms = option.timeout_ms,
     timer = timer,
     flush = function()
       if arguments then
@@ -48,14 +48,16 @@ end
 ---Create throttled callback.
 ---First call will be called immediately.
 ---@param callback fun()
----@param timeout_ms integer
+---@param option { timeout_ms: integer, leading: boolean? }
 ---@return cmp-kit.kit.Async.Timing.TimingFunction
-function Timing.throttle(callback, timeout_ms)
+function Timing.throttle(callback, option)
+  local leading = option.leading or false
+
   local timer = ScheduledTimer.new()
   local arguments --[=[@as unknown[]?]=]
   local last_ms = 0
   return setmetatable({
-    timeout_ms = timeout_ms,
+    timeout_ms = option.timeout_ms,
     timer = timer,
     flush = function()
       if arguments then
@@ -63,10 +65,14 @@ function Timing.throttle(callback, timeout_ms)
         callback(unpack(arguments))
         arguments = nil
       end
-    end,
+    end
   }, {
     __call = function(self, ...)
       arguments = { ... }
+
+      if not leading and not timer:is_running() then
+        last_ms = now_ms()
+      end
 
       local delay_ms = self.timeout_ms - (now_ms() - last_ms)
       timer:stop()
