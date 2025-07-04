@@ -88,8 +88,8 @@ return function(option)
     name = 'cmdline',
     get_configuration = function()
       return {
-        keyword_pattern = [=[[^[:blank:]]\+]=],
-        trigger_characters = { ' ' },
+        keyword_pattern = [==[[^[:blank:]=]\+]==],
+        trigger_characters = { ' ', '=', '.', ':' },
       }
     end,
     capable = function()
