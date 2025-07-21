@@ -6,7 +6,7 @@ local Position = require('cmp-kit.kit.LSP.Position')
 local debugger = require('cmp-kit.core.debugger')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local Character = require('cmp-kit.core.Character')
+local Character = require('cmp-kit.kit.App.Character')
 local SelectText = require('cmp-kit.completion.SelectText')
 local SnippetText = require('cmp-kit.completion.SnippetText')
 

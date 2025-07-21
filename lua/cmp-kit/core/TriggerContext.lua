@@ -1,5 +1,4 @@
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
-local Character = require('cmp-kit.core.Character')
 
 ---@type { ns: integer, last_typed_char: string?, trigger_context: cmp-kit.core.TriggerContext? }
 local state = {
@@ -8,18 +7,18 @@ local state = {
   trigger_context = nil,
 }
 
-do
-  vim.on_key(function(_, typed)
-    if not typed or #typed ~= 1 then
-      return
-    end
-    local b = typed:byte(1)
-    if not (32 <= b and b <= 126) then
-      return
-    end
-    state.last_typed_char = typed
-  end, state.ns)
-end
+vim.on_key(function(_, typed)
+  if not typed then
+    return
+  end
+  if select('#', typed:byte(1, -1)) ~= 1 then
+    return
+  end
+  state.last_typed_char = typed
+  if state.last_typed_char == '\r' then
+    state.last_typed_char = '\n'
+  end
+end, state.ns)
 
 ---The TriggerContext.
 ---@class cmp-kit.core.TriggerContext
@@ -33,7 +32,6 @@ end
 ---@field public time integer
 ---@field public force? boolean
 ---@field public trigger_character? string
----@field public trigger_character_typed? string
 ---@field public in_string boolean
 ---@field public in_comment boolean
 ---@field public cache table<string, any>
@@ -86,14 +84,17 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     end
   end
 
-  local trigger_character = text_before:match('^%s*$') and text_before:match('(.)$') or text_before:match('(.)%s*$')
-  local trigger_character_typed = trigger_character == state.last_typed_char and trigger_character
+  local trigger_character
+  if state.last_typed_char then
+    if state.last_typed_char == '\n' then
+      trigger_character = state.last_typed_char
+    elseif text_before:match('(.)$') == state.last_typed_char then
+      trigger_character = state.last_typed_char
+    end
+  end
 
-  -- NOTE: cmp-kit's specific implementation.
-  -- In the vim ecosystem, there is a convention of using <Tab> to exit a closing brackets, and to support this, `before character' is used as the trigger character.
-  -- However, whitespace chars is only used `if actually typed'.
-  if trigger_character and Character.is_white(trigger_character:byte(1)) then
-    trigger_character = trigger_character_typed
+  if not trigger_character and os.getenv('TEST') then
+    trigger_character = text_before:match('(.)$')
   end
 
   local self = setmetatable({
@@ -107,7 +108,6 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
     time = vim.uv.now(),
     force = not not (option and option.force),
     trigger_character = trigger_character,
-    trigger_character_typed = trigger_character_typed,
     in_string = in_string,
     in_comment = in_comment,
     cache = {},

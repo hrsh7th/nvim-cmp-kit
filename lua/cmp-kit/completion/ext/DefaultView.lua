@@ -252,8 +252,8 @@ local default_config = {
         })
         for _, position in ipairs(match.match_positions) do
           table.insert(extmarks, {
-            col = position.start_index - 1,
-            end_col = position.end_index,
+            col = position[1] - 1,
+            end_col = position[2] - 1,
             hl_group = position.hl_group or 'CmpKitCompletionItemMatch',
           })
         end

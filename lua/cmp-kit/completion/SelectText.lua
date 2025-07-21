@@ -1,4 +1,4 @@
-local Character = require('cmp-kit.core.Character')
+local Character = require('cmp-kit.kit.App.Character')
 
 local SelectText = {}
 

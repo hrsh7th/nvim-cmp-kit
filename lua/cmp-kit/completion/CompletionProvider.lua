@@ -4,7 +4,7 @@ local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
 local debugger = require('cmp-kit.core.debugger')
-local Character = require('cmp-kit.core.Character')
+local Character = require('cmp-kit.kit.App.Character')
 local CompletionItem = require('cmp-kit.completion.CompletionItem')
 local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 

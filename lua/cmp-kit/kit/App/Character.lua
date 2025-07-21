@@ -22,7 +22,7 @@ end)
 
 ---@type table<integer, string>
 Character.white = {}
-string.gsub(' \t\n', '.', function(char)
+string.gsub(' \t\n\r', '.', function(char)
   Character.white[string.byte(char)] = char
 end)
 
@@ -30,7 +30,7 @@ end)
 ---@param byte integer
 ---@return boolean
 function Character.is_alpha(byte)
-  return not not (Character.alpha[byte] ~= nil or (byte and Character.alpha[byte + 32] ~= nil))
+  return not not (Character.upper[byte] or Character.alpha[byte])
 end
 
 ---Return specified byte is digit or not.
@@ -72,16 +72,30 @@ end
 ---@param byte integer
 ---@return boolean
 function Character.is_symbol(byte)
-  return not Character.is_alnum(byte) and not Character.is_white(byte)
+  return not Character.is_wordlike(byte) and not Character.is_white(byte)
+end
+
+---Return specified byte is wordlike or not.
+---@param byte integer
+---@return boolean
+function Character.is_wordlike(byte)
+  return Character.is_alnum(byte) or Character.is_utf8_part(byte)
+end
+
+---Return specified byte is utf8 part or not.
+---@param byte integer
+---@return boolean
+function Character.is_utf8_part(byte)
+  return byte and byte >= 128
 end
 
 ---@param a integer
 ---@param b integer
-function Character.match_ignorecase(a, b)
+function Character.match_icase(a, b)
   if a == b then
     return true
-  elseif Character.is_alpha(a) and Character.is_alpha(b) then
-    return (a == b + 32) or (a == b - 32)
+  elseif math.abs(a - b) == 32 and Character.is_alpha(a) and Character.is_alpha(b) then
+    return true
   end
   return false
 end
@@ -94,16 +108,15 @@ function Character.is_semantic_index(text, index)
     return true
   end
 
-  local prev = string.byte(text, index - 1)
   local curr = string.byte(text, index)
-
-  if not Character.is_upper(prev) and Character.is_upper(curr) then
-    return true
-  end
+  local prev = string.byte(text, index - 1)
   if Character.is_symbol(curr) or Character.is_white(curr) then
     return true
   end
-  if not Character.is_alpha(prev) and Character.is_alpha(curr) then
+  if not Character.is_wordlike(prev) and Character.is_wordlike(curr) then
+    return true
+  end
+  if Character.is_lower(prev) and Character.is_upper(curr) then
     return true
   end
   if not Character.is_digit(prev) and Character.is_digit(curr) then

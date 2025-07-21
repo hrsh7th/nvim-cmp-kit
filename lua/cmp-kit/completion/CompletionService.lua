@@ -6,7 +6,7 @@ local Timing = require('cmp-kit.kit.Async.Timing')
 local Keymap = require('cmp-kit.kit.Vim.Keymap')
 local Buffer = require('cmp-kit.core.Buffer')
 local LinePatch = require('cmp-kit.core.LinePatch')
-local Character = require('cmp-kit.core.Character')
+local Character = require('cmp-kit.kit.App.Character')
 local DefaultConfig = require('cmp-kit.completion.ext.DefaultConfig')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local CompletionProvider = require('cmp-kit.completion.CompletionProvider')
@@ -98,11 +98,20 @@ function CompletionService.new(config)
   }, CompletionService)
 
   -- create throttled matching function.
-  self._matching_throttled = Timing.throttle(function()
-    self:matching()
-  end, {
-    timeout_ms = self._config.performance.menu_update_throttle_ms
-  })
+  do
+    local throttled = Timing.throttle(function()
+      self:matching()
+    end, {
+      timeout_ms = self._config.performance.menu_update_throttle_ms
+    })
+    self._matching_throttled = function()
+      if self._config.is_macro_executing() then
+        self:matching()
+      else
+        throttled()
+      end
+    end
+  end
 
   -- support macro.
   do
@@ -148,22 +157,22 @@ function CompletionService.new(config)
           end
 
           self
-            :commit(match.item, {
-              replace = false,
-            })
-            :next(function()
-              -- NOTE: cmp-kit's specific implementation.
-              -- after commit character, send canceled key if possible.
-              local trigger_context = TriggerContext.create()
-              local select_text = match.item:get_select_text()
+              :commit(match.item, {
+                replace = false,
+              })
+              :next(function()
+                -- NOTE: cmp-kit's specific implementation.
+                -- after commit character, send canceled key if possible.
+                local trigger_context = TriggerContext.create()
+                local select_text = match.item:get_select_text()
 
-              local can_feedkeys = true
-              can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
-              can_feedkeys = can_feedkeys and trigger_context.text_before:sub(-#select_text) == select_text
-              if can_feedkeys then
-                vim.api.nvim_feedkeys(typed, 'i', true)
-              end
-            end)
+                local can_feedkeys = true
+                can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
+                can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #select_text) == select_text
+                if can_feedkeys then
+                  vim.api.nvim_feedkeys(typed, 'i', true)
+                end
+              end)
           return ''
         end
       end
@@ -391,7 +400,11 @@ function CompletionService:select(index, preselect)
     if not preselect then
       local prev_match = self._state.matches[prev_index]
       local next_match = self._state.matches[next_index]
-      self:_insert_selection(self._state.selection.text_before, next_match and next_match.item, prev_match and prev_match.item):await()
+      self:_insert_selection(
+        self._state.selection.text_before,
+        next_match and next_match.item,
+        prev_match and prev_match.item
+      ):await()
     end
   end)
 end
@@ -451,15 +464,13 @@ do
     end
 
     if invoked then
-      if not self._config.is_macro_executing() then
-        -- set new-completion position for macro.
+      if self._config.is_macro_recording() then
         if trigger_context.force then
           vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'int', true)
         else
           vim.api.nvim_feedkeys(self._keys.macro_complete_auto_termcodes, 'int', true)
         end
       end
-      -- reserve `fetching timeout` matching.
       table.insert(
         tasks,
         Async.timeout(self._config.performance.fetching_timeout_ms):next(function()
@@ -684,30 +695,30 @@ function CompletionService:commit(item, option)
   end
 
   return item
-    :commit({
-      replace = option and option.replace,
-      expand_snippet = not option.no_snippet and self._config.expand_snippet or nil,
-    })
-    :next(self:prevent())
-    :next(function()
-      self:clear()
-      emit(self._events.on_commit, { service = self })
+      :commit({
+        replace = option and option.replace,
+        expand_snippet = not option.no_snippet and self._config.expand_snippet or nil,
+      })
+      :next(self:prevent())
+      :next(function()
+        self:clear()
+        emit(self._events.on_commit, { service = self })
 
-      -- re-trigger completion for trigger characters.
-      local trigger_context = TriggerContext.create()
-      if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
-        for _, provider_group in ipairs(self:_get_provider_groups()) do
-          for _, cfg in ipairs(provider_group) do
-            if cfg.provider:capable(trigger_context) then
-              if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
-                self._state.complete_trigger_context = TriggerContext.create_empty_context()
-                return self:complete()
+        -- re-trigger completion for trigger characters.
+        local trigger_context = TriggerContext.create()
+        if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
+          for _, provider_group in ipairs(self:_get_provider_groups()) do
+            for _, cfg in ipairs(provider_group) do
+              if cfg.provider:capable(trigger_context) then
+                if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
+                  self._state.complete_trigger_context = TriggerContext.create_empty_context()
+                  return self:complete()
+                end
               end
             end
           end
         end
-      end
-    end)
+      end)
 end
 
 ---Prevent completion.
@@ -820,7 +831,14 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
   local next_offset = item_next and item_next:get_offset() - 1 or #text_before
   local to_remove_offset = math.min(prev_offset, next_offset, #text_before)
   local resume = self:prevent()
-  return LinePatch.apply_by_keys(0, trigger_context.character - to_remove_offset, 0, ('%s%s'):format(text_before:sub(prev_offset + 1, next_offset), item_next and item_next:get_select_text() or '')):next(resume)
+  return LinePatch.apply_by_keys(
+    0,
+    trigger_context.character - to_remove_offset,
+    0,
+    ('%s%s'):format(
+      text_before:sub(prev_offset + 1, next_offset),
+      item_next and item_next:get_select_text() or ''
+    )):next(resume)
 end
 
 ---Wait for stable state.

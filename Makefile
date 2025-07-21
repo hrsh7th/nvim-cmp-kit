@@ -10,5 +10,5 @@ format:
 
 .PHONY: test
 test:
-	vusted --output=gtest --pattern=.spec ./lua
+	TEST=1 vusted --output=gtest --pattern=.spec ./lua
 

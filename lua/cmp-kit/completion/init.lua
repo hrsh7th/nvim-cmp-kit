@@ -1,4 +1,4 @@
----@alias cmp-kit.completion.MatchPosition { start_index: integer, end_index: integer, hl_group?: string }
+---@alias cmp-kit.completion.MatchPosition { [1]: integer, [2]: integer, hl_group?: string }
 
 ---@class cmp-kit.completion.Match
 ---@field provider cmp-kit.completion.CompletionProvider

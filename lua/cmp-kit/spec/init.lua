@@ -102,8 +102,9 @@ function spec.setup(option)
     performance = {
       fetching_timeout_ms = 0,
     },
-  } --[[@as cmp-kit.completion.CompletionService.Config]], service:get_config()))
+  } --[[@as cmp-kit.completion.CompletionService.Config|{}]], service:get_config()))
   service:complete({ force = true }):sync(5000)
+  service:matching()
 
   -- Insert filtering query after request.
   if option.input then

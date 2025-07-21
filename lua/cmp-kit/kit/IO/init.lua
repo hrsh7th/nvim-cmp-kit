@@ -518,13 +518,19 @@ function IO.dirname(path, level)
     return path
   end
 
-  for i = #path - 1, 1, -1 do
+  local i = #path - 1
+  while i > 0 do
     if path:byte(i) == bytes.slash then
       if level == 1 then
-        return path:sub(1, i - 1)
+        local p = path:sub(1, i - 1)
+        if p == '' then
+          return '/'
+        end
+        return p
       end
       level = level - 1
     end
+    i = i - 1
   end
   return path
 end
