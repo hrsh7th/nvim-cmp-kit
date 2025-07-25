@@ -86,7 +86,7 @@ local function compute(
   local function dfs(qi, si, prev_ti, part_score, part_chunks)
     -- match
     if qi > Q then
-      local score = part_score - S * part_chunks * score_adjuster
+      local score = part_score - part_chunks * score_adjuster
       if with_ranges then
         return score, {}
       end
@@ -123,9 +123,9 @@ local function compute(
           part_chunks + 1
         )
 
-        -- prefix bonus.
-        if ti == 1 then
-          inner_score = inner_score + (T * score_adjuster)
+        -- prefix unmatch penalty.
+        if qi == 1 and ti ~= 1 then
+          inner_score = inner_score - score_adjuster * T
         end
 
         -- gap length penalty.

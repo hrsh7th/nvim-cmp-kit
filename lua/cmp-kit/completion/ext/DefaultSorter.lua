@@ -4,7 +4,7 @@ local Bonus = {
   exact = 10 * DefaultMatcher.Config.score_adjuster,
   preselect = 8 * DefaultMatcher.Config.score_adjuster,
   locality = 4 * DefaultMatcher.Config.score_adjuster,
-  sort_text = 2 * DefaultMatcher.Config.score_adjuster,
+  sort_text = DefaultMatcher.Config.score_adjuster,
 }
 
 ---Compare two items.
