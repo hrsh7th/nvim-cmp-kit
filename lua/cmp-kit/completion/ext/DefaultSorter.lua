@@ -1,8 +1,10 @@
+local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
+
 local Bonus = {
-  exact = 1,
-  locality = 0.5,
-  preselect = 3,
-  score_text = 1,
+  exact = 10 * DefaultMatcher.Config.score_adjuster,
+  preselect = 8 * DefaultMatcher.Config.score_adjuster,
+  locality = 4 * DefaultMatcher.Config.score_adjuster,
+  sort_text = 2 * DefaultMatcher.Config.score_adjuster,
 }
 
 ---Compare two items.
@@ -32,16 +34,16 @@ local function compare(a, b, context)
   local sort_text_bonus_a = 0
   local sort_text_bonus_b = 0
   if sort_text_a and not sort_text_b then
-    sort_text_bonus_a = Bonus.score_text
+    sort_text_bonus_a = Bonus.sort_text
   end
   if not sort_text_a and sort_text_b then
-    sort_text_bonus_b = Bonus.score_text
+    sort_text_bonus_b = Bonus.sort_text
   end
   if sort_text_a and sort_text_b then
     if sort_text_a < sort_text_b then
-      sort_text_bonus_a = Bonus.score_text
+      sort_text_bonus_a = Bonus.sort_text
     elseif sort_text_a > sort_text_b then
-      sort_text_bonus_b = Bonus.score_text
+      sort_text_bonus_b = Bonus.sort_text
     end
   end
 
@@ -76,7 +78,7 @@ local DefaultSorter = {}
 ---@param matches cmp-kit.completion.Match[]
 ---@param context cmp-kit.completion.SorterContext
 ---@return cmp-kit.completion.Match[]
-function DefaultSorter.sorter(matches, context)
+function DefaultSorter.sort(matches, context)
   -- sort matches.
   table.sort(matches, function(a, b)
     return compare(a, b, context)

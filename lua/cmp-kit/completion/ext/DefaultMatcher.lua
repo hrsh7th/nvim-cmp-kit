@@ -2,9 +2,7 @@ local kit = require('cmp-kit.kit')
 local Character = require('cmp-kit.kit.App.Character')
 
 local Config = {
-  strict_bonus = 0.001,
   score_adjuster = 0.001,
-  chunk_penalty = 0.01,
 }
 
 local cache = {
@@ -16,13 +14,11 @@ local cache = {
 ---@type table|(fun(query: string): string, table<integer, boolean>)
 local parse_query = setmetatable({
   cache_query = nil,
-  cache_parsed = {
-    char_map = {},
-  }
+  cache_char_map = {},
 }, {
   __call = function(self, query)
     if self.cache_query == query then
-      return query, self.cache_parsed.char_map
+      return query, self.cache_char_map
     end
     self.cache_query = query
 
@@ -36,9 +32,9 @@ local parse_query = setmetatable({
         char_map[c - 32] = true
       end
     end
-    self.cache_parsed.char_map = char_map
+    self.cache_char_map = char_map
 
-    return query, self.cache_parsed.char_map
+    return query, self.cache_char_map
   end,
 })
 
@@ -77,32 +73,20 @@ local function compute(
   local run_id = kit.unique_id()
   local score_memo = cache.score_memo
   local match_icase = Character.match_icase
-  local is_upper = Character.is_upper
-  local is_wordlike = Character.is_wordlike
   local score_adjuster = Config.score_adjuster
-  local chunk_penalty = Config.chunk_penalty
 
   local function longest(qi, ti)
-    local p = 0
     local k = 0
-    while qi + k <= Q and ti + k <= T do
-      local q = query:byte(qi + k)
-      local t = text:byte(ti + k)
-      if not match_icase(q, t) then
-        break
-      end
-      if q ~= t then
-        p = p + score_adjuster
-      end
+    while qi + k <= Q and ti + k <= T and match_icase(query:byte(qi + k), text:byte(ti + k)) do
       k = k + 1
     end
-    return k, -p
+    return k
   end
 
   local function dfs(qi, si, prev_ti, part_score, part_chunks)
     -- match
     if qi > Q then
-      local score = part_score - part_chunks * chunk_penalty
+      local score = part_score - S * part_chunks * score_adjuster
       if with_ranges then
         return score, {}
       end
@@ -128,7 +112,7 @@ local function compute(
     while si <= S do
       local ti = semantic_indexes[si]
 
-      local M, icase_penalty = longest(qi, ti)
+      local M = longest(qi, ti)
       local mi = 1
       while mi <= M do
         local inner_score, inner_ranges = dfs(
@@ -138,12 +122,18 @@ local function compute(
           part_score + mi,
           part_chunks + 1
         )
+
+        -- prefix bonus.
+        if ti == 1 then
+          inner_score = inner_score + (T * score_adjuster)
+        end
+
+        -- gap length penalty.
+        if ti - prev_ti > 0 then
+          inner_score = inner_score - (score_adjuster * math.max(0, (ti - prev_ti)))
+        end
+
         if inner_score > best_score then
-          if is_upper(text:byte(ti)) and is_wordlike(text:byte(ti - 1)) then
-            inner_score = inner_score - score_adjuster
-          end
-          inner_score = inner_score - (ti - prev_ti) / T * score_adjuster
-          inner_score = inner_score + icase_penalty
           best_score = inner_score
           best_range_s = ti
           best_range_e = ti + mi
@@ -164,27 +154,47 @@ local function compute(
 
     return best_score, best_ranges
   end
-  return dfs(1, 1, 1, 0, -1)
+  return dfs(1, 1, math.huge, 0, -1)
 end
 
 local DefaultMatcher = {}
 
+DefaultMatcher.Config = Config
+
 ---Match query against text and return a score.
 ---@param input string
 ---@param text string
----@return integer, cmp-kit.completion.MatchPosition[]
-function DefaultMatcher.matcher(input, text)
+---@return integer
+function DefaultMatcher.match(input, text)
   if input == '' then
-    return 1, {}
+    return 1
   end
 
-  local query, char_map  = parse_query(input)
+  local query, char_map = parse_query(input)
   local semantic_indexes = parse_semantic_indexes(text, char_map)
-  local score, ranges    = compute(query, text, semantic_indexes, true)
-  if score <= 0 or not ranges then
-    return 0, {}
+  local score = compute(query, text, semantic_indexes, false)
+  if score <= 0 then
+    return 0
   end
-  return score, ranges
+  return score
+end
+
+---Match query against text and return a score.
+---@param input string
+---@param text string
+---@return { [1]: integer, [2]: integer }[]
+function DefaultMatcher.decor(input, text)
+  if input == '' then
+    return {}
+  end
+
+  local query, char_map = parse_query(input)
+  local semantic_indexes = parse_semantic_indexes(text, char_map)
+  local score, ranges = compute(query, text, semantic_indexes, true)
+  if score <= 0 then
+    return {}
+  end
+  return ranges or {}
 end
 
 return DefaultMatcher

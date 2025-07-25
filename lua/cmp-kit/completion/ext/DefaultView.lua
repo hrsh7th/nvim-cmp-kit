@@ -4,6 +4,7 @@ local Async = require('cmp-kit.kit.Async')
 local FloatingWindow = require('cmp-kit.kit.Vim.FloatingWindow')
 local Markdown = require('cmp-kit.core.Markdown')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
+local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
 
 ---@class cmp-kit.completion.ext.DefaultView.WindowPosition
 ---@field public row integer
@@ -61,11 +62,11 @@ end
 ---@return string
 local function winhighlight(map)
   return vim
-    .iter(pairs(map))
-    :map(function(k, v)
-      return ('%s:%s'):format(k, v)
-    end)
-    :join(',')
+      .iter(pairs(map))
+      :map(function(k, v)
+        return ('%s:%s'):format(k, v)
+      end)
+      :join(',')
 end
 local winhl_bordered = winhighlight({
   CursorLine = 'Visual',
@@ -250,11 +251,13 @@ local default_config = {
           end_col = #text,
           hl_group = 'CmpKitCompletionItemLabel',
         })
-        for _, position in ipairs(match.match_positions) do
+        for _, position in ipairs(
+          DefaultMatcher.decor(match.trigger_context:get_query(match.item:get_offset()), text)
+        ) do
           table.insert(extmarks, {
             col = position[1] - 1,
             end_col = position[2] - 1,
-            hl_group = position.hl_group or 'CmpKitCompletionItemMatch',
+            hl_group = 'CmpKitCompletionItemMatch',
           })
         end
         if match.item:get_tags()[LSP.CompletionItemTag.Deprecated] then
@@ -386,19 +389,19 @@ function DefaultView.new(config)
     _docs_window = FloatingWindow.new(),
     _matches = {},
     _columns = vim
-      .iter(config.menu_components)
-      :map(function(component)
-        return {
-          display_width = 0,
-          byte_width = 0,
-          padding_left = component.padding_left,
-          padding_right = component.padding_right,
-          align = component.align,
-          texts = {},
-          component = component,
-        }
-      end)
-      :totable(),
+        .iter(config.menu_components)
+        :map(function(component)
+          return {
+            display_width = 0,
+            byte_width = 0,
+            padding_left = component.padding_left,
+            padding_right = component.padding_right,
+            align = component.align,
+            texts = {},
+            component = component,
+          }
+        end)
+        :totable(),
     _selected_item = nil,
     _resolving = Async.resolve(),
   }, DefaultView)

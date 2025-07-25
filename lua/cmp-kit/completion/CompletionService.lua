@@ -605,7 +605,7 @@ function CompletionService:matching()
         end
       end
     end
-    local sorted_matches = self._config.sorter(self._state.matches, {
+    local sorted_matches = self._config.sorter.sort(self._state.matches, {
       locality_map = locality_map,
       trigger_context = trigger_context,
     })

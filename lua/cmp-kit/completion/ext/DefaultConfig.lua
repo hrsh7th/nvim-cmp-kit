@@ -5,8 +5,8 @@ local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
 ---@type cmp-kit.completion.CompletionService.Config
 return {
   view = DefaultView.new(),
-  sorter = DefaultSorter.sorter,
-  matcher = DefaultMatcher.matcher,
+  sorter = DefaultSorter,
+  matcher = DefaultMatcher,
   is_macro_executing = function()
     return vim.fn.reg_executing() ~= ''
   end,

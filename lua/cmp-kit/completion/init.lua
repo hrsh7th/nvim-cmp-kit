@@ -1,15 +1,16 @@
----@alias cmp-kit.completion.MatchPosition { [1]: integer, [2]: integer, hl_group?: string }
-
 ---@class cmp-kit.completion.Match
+---@field trigger_context cmp-kit.core.TriggerContext
 ---@field provider cmp-kit.completion.CompletionProvider
 ---@field item cmp-kit.completion.CompletionItem
 ---@field score integer
 ---@field index integer
----@field match_positions cmp-kit.completion.MatchPosition[]
 
----@alias cmp-kit.completion.Matcher fun(query: string, input: string): integer, cmp-kit.completion.MatchPosition[]
+---@class cmp-kit.completion.Matcher
+---@field match fun(input: string, text: string): integer
+---@field decor fun(input: string, text: string): { [1]: integer, [2]: integer }[]
 
----@alias cmp-kit.completion.Sorter fun(matches: cmp-kit.completion.Match[], context: cmp-kit.completion.SorterContext): cmp-kit.completion.Match[]
+---@class cmp-kit.completion.Sorter
+---@field sort fun(matches: cmp-kit.completion.Match[], context: cmp-kit.completion.SorterContext): cmp-kit.completion.Match[]
 
 ---@class cmp-kit.completion.SorterContext
 ---@field public locality_map table<string, integer>

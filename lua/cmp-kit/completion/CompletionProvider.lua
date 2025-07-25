@@ -94,7 +94,7 @@ function CompletionProvider.new(source, config)
       matches = {},
       matches_items = {},
       matches_before_text = nil,
-    },--[[@as cmp-kit.completion.CompletionProvider.State]]
+    }, --[[@as cmp-kit.completion.CompletionProvider.State]]
   }, CompletionProvider)
   return self
 end
@@ -443,20 +443,15 @@ function CompletionProvider:get_matches(trigger_context, config)
   for _, item in ipairs(target_items) do
     local query_text = trigger_context:get_query(item:get_offset())
     local filter_text = item:get_filter_text()
-    local score, match_positions = config.matcher(query_text, filter_text)
+    local score = config.matcher.match(query_text, filter_text)
     if score > 0 then
-      local label_text = item:get_label_text()
-      if label_text ~= filter_text then
-        query_text = trigger_context:get_query(self._state.completion_offset)
-        _, match_positions = config.matcher(query_text, label_text)
-      end
       self._state.matches_items[#self._state.matches_items + 1] = item
       self._state.matches[#self._state.matches + 1] = {
+        trigger_context = trigger_context,
         provider = self,
         item = item,
         score = score,
         index = 0, -- assign later.
-        match_positions = match_positions,
       }
     end
   end
