@@ -464,7 +464,7 @@ do
     end
 
     if invoked then
-      if self._config.is_macro_recording() then
+      if not self._config.is_macro_executing() then
         if trigger_context.force then
           vim.api.nvim_feedkeys(self._keys.macro_complete_force_termcodes, 'int', true)
         else
