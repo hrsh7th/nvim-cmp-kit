@@ -73,13 +73,29 @@ local function is_visible(win)
   return true
 end
 
+---Normalize border across vim.o.winborder and nvim_open_win.
+---@param border nil | string | string[]
+---@return string | string[]
+local function normalize_winborder(border)
+  if not border or border == '' then
+    return 'none'
+  end
+  if type(border) == 'string' then
+    if border:find(',') then
+      return vim.split(border, ',', { plain = true })
+    end
+    return border
+  end
+  return border
+end
+
 ---Show the window
 ---@param win? integer
 ---@param buf integer
 ---@param win_config cmp-kit.kit.Vim.FloatingWindow.WindowConfig
 ---@return integer
 local function show_or_move(win, buf, win_config)
-  win_config.border = win_config.border or (vim.o.winborder --[[@as string]])
+  win_config.border = normalize_winborder(win_config.border or (vim.o.winborder --[[@as string]]))
 
   local border_size = FloatingWindow.get_border_size(win_config.border)
   if win_config.anchor == 'NE' then
@@ -141,7 +157,7 @@ end
 ---@param border nil | string | string[]
 ---@return cmp-kit.kit.Vim.FloatingWindow.BorderSize
 function FloatingWindow.get_border_size(border)
-  border = border or (vim.o.winborder --[[@as string]])
+  border = normalize_winborder(border or (vim.o.winborder --[[@as string]]))
 
   local maybe_border_size = (function()
     if not border or border == '' then
@@ -267,7 +283,7 @@ function FloatingWindow.new()
     }),
     _config = {
       markdown = false,
-      border = #vim.o.winborder > 0 and vim.o.winborder or 'none',
+      border = normalize_winborder(vim.o.winborder),
     },
     _win_option = {},
     _buf_option = {},

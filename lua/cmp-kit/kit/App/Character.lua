@@ -22,7 +22,7 @@ end)
 
 ---@type table<integer, string>
 Character.white = {}
-string.gsub(' \t\n\r', '.', function(char)
+string.gsub(' \t\n', '.', function(char)
   Character.white[string.byte(char)] = char
 end)
 
