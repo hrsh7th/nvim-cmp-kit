@@ -12,3 +12,7 @@ format:
 test:
 	TEST=1 vusted --output=gtest --pattern=.spec ./lua
 
+.PHONY: update-emoji
+update-emoji:
+	nvim -l ./scripts/update-emoji.lua
+
