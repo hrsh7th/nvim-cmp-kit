@@ -1,5 +1,6 @@
 local IO = require('cmp-kit.kit.IO')
 local Async = require('cmp-kit.kit.Async')
+local TriggerContext = require('cmp-kit.core.TriggerContext')
 
 local cache = {}
 
@@ -23,10 +24,15 @@ return function()
     name = 'emoji',
     get_configuration = function()
       return {
-        keyword_pattern = [=[\%(^\|[^[:alnum:]]\)\zs:\w\+]=],
+        trigger_characters = { ':' },
+        keyword_pattern = [=[\%(^\|[^[:alnum:]]\)\zs:\w\w*]=],
       }
     end,
     complete = function(_, _, callback)
+      local trigger_context = TriggerContext.create()
+      if not vim.regex([=[\%(^\|[^[:alnum:]]\)\zs:\w*$]=]):match_str(trigger_context.text_before) then
+        return callback(nil, nil)
+      end
       Async.run(function()
         callback(nil, {
           isIncomplete = false,

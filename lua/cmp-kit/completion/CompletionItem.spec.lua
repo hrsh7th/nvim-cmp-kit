@@ -55,7 +55,7 @@ describe('cmp-kit.completion', function()
             buffer_text = { '[].|foo' },
             items = { {
               label = 'Symbol',
-              filterText = '.Symbol',
+              filterText = '.[Symbol]',
               textEdit = {
                 newText = '[Symbol]',
                 range = range(0, 2, 0, 3),
@@ -66,8 +66,8 @@ describe('cmp-kit.completion', function()
           local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'[]' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), '.S')
-          assert.are.equal(match.item:get_filter_text(), '.Symbol')
-          assert.are.equal(match.item:get_select_text(), '[Symbol]')
+          assert.are.equal(match.item:get_filter_text(), '.[Symbol]')
+          assert.are.equal(match.item:get_select_text(), '.[Symbol]')
           match.item:commit({ replace = true }):await()
           spec.assert({ '[][Symbol]|' })
           Keymap.send(Keymap.termcodes('<Esc>')):await()
@@ -144,7 +144,7 @@ describe('cmp-kit.completion', function()
           local match = service:get_matches()[1]
           assert.are.equal(match.item:get_offset(), #'    .' + 1)
           assert.are.equal(trigger_context:get_query(match.item:get_offset()), 'd')
-          assert.are.equal(match.item:get_select_text(), 'dbg!')
+          assert.are.equal(match.item:get_select_text(), 'dbg')
           assert.are.equal(match.item:get_filter_text(), 'dbg')
           match.item:commit({ replace = true }):await()
           spec.assert({
@@ -286,13 +286,13 @@ describe('cmp-kit.completion', function()
         assert.are.equal(match.item:get_select_text(), '"repository')
         assert.are.equal(match.item:get_filter_text(), '"repository"')
         match.item
-          :commit({
-            replace = true,
-            expand_snippet = function(s)
-              return vim.snippet.expand(s)
-            end,
-          })
-          :await()
+            :commit({
+              replace = true,
+              expand_snippet = function(s)
+                return vim.snippet.expand(s)
+              end,
+            })
+            :await()
         spec.assert({
           '"repository": {|},',
         })
