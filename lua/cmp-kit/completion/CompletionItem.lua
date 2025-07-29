@@ -67,7 +67,7 @@ end
 ---@field private _trigger_context cmp-kit.core.TriggerContext
 ---@field private _provider cmp-kit.completion.CompletionProvider
 ---@field private _completion_list cmp-kit.kit.LSP.CompletionList
----@field private _item cmp-kit.kit.LSP.CompletionItem
+---@field private _item cmp-kit.kit.LSP.CompletionItem|{ nvim_previewText?: string }
 ---@field private _resolving cmp-kit.kit.Async.AsyncTask
 ---@field public cache table<string, any>
 local CompletionItem = {}
@@ -77,7 +77,7 @@ CompletionItem.__index = CompletionItem
 ---@param trigger_context cmp-kit.core.TriggerContext
 ---@param provider cmp-kit.completion.CompletionProvider
 ---@param list cmp-kit.kit.LSP.CompletionList
----@param item cmp-kit.kit.LSP.CompletionItem | { nvim?: { previewText: string } }
+---@param item cmp-kit.kit.LSP.CompletionItem | { nvim_previewText?: string }
 function CompletionItem.new(trigger_context, provider, list, item)
   return setmetatable({
     _trigger_context = trigger_context,
@@ -186,44 +186,48 @@ end
 function CompletionItem:get_preview_text()
   local cache_key = 'get_preview_text'
   if not self.cache[cache_key] then
-    local text --[[@as string]]
-    if self._item.filterText then
-      text = trim_prewhite(self._item.filterText) --[[@as string]]
-    elseif self._item.insertText then
-      text = trim_prewhite(self._item.insertText) --[[@as string]]
-    else
-      text = self:get_insert_text()
-      if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
-        text = tostring(SnippetText.parse(text)) --[[@as string]]
-      end
-    end
-
-    -- NOTE: In string syntax, We use raw insertText.
     local preview_text --[[@as string]]
-    if self._trigger_context.in_string then
-      preview_text = oneline(text)
+    if self._item.nvim_previewText then
+      preview_text = trim_prewhite(self._item.nvim_previewText) --[[@as string]]
     else
-      preview_text = PreviewText.create({
-        insert_text = text,
-        before_text = self._trigger_context:get_query(self:get_offset()),
-        after_text = self._trigger_context.text_after,
-      })
-    end
+      local text --[[@as string]]
+      if self._item.filterText then
+        text = trim_prewhite(self._item.filterText) --[[@as string]]
+      elseif self._item.insertText then
+        text = trim_prewhite(self._item.insertText) --[[@as string]]
+      else
+        text = self:get_insert_text()
+        if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
+          text = tostring(SnippetText.parse(text)) --[[@as string]]
+        end
+      end
 
-    -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
-    local chars = {}
-    for _, c in ipairs(self:get_commit_characters()) do
-      if Character.is_symbol(c:byte(1)) then
-        chars[c] = true
+      -- NOTE: In string syntax, We use raw insertText.
+      if self._trigger_context.in_string then
+        preview_text = oneline(text)
+      else
+        preview_text = PreviewText.create({
+          insert_text = text,
+          before_text = self._trigger_context:get_query(self:get_offset()),
+          after_text = self._trigger_context.text_after,
+        })
       end
-    end
-    for _, c in ipairs(self._provider:get_trigger_characters()) do
-      if Character.is_symbol(c:byte(1)) then
-        chars[c] = true
+
+      -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
+      local chars = {}
+      for _, c in ipairs(self:get_commit_characters()) do
+        if Character.is_symbol(c:byte(1)) then
+          chars[c] = true
+        end
       end
-    end
-    if chars[preview_text:sub(-1, -1)] then
-      preview_text = preview_text:sub(1, -2)
+      for _, c in ipairs(self._provider:get_trigger_characters()) do
+        if Character.is_symbol(c:byte(1)) then
+          chars[c] = true
+        end
+      end
+      if chars[preview_text:sub(-1, -1)] then
+        preview_text = preview_text:sub(1, -2)
+      end
     end
     self.cache[cache_key] = preview_text
   end
@@ -516,7 +520,8 @@ function CompletionItem:commit(option)
 
     -- Create preview_text undopoint.
     trigger_context = TriggerContext.create()
-    LinePatch.apply_by_keys(bufnr, trigger_context.character - (self:get_offset() - 1), 0, self:get_preview_text()):await()
+    LinePatch.apply_by_keys(bufnr, trigger_context.character - (self:get_offset() - 1), 0, self:get_preview_text())
+        :await()
     vim.o.undolevels = vim.o.undolevels
 
     -- Restore the the buffer content to the state it was in when the request was sent.

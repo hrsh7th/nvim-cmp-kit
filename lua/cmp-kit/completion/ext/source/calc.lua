@@ -70,12 +70,14 @@ return function()
               insertText = tostring(output),
               filterText = candidate_text,
               sortText = '1',
+              nvim_previewText = tostring(output),
             },
             {
               label = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
               insertText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
               filterText = candidate_text,
               sortText = '2',
+              nvim_previewText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
             },
           },
         }
