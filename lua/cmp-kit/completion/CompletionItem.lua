@@ -7,7 +7,7 @@ local debugger = require('cmp-kit.core.debugger')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 local Character = require('cmp-kit.kit.App.Character')
-local SelectText = require('cmp-kit.completion.SelectText')
+local PreviewText = require('cmp-kit.completion.PreviewText')
 local SnippetText = require('cmp-kit.completion.SnippetText')
 
 ---Trim whitespace.
@@ -77,7 +77,7 @@ CompletionItem.__index = CompletionItem
 ---@param trigger_context cmp-kit.core.TriggerContext
 ---@param provider cmp-kit.completion.CompletionProvider
 ---@param list cmp-kit.kit.LSP.CompletionList
----@param item cmp-kit.kit.LSP.CompletionItem
+---@param item cmp-kit.kit.LSP.CompletionItem | { nvim?: { previewText: string } }
 function CompletionItem.new(trigger_context, provider, list, item)
   return setmetatable({
     _trigger_context = trigger_context,
@@ -128,7 +128,7 @@ function CompletionItem:get_offset()
     else
       local insert_range = self:get_insert_range()
 
-      -- We trim whitespace from `select_text` so we ignore whitespace changes from `textEdit`.
+      -- We trim whitespace from `preview_text` so we ignore whitespace changes from `textEdit`.
       local trigger_context_cache_key = ('%s:%s:%s'):format('get_offset', keyword_offset, insert_range.start.character)
       if not self._trigger_context.cache[trigger_context_cache_key] then
         local offset = insert_range.start.character + 1
@@ -180,11 +180,11 @@ function CompletionItem:get_sort_text()
   return self._item.sortText
 end
 
----Return select text that will be inserted if the item is selected.
+---Return preview text that will be inserted if the item is selected.
 ---NOTE: VSCode does not need this because it doesn't insert the text when the item is selected. But vim's completion usually inserts the text when the item is selected.
 ---@return string
-function CompletionItem:get_select_text()
-  local cache_key = 'get_select_text'
+function CompletionItem:get_preview_text()
+  local cache_key = 'get_preview_text'
   if not self.cache[cache_key] then
     local text --[[@as string]]
     if self._item.filterText then
@@ -199,11 +199,11 @@ function CompletionItem:get_select_text()
     end
 
     -- NOTE: In string syntax, We use raw insertText.
-    local select_text --[[@as string]]
+    local preview_text --[[@as string]]
     if self._trigger_context.in_string then
-      select_text = oneline(text)
+      preview_text = oneline(text)
     else
-      select_text = SelectText.create({
+      preview_text = PreviewText.create({
         insert_text = text,
         before_text = self._trigger_context:get_query(self:get_offset()),
         after_text = self._trigger_context.text_after,
@@ -222,10 +222,10 @@ function CompletionItem:get_select_text()
         chars[c] = true
       end
     end
-    if chars[select_text:sub(-1, -1)] then
-      select_text = select_text:sub(1, -2)
+    if chars[preview_text:sub(-1, -1)] then
+      preview_text = preview_text:sub(1, -2)
     end
-    self.cache[cache_key] = select_text
+    self.cache[cache_key] = preview_text
   end
   return self.cache[cache_key]
 end
@@ -494,8 +494,8 @@ function CompletionItem:commit(option)
       offset = self:get_offset(),
       query = self._trigger_context:get_query(self:get_offset()),
       filter_text = self:get_filter_text(),
-      select_text = self:get_select_text(),
       insert_text = self:get_insert_text(),
+      preview_text = self:get_preview_text(),
       insert_range = self:get_insert_range(),
       replace_range = self:get_replace_range(),
       option = option,
@@ -514,9 +514,9 @@ function CompletionItem:commit(option)
     -- Create initial undo point.
     vim.o.undolevels = vim.o.undolevels
 
-    -- Create select_text undopoint.
+    -- Create preview_text undopoint.
     trigger_context = TriggerContext.create()
-    LinePatch.apply_by_keys(bufnr, trigger_context.character - (self:get_offset() - 1), 0, self:get_select_text()):await()
+    LinePatch.apply_by_keys(bufnr, trigger_context.character - (self:get_offset() - 1), 0, self:get_preview_text()):await()
     vim.o.undolevels = vim.o.undolevels
 
     -- Restore the the buffer content to the state it was in when the request was sent.
@@ -555,12 +555,12 @@ function CompletionItem:commit(option)
         LinePatch.apply_by_func(bufnr, before, after, ''):await()
         option.expand_snippet(self:get_insert_text(), { item = self })
       else
-        ---NOTE: This is cmp-kit's specific implementation. if user doesn't provide `expand_snippet`, cmp-kit will fallback to insert `select_text`.
+        ---NOTE: This is cmp-kit's specific implementation. if user doesn't provide `expand_snippet`, cmp-kit will fallback to insert `preview_text`.
         local parsed_insert_text = tostring(SnippetText.parse(self:get_insert_text()))
         if parsed_insert_text == self:get_insert_text() then
           LinePatch.apply_by_func(bufnr, before, after, parsed_insert_text):await()
         else
-          LinePatch.apply_by_func(bufnr, before, after, self:get_select_text()):await()
+          LinePatch.apply_by_func(bufnr, before, after, self:get_preview_text()):await()
         end
       end
     else

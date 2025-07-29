@@ -164,11 +164,11 @@ function CompletionService.new(config)
                 -- NOTE: cmp-kit's specific implementation.
                 -- after commit character, send canceled key if possible.
                 local trigger_context = TriggerContext.create()
-                local select_text = match.item:get_select_text()
+                local preview_text = match.item:get_preview_text()
 
                 local can_feedkeys = true
                 can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
-                can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #select_text) == select_text
+                can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #preview_text) == preview_text
                 if can_feedkeys then
                   vim.api.nvim_feedkeys(typed, 'i', true)
                 end
@@ -837,7 +837,7 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
     0,
     ('%s%s'):format(
       text_before:sub(prev_offset + 1, next_offset),
-      item_next and item_next:get_select_text() or ''
+      item_next and item_next:get_preview_text() or ''
     )):next(resume)
 end
 

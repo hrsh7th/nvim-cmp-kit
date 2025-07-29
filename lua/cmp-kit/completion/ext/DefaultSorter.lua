@@ -25,8 +25,8 @@ local function compare(a, b, context)
   local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
   local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
 
-  local locality_a = context.locality_map[a.item:get_select_text()] or math.huge
-  local locality_b = context.locality_map[b.item:get_select_text()] or math.huge
+  local locality_a = context.locality_map[a.item:get_preview_text()] or math.huge
+  local locality_b = context.locality_map[b.item:get_preview_text()] or math.huge
 
   local sort_text_a = a.item:get_sort_text()
   local sort_text_b = b.item:get_sort_text()

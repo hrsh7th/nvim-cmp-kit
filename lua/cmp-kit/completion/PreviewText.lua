@@ -1,9 +1,9 @@
 local Character = require('cmp-kit.kit.App.Character')
 
-local SelectText = {}
+local PreviewText = {}
 
 ---@type table<integer, boolean>
-SelectText.StopCharacters = {
+PreviewText.StopCharacters = {
   [string.byte("'")] = true,
   [string.byte('"')] = true,
   [string.byte('=')] = true,
@@ -20,13 +20,13 @@ SelectText.StopCharacters = {
 }
 
 ---@type table<integer, boolean>
-SelectText.ForceStopCharacters = {
+PreviewText.ForceStopCharacters = {
   [string.byte('\n')] = true,
   [string.byte('\r')] = true,
 }
 
 ---@type table<integer, integer>
-SelectText.Pairs = {
+PreviewText.Pairs = {
   [string.byte('(')] = string.byte(')'),
   [string.byte('[')] = string.byte(']'),
   [string.byte('{')] = string.byte('}'),
@@ -35,10 +35,10 @@ SelectText.Pairs = {
   [string.byte('<')] = string.byte('>'),
 }
 
----Create select text.
+---Create preview text.
 ---@param params { insert_text: string, before_text: string, after_text: string }
 ---@return string
-function SelectText.create(params)
+function PreviewText.create(params)
   local insert_text = params.insert_text
   local before_text = params.before_text
   local after_text = params.after_text
@@ -78,7 +78,7 @@ function SelectText.create(params)
   local pairs_stack = {}
   for i = insert_text_idx, #insert_text do
     local byte = insert_text:byte(i)
-    if SelectText.ForceStopCharacters[byte] then
+    if PreviewText.ForceStopCharacters[byte] then
       return insert_text:sub(1, i - 1)
     end
     local alnum = Character.is_alnum(byte)
@@ -90,11 +90,11 @@ function SelectText.create(params)
     if byte == pairs_stack[#pairs_stack] then
       table.remove(pairs_stack, #pairs_stack)
     else
-      if not is_alnum_consumed and SelectText.Pairs[byte] then
-        table.insert(pairs_stack, SelectText.Pairs[byte])
+      if not is_alnum_consumed and PreviewText.Pairs[byte] then
+        table.insert(pairs_stack, PreviewText.Pairs[byte])
       end
       if is_alnum_consumed and not alnum and #pairs_stack == 0 then
-        if SelectText.StopCharacters[byte] then
+        if PreviewText.StopCharacters[byte] then
           return insert_text:sub(1, i - 1)
         end
       else
@@ -105,4 +105,4 @@ function SelectText.create(params)
   return insert_text
 end
 
-return SelectText
+return PreviewText
