@@ -39,7 +39,7 @@ jobs:
       - run: |
           luarocks install vusted
           luarocks install luassert
-      - run: vusted --output=gtest --pattern=.spec ./lua
+      - run: make test
 
 
   auto-format:
