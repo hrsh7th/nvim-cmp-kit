@@ -71,21 +71,21 @@ local function on_color_scheme()
   end
 
   -- completion utilities.
-  inherit_hl('CmpKitDeprecated', { 'CmpItemAbbrDeprecated', 'Comment' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitDeprecated', { 'CmpItemAbbrDeprecated', 'Comment' }, { 'fg' }, {
     default = true,
     sp = 'fg',
     strikethrough = true,
   })
-  inherit_hl('CmpKitCompletionItemLabel', { 'CmpItemAbbr', 'Pmenu' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitCompletionItemLabel', { 'CmpItemAbbr', 'Pmenu' }, { 'fg' }, {
     default = true,
   })
-  inherit_hl('CmpKitCompletionItemDescription', { 'CmpItemMenu', 'PmenuExtra' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitCompletionItemDescription', { 'CmpItemMenu', 'PmenuExtra' }, { 'fg' }, {
     default = true,
   })
-  inherit_hl('CmpKitCompletionItemMatch', { 'CmpItemAbbrMatch', 'PmenuMatch' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitCompletionItemMatch', { 'CmpItemAbbrMatch', 'PmenuMatch' }, { 'fg' }, {
     default = true,
   })
-  inherit_hl('CmpKitCompletionItemExtra', { 'CmpItemMenu', 'PmenuExtra' }, { 'fg', 'bg' }, {
+  inherit_hl('CmpKitCompletionItemExtra', { 'CmpItemMenu', 'PmenuExtra' }, { 'fg' }, {
     default = true,
   })
 
