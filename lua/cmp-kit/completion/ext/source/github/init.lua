@@ -219,7 +219,6 @@ return setmetatable({
         end):dispatch(function(res)
           callback(nil, res)
         end, function(e)
-          vim.print(e)
           callback(nil, nil)
         end)
       end
