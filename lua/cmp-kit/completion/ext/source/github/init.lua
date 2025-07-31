@@ -4,6 +4,15 @@ local System = require('cmp-kit.kit.System')
 
 local gh_executable = vim.fn.executable('gh') == 1
 
+local stat_format = table.concat({
+  '# %s: #%s',
+  '------------------------------------------------------------',
+  'title: %s',
+  'author: %s',
+  '------------------------------------------------------------',
+  '',
+}, '\n')
+
 ---Find the root directory of the git repository.
 ---@type table|fun(): string|nil
 local try_get_git_root = setmetatable({
@@ -89,6 +98,7 @@ local function get_prs_and_issues()
     cwd = assert(try_get_git_root())
   }):await())
   for _, pr in ipairs(prs) do
+    local stat = stat_format:format('Pull Request', pr.number, pr.title, pr.author.login)
     table.insert(items, {
       label = ('#%s %s'):format(pr.number, pr.title),
       insertText = ('#%s'):format(pr.number),
@@ -97,7 +107,7 @@ local function get_prs_and_issues()
       labelDetails = { description = 'Pull Request', },
       documentation = #(pr.body or '') > 0 and {
         kind = 'markdown',
-        value = pr.body,
+        value = stat .. pr.body,
       } or nil,
       sortText = #items + 1
     })
@@ -115,6 +125,7 @@ local function get_prs_and_issues()
     cwd = assert(try_get_git_root())
   }):await())
   for _, issue in ipairs(issues) do
+    local stat = stat_format:format('Issue', issue.number, issue.title, issue.author.login)
     table.insert(items, {
       label = ('#%s %s'):format(issue.number, issue.title),
       insertText = ('#%s'):format(issue.number),
@@ -123,7 +134,7 @@ local function get_prs_and_issues()
       labelDetails = { description = 'Issue', },
       documentation = #(issue.body or '') > 0 and {
         kind = 'markdown',
-        value = issue.body,
+        value = stat .. issue.body,
       } or nil,
       sortText = #items + 1
     })

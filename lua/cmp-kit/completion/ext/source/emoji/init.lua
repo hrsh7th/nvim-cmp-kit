@@ -17,7 +17,6 @@ local function restore()
   return cache.items
 end
 
-
 return function()
   ---@type cmp-kit.completion.CompletionSource
   return {
@@ -25,12 +24,12 @@ return function()
     get_configuration = function()
       return {
         trigger_characters = { ':' },
-        keyword_pattern = [=[\%(^\|[^[:alnum:]]\)\zs:\w\w*]=],
+        keyword_pattern = [=[\%(^\|[^[:alnum:]:]\)\zs:\w\w*]=],
       }
     end,
     complete = function(_, _, callback)
       local trigger_context = TriggerContext.create()
-      if not vim.regex([=[\%(^\|[^[:alnum:]]\)\zs:\w*$]=]):match_str(trigger_context.text_before) then
+      if not vim.regex([=[\%(^\|[^[:alnum:]:]\)\zs:\w*$]=]):match_str(trigger_context.text_before) then
         return callback(nil, nil)
       end
       Async.run(function()

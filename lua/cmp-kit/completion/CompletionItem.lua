@@ -412,9 +412,11 @@ function CompletionItem:get_documentation()
       local has_already = documentation.value:find(label_details.detail, 1, true)
       if not has_already then
         local value = ('```%s\n%s\n```'):format(
-          vim.api.nvim_get_option_value('filetype', { buf = self._trigger_context.bufnr }), label_details.detail)
+          vim.api.nvim_get_option_value('filetype', { buf = self._trigger_context.bufnr }),
+          label_details.detail
+        )
         if documentation.value ~= '' then
-          value = ('%s\n%s'):format(value, documentation.value)
+          value = ('%s\n---\n%s'):format(value, documentation.value)
         end
         documentation.value = value
       end

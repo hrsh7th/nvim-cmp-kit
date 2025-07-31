@@ -203,10 +203,6 @@ local function prepare_markdown_contents(raw_contents)
       if #section.contents == 0 then
         table.remove(sections, i)
       end
-    elseif section.type == 'heading' then
-      if sections[i + 1] and sections[i + 1].type == 'separator' then
-        table.remove(sections, i + 1)
-      end
     end
   end
 
@@ -344,18 +340,18 @@ local function prepare_markdown_contents(raw_contents)
         virt_lines = { { { ('─'):rep(vim.o.columns) } } },
       })
     elseif section.type == 'heading' then
+      table.insert(contents, '')
       local heading_hl_group = ('CmpKitMarkdownAnnotateHeading%s'):format(section.level)
       table.insert(extmarks, {
         row = #contents - 1,
         col = 0,
         end_row = #contents - 1,
         end_col = 0,
-        virt_lines = {
-          {
-            { ('#'):rep(section.level), heading_hl_group },
-            { ' ' },
-            { section.title,            heading_hl_group },
-          },
+        virt_text_pos = 'inline',
+        virt_text = {
+          { ('#'):rep(section.level), heading_hl_group },
+          { ' ' },
+          { section.title,            heading_hl_group },
         },
       })
     end
