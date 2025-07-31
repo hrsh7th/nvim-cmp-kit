@@ -4,7 +4,25 @@ local System = require('cmp-kit.kit.System')
 
 local gh_executable = vim.fn.executable('gh') == 1
 
-local capable_cache = {}
+---Find the root directory of the git repository.
+---@type table|fun(): string|nil
+local try_get_git_root = setmetatable({
+  cache = {}
+}, {
+  __call = function(self)
+    local candidates = { vim.fn.expand('%:p:h'), vim.fn.getcwd() }
+    for _, candidate in ipairs(candidates) do
+      if not self.cache[candidate] then
+        self.cache[candidate] = {
+          git_root = kit.findup(vim.fs.normalize(candidate), { '.git' })
+        }
+      end
+      if self.cache[candidate].git_root then
+        return self.cache[candidate].git_root
+      end
+    end
+  end
+})
 
 ---Run gh command.
 ---@param args string[]
@@ -47,7 +65,9 @@ local function get_repo_info()
     'owner,name',
     '--jq',
     '{ owner: .owner.login, name: .name }'
-  }, { cwd = vim.fn.expand('%:p:h') }):await())
+  }, {
+    cwd = assert(try_get_git_root())
+  }):await())
   return repo and repo.owner and repo.name and { owner = repo.owner, name = repo.name } or nil
 end
 
@@ -65,7 +85,9 @@ local function get_prs_and_issues()
     'is:pr is:open',
     '--json',
     'number,title,body,author'
-  }, { cwd = vim.fn.expand('%:p:h') }):await())
+  }, {
+    cwd = assert(try_get_git_root())
+  }):await())
   for _, pr in ipairs(prs) do
     table.insert(items, {
       label = ('#%s %s'):format(pr.number, pr.title),
@@ -89,7 +111,9 @@ local function get_prs_and_issues()
     'is:open',
     '--json',
     'number,title,body,author'
-  }, { cwd = vim.fn.expand('%:p:h') }):await())
+  }, {
+    cwd = assert(try_get_git_root())
+  }):await())
   for _, issue in ipairs(issues) do
     table.insert(items, {
       label = ('#%s %s'):format(issue.number, issue.title),
@@ -123,7 +147,9 @@ local function get_mentionable_users(owner, name, member_type)
     '--paginate',
     '--jq',
     '[.[] | {login: .login, name: .name}]'
-  }, { cwd = vim.fn.expand('%:p:h') }):await())
+  }, {
+    cwd = assert(try_get_git_root())
+  }):await())
 
   for _, user in ipairs(users) do
     if user.login and user.name then
@@ -148,7 +174,9 @@ return setmetatable({
       else
         vim.notify('[OK] `gh` command is executable', vim.log.levels.INFO)
       end
-      local auth_status = gh_command({ 'auth', 'status' }, { cwd = vim.fn.expand('%:p:h') }):await()
+      local auth_status = gh_command({ 'auth', 'status' }, {
+        cwd = assert(try_get_git_root())
+      }):await()
       vim.notify('[INFO] GitHub CLI authentication status: ' .. auth_status, vim.log.levels.INFO)
     end)
   end
@@ -172,16 +200,7 @@ return setmetatable({
           return false
         end
 
-        local name = vim.api.nvim_buf_get_name(0)
-        if not capable_cache[name] then
-          local git_root = kit.findup(vim.fs.normalize(name), { '.git' })
-          if git_root then
-            capable_cache[name] = true
-          else
-            capable_cache[name] = false
-          end
-        end
-        return capable_cache[name]
+        return try_get_git_root() ~= nil
       end,
       complete = function(_, completion_context, callback)
         if not vim.regex([=[\%(#\|@\).*]=]):match_str(vim.api.nvim_get_current_line()) then
@@ -189,7 +208,6 @@ return setmetatable({
         end
 
         Async.run(function()
-
           local items = {}
           if completion_context.triggerCharacter == '#' then
             for _, item in ipairs(get_prs_and_issues()) do
@@ -218,7 +236,7 @@ return setmetatable({
           callback(nil, items)
         end):dispatch(function(res)
           callback(nil, res)
-        end, function(e)
+        end, function()
           callback(nil, nil)
         end)
       end
