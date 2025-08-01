@@ -579,10 +579,8 @@ function CompletionService:matching()
     end
 
     -- check should use this group?
-    if not self._state.complete_trigger_context.force then
-      if #self._state.matches > 0 or in_trigger_character_completion then
-        break
-      end
+    if #self._state.matches > 0 or in_trigger_character_completion then
+      break
     end
     if is_completion_fetching then
       break
