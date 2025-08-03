@@ -34,14 +34,14 @@ return function(option)
         retrigger_characters = kit.concat(trigger_characters, retrigger_characters),
       }
     end,
-    capable = function(_, trigger_context)
+    capable = function(_)
       if not option.client.server_capabilities then
         return false
       end
       if not option.client.server_capabilities.signatureHelpProvider then
         return false
       end
-      return option.client:supports_method('textDocument/signatureHelp', trigger_context.bufnr)
+      return option.client:supports_method('textDocument/signatureHelp', vim.api.nvim_get_current_buf())
     end,
     fetch = function(_, signature_help_context, callback)
       if request then

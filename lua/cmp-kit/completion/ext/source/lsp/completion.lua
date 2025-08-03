@@ -31,14 +31,14 @@ return function(option)
         keyword_pattern = option.keyword_pattern,
       }
     end,
-    capable = function(_, trigger_context)
+    capable = function(_)
       if not option.client.server_capabilities then
         return false
       end
       if not option.client.server_capabilities.completionProvider then
         return false
       end
-      return option.client:supports_method('textDocument/completion', trigger_context.bufnr)
+      return option.client:supports_method('textDocument/completion', vim.api.nvim_get_current_buf())
     end,
     resolve = function(_, item, callback)
       Async.run(function()
