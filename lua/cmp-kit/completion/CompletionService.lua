@@ -437,7 +437,11 @@ do
   ---@param trigger_context cmp-kit.core.TriggerContext
   local function complete_inner(self, trigger_context)
     -- reset selection for new completion.
-    self:_update_selection(0, true, trigger_context.text_before)
+    self._state.selection = {
+      index = 0,
+      preselect = false,
+      text_before = trigger_context.text_before,
+    }
 
     -- trigger.
     local tasks = {} --[=[@type cmp-kit.kit.Async.AsyncTask[]]=]
