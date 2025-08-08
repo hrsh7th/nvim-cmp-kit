@@ -105,10 +105,10 @@ local function get_prs_and_issues()
       nvim_previewText = ('#%s'):format(pr.number),
       filterText = ('#%s %s %s'):format(pr.number, pr.title, pr.author.login),
       labelDetails = { description = 'Pull Request', },
-      documentation = #(pr.body or '') > 0 and {
+      documentation = {
         kind = 'markdown',
-        value = stat .. pr.body,
-      } or nil,
+        value = stat .. (pr.body ~= '' and pr.body or 'empty body'),
+      },
       sortText = #items + 1
     })
   end
@@ -132,10 +132,10 @@ local function get_prs_and_issues()
       nvim_previewText = ('#%s'):format(issue.number),
       filterText = ('#%s %s %s'):format(issue.number, issue.title, issue.author.login),
       labelDetails = { description = 'Issue', },
-      documentation = #(issue.body or '') > 0 and {
+      documentation = {
         kind = 'markdown',
-        value = stat .. issue.body,
-      } or nil,
+        value = stat .. (issue.body ~= '' and issue.body or 'empty body'),
+      },
       sortText = #items + 1
     })
   end
