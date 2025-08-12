@@ -13,10 +13,16 @@ local Bonus = {
 ---@param context cmp-kit.completion.SorterContext
 ---@return boolean
 local function compare(a, b, context)
-  local offset_a = a.item:get_offset()
-  local offset_b = b.item:get_offset()
-  if offset_a ~= offset_b then
-    return offset_a < offset_b
+  local in_trigger_char_a = a.provider:in_trigger_character_completion()
+  local in_trigger_char_b = b.provider:in_trigger_character_completion()
+  if in_trigger_char_a ~= in_trigger_char_b then
+    return in_trigger_char_a
+  elseif in_trigger_char_a and in_trigger_char_b then
+    local offset_a = a.item:get_offset()
+    local offset_b = b.item:get_offset()
+    if offset_a ~= offset_b then
+      return offset_a > offset_b
+    end
   end
 
   local preselect_a = a.item:is_preselect()
