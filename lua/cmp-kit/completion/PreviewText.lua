@@ -48,28 +48,22 @@ function PreviewText.create(params)
   local insert_text_idx = 1
   local before_text_idx = 1
   while insert_text_idx <= #insert_text and before_text_idx <= #before_text do
-    while true do
-      if Character.is_white(insert_text:byte(insert_text_idx)) then
+    local b_char = before_text:byte(before_text_idx)
+    local i_char = insert_text:byte(insert_text_idx)
+    if Character.is_white(b_char) then
+      before_text_idx = before_text_idx + 1
+    elseif Character.is_white(i_char) then
+      insert_text_idx = insert_text_idx + 1
+    else
+      if Character.match_icase(b_char, i_char) then
+        if Character.is_alnum(i_char) then
+          is_alnum_consumed = true
+        end
         insert_text_idx = insert_text_idx + 1
-      else
-        break
-      end
-    end
-    while true do
-      if Character.is_white(before_text:byte(before_text_idx)) then
         before_text_idx = before_text_idx + 1
       else
         break
       end
-    end
-    if insert_text:byte(insert_text_idx) == before_text:byte(before_text_idx) then
-      if Character.is_alnum(insert_text:byte(insert_text_idx)) then
-        is_alnum_consumed = true
-      end
-      insert_text_idx = insert_text_idx + 1
-      before_text_idx = before_text_idx + 1
-    else
-      break
     end
   end
 
@@ -81,7 +75,7 @@ function PreviewText.create(params)
     if PreviewText.ForceStopCharacters[byte] then
       return insert_text:sub(1, i - 1)
     end
-    local alnum = Character.is_alnum(byte)
+    local is_alnum = Character.is_alnum(byte)
 
     if is_alnum_consumed and is_after_symbol and after_text:byte(1) == byte then
       return insert_text:sub(1, i - 1)
@@ -89,17 +83,14 @@ function PreviewText.create(params)
 
     if byte == pairs_stack[#pairs_stack] then
       table.remove(pairs_stack, #pairs_stack)
+    elseif not is_alnum_consumed and PreviewText.Pairs[byte] then
+      table.insert(pairs_stack, PreviewText.Pairs[byte])
+    elseif is_alnum_consumed and not is_alnum and #pairs_stack == 0 then
+      if PreviewText.StopCharacters[byte] then
+        return insert_text:sub(1, i - 1)
+      end
     else
-      if not is_alnum_consumed and PreviewText.Pairs[byte] then
-        table.insert(pairs_stack, PreviewText.Pairs[byte])
-      end
-      if is_alnum_consumed and not alnum and #pairs_stack == 0 then
-        if PreviewText.StopCharacters[byte] then
-          return insert_text:sub(1, i - 1)
-        end
-      else
-        is_alnum_consumed = is_alnum_consumed or alnum
-      end
+      is_alnum_consumed = is_alnum_consumed or is_alnum
     end
   end
   return insert_text
