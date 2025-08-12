@@ -289,10 +289,9 @@ function CompletionProvider:execute(command)
 end
 
 ---Check if the provider is capable for the trigger context.
----@param trigger_context cmp-kit.core.TriggerContext
 ---@return boolean
-function CompletionProvider:capable(trigger_context)
-  if self._source.capable and not self._source:capable(trigger_context) then
+function CompletionProvider:capable()
+  if self._source.capable and not self._source:capable() then
     return false
   end
   return true

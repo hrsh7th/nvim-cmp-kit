@@ -448,7 +448,7 @@ do
     local invoked = false
     for _, group in ipairs(self:_get_provider_groups()) do
       for _, cfg in ipairs(group) do
-        if cfg.provider:capable(trigger_context) then
+        if cfg.provider:capable() then
           table.insert(
             tasks,
             cfg.provider:complete(trigger_context, function(step)
@@ -539,7 +539,7 @@ function CompletionService:matching()
     local cfgs_keyword = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     local cfgs_trigger_character = {} --[=[@type cmp-kit.completion.CompletionService.ProviderConfiguration[]]=]
     for _, cfg in ipairs(group) do
-      if cfg.provider:capable(trigger_context) then
+      if cfg.provider:capable() then
         if not is_menu_visible and not trigger_context.force then
           local is_fetching = true
           is_fetching = is_fetching and cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms)
@@ -711,7 +711,7 @@ function CompletionService:commit(item, option)
         if trigger_context.trigger_character and Character.is_symbol(trigger_context.trigger_character:byte(1)) then
           for _, provider_group in ipairs(self:_get_provider_groups()) do
             for _, cfg in ipairs(provider_group) do
-              if cfg.provider:capable(trigger_context) then
+              if cfg.provider:capable() then
                 if vim.tbl_contains(cfg.provider:get_trigger_characters(), trigger_context.trigger_character) then
                   self._state.complete_trigger_context = TriggerContext.create_empty_context()
                   return self:complete()
