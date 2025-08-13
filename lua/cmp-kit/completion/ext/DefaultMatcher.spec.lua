@@ -12,6 +12,9 @@ describe('cmp-kit.completion.ext', function()
         assert.is_true(
           DefaultMatcher.match('a', 'a') > DefaultMatcher.match('a', 'A')
         )
+        assert.is_true(
+          DefaultMatcher.match('ab', 'ab') > DefaultMatcher.match('ab', 'Ab')
+        )
       end)
     end)
   end)
