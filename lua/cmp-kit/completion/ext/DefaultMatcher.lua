@@ -3,6 +3,7 @@ local Character = require('cmp-kit.kit.App.Character')
 
 local Config = {
   score_adjuster = 0.001,
+  max_semantic_indexes = 200,
 }
 
 local cache = {
@@ -10,43 +11,16 @@ local cache = {
   semantic_indexes = {},
 }
 
----Parse a query string into parts.
----@type table|(fun(query: string): string, table<integer, boolean>)
-local parse_query = setmetatable({
-  cache_query = nil,
-  cache_char_map = {},
-}, {
-  __call = function(self, query)
-    if self.cache_query == query then
-      return query, self.cache_char_map
-    end
-    self.cache_query = query
-
-    local char_map = {}
-    for i = 1, #query do
-      local c = query:byte(i)
-      char_map[c] = true
-      if Character.is_upper(c) then
-        char_map[c + 32] = true
-      elseif Character.is_lower(c) then
-        char_map[c - 32] = true
-      end
-    end
-    self.cache_char_map = char_map
-
-    return query, self.cache_char_map
-  end,
-})
-
 ---Get semantic indexes for the text.
 ---@param text string
 ---@param char_map table<integer, boolean>
 ---@return integer[]
 local function parse_semantic_indexes(text, char_map)
-  local T = #text
   local is_semantic_index = Character.is_semantic_index
+
+  local M = math.min(#text, Config.max_semantic_indexes)
   local semantic_indexes = kit.clear(cache.semantic_indexes)
-  for ti = 1, T do
+  for ti = 1, M do
     if char_map[text:byte(ti)] and is_semantic_index(text, ti) then
       semantic_indexes[#semantic_indexes + 1] = ti
     end
@@ -74,14 +48,6 @@ local function compute(
   local score_memo = cache.score_memo
   local match_icase = Character.match_icase
   local score_adjuster = Config.score_adjuster
-
-  local function longest(qi, ti)
-    local k = 0
-    while qi + k <= Q and ti + k <= T and match_icase(query:byte(qi + k), text:byte(ti + k)) do
-      k = k + 1
-    end
-    return k
-  end
 
   local function dfs(qi, si, prev_ti, part_score, part_chunks)
     -- match
@@ -112,25 +78,34 @@ local function compute(
     while si <= S do
       local ti = semantic_indexes[si]
 
-      local M = longest(qi, ti)
-      local mi = 1
-      while mi <= M do
+      local mi = 0
+      while ti + mi <= T and qi + mi <= Q do
+        local t_char = text:byte(ti + mi)
+        local q_char = query:byte(qi + mi)
+        if not match_icase(t_char, q_char) then
+          break
+        end
+        mi = mi + 1
+
         local inner_score, inner_ranges = dfs(
           qi + mi,
           si + 1,
-          ti + mi - 1,
-          part_score + mi,
+          ti + mi,
+          part_score + mi + ((t_char == q_char) and score_adjuster or 0),
           part_chunks + 1
         )
 
-        -- prefix unmatch penalty.
-        if qi == 1 and ti ~= 1 then
-          inner_score = inner_score - score_adjuster * T
-        end
+        -- custom
+        do
+          -- prefix unmatch penalty
+          if qi == 1 and ti ~= 1 then
+            inner_score = inner_score - score_adjuster * T
+          end
 
-        -- gap length penalty.
-        if ti - prev_ti > 0 then
-          inner_score = inner_score - (score_adjuster * math.max(0, (ti - prev_ti)))
+          -- gap length penalty
+          if ti - prev_ti > 0 then
+            inner_score = inner_score - (score_adjuster * math.max(0, (ti - prev_ti)))
+          end
         end
 
         if inner_score > best_score then
@@ -139,7 +114,6 @@ local function compute(
           best_range_e = ti + mi
           best_ranges = inner_ranges
         end
-        mi = mi + 1
       end
       si = si + 1
     end
@@ -156,6 +130,34 @@ local function compute(
   end
   return dfs(1, 1, math.huge, 0, -1)
 end
+
+---Parse a query string into parts.
+---@type table|(fun(query: string): string, table<integer, boolean>)
+local parse_query = setmetatable({
+  cache_query = nil,
+  cache_char_map = {},
+}, {
+  __call = function(self, query)
+    if self.cache_query == query then
+      return query, self.cache_char_map
+    end
+    self.cache_query = query
+
+    local char_map = {}
+    for i = 1, #query do
+      local c = query:byte(i)
+      char_map[c] = true
+      if Character.is_upper(c) then
+        char_map[c + 32] = true
+      elseif Character.is_lower(c) then
+        char_map[c - 32] = true
+      end
+    end
+    self.cache_char_map = char_map
+
+    return query, self.cache_char_map
+  end,
+})
 
 local DefaultMatcher = {}
 
