@@ -169,7 +169,10 @@ function CompletionProvider:complete(trigger_context, on_step)
 
     -- update is_trigger_character_completion
     local is_trigger_char = false
-    is_trigger_char = is_trigger_char or (completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter)
+    is_trigger_char = is_trigger_char or (
+      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter and
+      Character.is_symbol(trigger_context.trigger_character:byte(1))
+    )
     is_trigger_char = is_trigger_char or (self:in_trigger_character_completion() and is_same_completion_offset)
     self._state.is_trigger_character_completion = is_trigger_char
 
@@ -352,6 +355,12 @@ function CompletionProvider:clear()
     matches = kit.clear(self._state.matches),
     matches_items = kit.clear(self._state.matches_items),
   }
+end
+
+---Return keyword offset.
+---@return integer?
+function CompletionProvider:get_keyword_offset()
+  return self._state.keyword_offset
 end
 
 ---Return completion offset.
