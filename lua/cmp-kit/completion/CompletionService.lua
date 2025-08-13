@@ -25,6 +25,13 @@ local function emit(events, payload)
   end
 end
 
+---@class cmp-kit.completion.CompletionService.RegisterProviderParams
+---@field group? integer
+---@field priority? integer
+---@field dedup? boolean
+---@field keyword_length? integer
+---@field item_count? integer
+
 ---@class cmp-kit.completion.CompletionService.ProviderConfiguration
 ---@field public group integer
 ---@field public priority integer
@@ -295,18 +302,18 @@ end
 
 ---Register source.
 ---@param source cmp-kit.completion.CompletionSource
----@param config? { group?: integer, priority?: integer, dedup?: boolean, keyword_length?: integer, item_count?: integer }
+---@param params? cmp-kit.completion.CompletionService.RegisterProviderParams
 ---@return fun(): nil
-function CompletionService:register_source(source, config)
+function CompletionService:register_source(source, params)
   ---@type cmp-kit.completion.CompletionService.ProviderConfiguration|{ index: integer }
   local provider_configuration = {
     index = #self._provider_configurations + 1,
-    group = config and config.group or 0,
-    priority = config and config.priority or 0,
+    group = params and params.group or 0,
+    priority = params and params.priority or 0,
     provider = CompletionProvider.new(source, {
-      dedup = config and config.dedup or false,
-      item_count = config and config.item_count or math.huge,
-      keyword_length = config and config.keyword_length or 1,
+      dedup = params and params.dedup or false,
+      item_count = params and params.item_count or math.huge,
+      keyword_length = params and params.keyword_length or 1,
     }),
   }
   table.insert(self._provider_configurations, provider_configuration)
