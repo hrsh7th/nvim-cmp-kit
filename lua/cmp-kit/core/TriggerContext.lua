@@ -133,7 +133,11 @@ end
 ---@param offset integer
 ---@return string
 function TriggerContext:get_query(offset)
-  return self.text:sub(offset, self.character)
+  local cache_key = ('%s:%s'):format('get_query', offset)
+  if not self.cache[cache_key] then
+    self.cache[cache_key] = self.text:sub(offset, self.character)
+  end
+  return self.cache[cache_key]
 end
 
 ---Check if trigger context is changed.

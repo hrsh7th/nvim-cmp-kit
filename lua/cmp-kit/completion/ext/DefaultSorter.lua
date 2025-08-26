@@ -19,12 +19,6 @@ local function compare(a, b, context)
     return just_completion_a
   end
 
-  local in_trigger_char_a = a.provider:in_trigger_character_completion()
-  local in_trigger_char_b = b.provider:in_trigger_character_completion()
-  if in_trigger_char_a ~= in_trigger_char_b then
-    return in_trigger_char_a
-  end
-
   local preselect_a = a.item:is_preselect()
   local preselect_b = b.item:is_preselect()
 
