@@ -701,20 +701,36 @@ function CompletionItem:_convert_range_encoding(range)
     return range
   end
 
-  local cache_key = ('%s:%s:%s:%s'):format('CompletionItem:_convert_range_encoding', range.start.character,
-    range['end'].character, from_encoding)
+  local cache_key = ('%s:%s:%s:%s'):format(
+    'CompletionItem:_convert_range_encoding',
+    range.start.character,
+    range['end'].character,
+    from_encoding
+  )
   if not self._trigger_context.cache[cache_key] then
-    local start_cache_key = ('%s:%s:%s'):format('CompletionItem:_convert_range_encoding:start', range.start.character,
-      from_encoding)
+    local start_cache_key = ('%s:%s:%s'):format(
+      'CompletionItem:_convert_range_encoding:start',
+      range.start.character,
+      from_encoding
+    )
     if not self._trigger_context.cache[start_cache_key] then
-      self._trigger_context.cache[start_cache_key] = Position.to_utf8(self._trigger_context.text, range.start,
-        from_encoding)
+      self._trigger_context.cache[start_cache_key] = Position.to_utf8(
+        self._trigger_context.text,
+        range.start,
+        from_encoding
+      )
     end
-    local end_cache_key = ('%s:%s:%s'):format('CompletionItem:_convert_range_encoding:end', range['end'].character,
-      from_encoding)
+    local end_cache_key = ('%s:%s:%s'):format(
+      'CompletionItem:_convert_range_encoding:end',
+      range['end'].character,
+      from_encoding
+    )
     if not self._trigger_context.cache[end_cache_key] then
-      self._trigger_context.cache[end_cache_key] = Position.to_utf8(self._trigger_context.text, range['end'],
-        from_encoding)
+      self._trigger_context.cache[end_cache_key] = Position.to_utf8(
+        self._trigger_context.text,
+        range['end'],
+        from_encoding
+      )
     end
     self._trigger_context.cache[cache_key] = {
       start = self._trigger_context.cache[start_cache_key],

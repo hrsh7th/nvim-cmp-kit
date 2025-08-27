@@ -133,11 +133,11 @@ end
 ---@param offset integer
 ---@return string
 function TriggerContext:get_query(offset)
-  local cache_key = ('%s:%s'):format('get_query', offset)
-  if not self.cache[cache_key] then
-    self.cache[cache_key] = self.text:sub(offset, self.character)
+  self.cache.get_query = self.cache.get_query or {}
+  if not self.cache.get_query[offset] then
+    self.cache.get_query[offset] = self.text:sub(offset, self.character)
   end
-  return self.cache[cache_key]
+  return self.cache.get_query[offset]
 end
 
 ---Check if trigger context is changed.
@@ -179,16 +179,15 @@ end
 ---@param pattern string # does not need '$' at the end
 ---@return integer? 1-origin utf8 byte index
 function TriggerContext:get_keyword_offset(pattern)
-  local cache_key = string.format('%s:%s', 'get_keyword_offset', pattern)
-  if not self.cache[cache_key] then
+  self.cache.get_keyword_offset = self.cache.get_keyword_offset or {}
+  if not self.cache.get_keyword_offset[pattern] then
     local _, s = RegExp.extract_at(self.text, pattern, self.character + 1)
-    if s then
-      self.cache[cache_key] = { s = s }
-    else
-      self.cache[cache_key] = {}
-    end
+    self.cache.get_keyword_offset[pattern] = s or -1
   end
-  return self.cache[cache_key].s
+  if self.cache.get_keyword_offset[pattern] == -1 then
+    return nil
+  end
+  return self.cache.get_keyword_offset[pattern]
 end
 
 return TriggerContext

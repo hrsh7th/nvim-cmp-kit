@@ -36,13 +36,14 @@ end
 ---@param keyword_pattern string
 ---@return { [1]: integer, [2]: integer } 1-origin utf8 byte index
 local function extract_keyword_range(trigger_context, keyword_pattern)
-  local cache_key = string.format('%s:%s', 'CompletionProvider:extract_keyword_range', keyword_pattern)
-  if not trigger_context.cache[cache_key] then
+  trigger_context.cache.CompletionProvider_extract_keyword_range = trigger_context.cache
+      .CompletionProvider_extract_keyword_range or {}
+  if not trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern] then
     local c = trigger_context.character + 1
     local _, s, e = RegExp.extract_at(trigger_context.text, keyword_pattern, c)
-    trigger_context.cache[cache_key] = { s or c, e or c }
+    trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern] = { s or c, e or c }
   end
-  return trigger_context.cache[cache_key]
+  return trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern]
 end
 
 ---@class cmp-kit.completion.CompletionProvider.State
@@ -233,8 +234,10 @@ function CompletionProvider:_adopt_response(trigger_context, list)
     local is_valid_range = true
     if completion_item:has_text_edit() then
       local range = completion_item:get_insert_range()
-      local is_valid_s = range.start.line < trigger_context.line or (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
-      local is_valid_e = trigger_context.line < range['end'].line or (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
+      local is_valid_s = range.start.line < trigger_context.line or
+          (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
+      local is_valid_e = trigger_context.line < range['end'].line or
+          (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
       is_valid_range = is_valid_s and is_valid_e
     end
 
@@ -382,7 +385,8 @@ function CompletionProvider:in_trigger_character_completion()
 
   local in_trigger_char_loose = false
   if self._state.trigger_context then
-    local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or (self._state.trigger_context.character + 1)
+    local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or
+        (self._state.trigger_context.character + 1)
     local maybe_trigger_char = self._state.trigger_context.text_before:sub(keyword_offset - 1, keyword_offset - 1)
     if not Character.is_white(maybe_trigger_char:byte(1)) then
       in_trigger_char_loose = vim.tbl_contains(self:get_trigger_characters(), maybe_trigger_char)
@@ -474,10 +478,12 @@ function CompletionProvider:get_default_insert_range()
   end
 
   local keyword_pattern = self:get_keyword_pattern()
-  local cache_key = string.format('%s:%s', 'CompletionProvider:get_default_insert_range', keyword_pattern)
-  if not self._state.trigger_context.cache[cache_key] then
+  self._state.trigger_context.cache.CompletionProvider_get_default_insert_range = (
+    self._state.trigger_context.cache.CompletionProvider_get_default_insert_range or {}
+  )
+  if not self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern] then
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
-    self._state.trigger_context.cache[cache_key] = {
+    self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern] = {
       start = {
         line = self._state.trigger_context.line,
         character = r[1] - 1,
@@ -488,7 +494,7 @@ function CompletionProvider:get_default_insert_range()
       },
     }
   end
-  return self._state.trigger_context.cache[cache_key]
+  return self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern]
 end
 
 ---Create default replace range from keyword pattern.
@@ -499,10 +505,12 @@ function CompletionProvider:get_default_replace_range()
   end
 
   local keyword_pattern = self:get_keyword_pattern()
-  local cache_key = string.format('%s:%s', 'CompletionProvider:get_default_replace_range', keyword_pattern)
-  if not self._state.trigger_context.cache[cache_key] then
+  self._state.trigger_context.cache.CompletionProvider_get_default_replace_range = (
+    self._state.trigger_context.cache.CompletionProvider_get_default_replace_range or {}
+  )
+  if not self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern] then
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
-    self._state.trigger_context.cache[cache_key] = {
+    self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern] = {
       start = {
         line = self._state.trigger_context.line,
         character = r[1] - 1,
@@ -513,7 +521,7 @@ function CompletionProvider:get_default_replace_range()
       },
     }
   end
-  return self._state.trigger_context.cache[cache_key]
+  return self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern]
 end
 
 return CompletionProvider
