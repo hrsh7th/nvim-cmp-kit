@@ -364,8 +364,9 @@ local default_config = {
 
 ---@class cmp-kit.completion.ext.DefaultView: cmp-kit.completion.CompletionView
 ---@field private _ns integer
----@field private _show_docs boolean
+---@field private _disposed boolean
 ---@field private _config cmp-kit.completion.ext.DefaultView.Config
+---@field private _show_docs boolean
 ---@field private _service cmp-kit.completion.CompletionService
 ---@field private _menu_window cmp-kit.kit.Vim.FloatingWindow
 ---@field private _docs_window cmp-kit.kit.Vim.FloatingWindow
@@ -383,6 +384,7 @@ function DefaultView.new(config)
   config = kit.merge(config or {}, default_config) --[[@as cmp-kit.completion.ext.DefaultView.Config]]
   local self = setmetatable({
     _ns = vim.api.nvim_create_namespace(('cmp-kit.completion.ext.DefaultView.%s'):format(vim.uv.now())),
+    _disposed = false,
     _config = config,
     _show_docs = config.auto_docs,
     _menu_window = FloatingWindow.new(),
@@ -463,6 +465,10 @@ end
 ---Show completion menu.
 ---@param params { matches: cmp-kit.completion.Match[], selection: cmp-kit.completion.Selection }
 function DefaultView:show(params)
+  if self._disposed then
+    return
+  end
+
   -- hide window if no matches.
   self._matches = params.matches
   if #self._matches == 0 then
@@ -650,6 +656,9 @@ end
 
 ---Hide window.
 function DefaultView:hide()
+  if self._disposed then
+    return
+  end
   get_strwidth.clear_cache()
   self._menu_window:hide()
   self._docs_window:hide()
@@ -658,6 +667,9 @@ end
 
 ---Show documentation if possible.
 function DefaultView:show_docs()
+  if self._disposed then
+    return
+  end
   self._show_docs = true
   local match = self:_get_selected_match()
   if match then
@@ -667,6 +679,9 @@ end
 
 ---Hide documentation if possible
 function DefaultView:hide_docs()
+  if self._disposed then
+    return
+  end
   self._show_docs = false
   self:_update_docs(nil)
 end
@@ -674,6 +689,9 @@ end
 ---Apply selection.
 ---@param params { selection: cmp-kit.completion.Selection }
 function DefaultView:select(params)
+  if self._disposed then
+    return
+  end
   if not self._menu_window:is_visible() then
     return
   end
@@ -696,6 +714,7 @@ end
 
 ---Dispose view.
 function DefaultView:dispose()
+  self._disposed = true
   self._menu_window:hide()
   self._docs_window:hide()
 end
