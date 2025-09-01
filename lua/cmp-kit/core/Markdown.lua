@@ -1,7 +1,6 @@
 -- Credits: https://github.com/folke/noice.nvim/blob/main/lua/noice/text/treesitter.lua
 
 local kit = require('cmp-kit.kit')
-local Async = require('cmp-kit.kit.Async')
 
 ---@class cmp-kit.completion.Markdown.Range
 ---@field public [1] integer
