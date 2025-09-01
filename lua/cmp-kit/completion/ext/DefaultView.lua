@@ -110,7 +110,11 @@ local ensure_color_code_highlight_group = setmetatable({
   __call = function(self, color_code)
     color_code = color_code:gsub('^#', ''):sub(1, 6)
     if #color_code == 3 then
-      color_code = ('%s%s%s'):format(color_code:sub(1, 1):rep(2), color_code:sub(2, 2):rep(2), color_code:sub(3, 3):rep(2))
+      color_code = ('%s%s%s'):format(
+        color_code:sub(1, 1):rep(2),
+        color_code:sub(2, 2):rep(2),
+        color_code:sub(3, 3):rep(2)
+      )
     end
 
     if not self.cache[color_code] then
@@ -528,25 +532,27 @@ function DefaultView:show(params)
       end
 
       for row = toprow, botrow do
-        local off = self._config.menu_padding_left
-        for _, column in ipairs(columns) do
-          off = off + column.padding_left
+        if row < #self._matches then
+          local off = self._config.menu_padding_left
+          for _, column in ipairs(columns) do
+            off = off + column.padding_left
 
-          local text = column.texts[row + 1]
-          local space_width = column.display_width - get_strwidth(text)
-          local right_align_off = column.align == 'right' and space_width or 0
-          for _, extmark in ipairs(column.component.get_extmarks(text, self._matches[row + 1], self._config)) do
-            vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
-              end_row = row,
-              end_col = off + right_align_off + extmark.end_col,
-              hl_group = extmark.hl_group,
-              hl_mode = 'combine',
-              priority = extmark.priority,
-              conceal = extmark.conceal,
-              ephemeral = true,
-            })
+            local text = column.texts[row + 1]
+            local space_width = column.display_width - get_strwidth(text)
+            local right_align_off = column.align == 'right' and space_width or 0
+            for _, extmark in ipairs(column.component.get_extmarks(text, self._matches[row + 1], self._config)) do
+              vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
+                end_row = row,
+                end_col = off + right_align_off + extmark.end_col,
+                hl_group = extmark.hl_group,
+                hl_mode = 'combine',
+                priority = extmark.priority,
+                conceal = extmark.conceal,
+                ephemeral = true,
+              })
+            end
+            off = off + #text + space_width + column.padding_right + self._config.menu_gap
           end
-          off = off + #text + space_width + column.padding_right + self._config.menu_gap
         end
       end
     end,
@@ -646,7 +652,10 @@ function DefaultView:show(params)
     row = position.row,
     col = position.col,
     width = max_content_width,
-    height = math.min(outer_height - border_size.v, (vim.o.pumheight ~= 0 and vim.o.pumheight) or outer_height - border_size.v),
+    height = math.min(
+      outer_height - border_size.v,
+      (vim.o.pumheight ~= 0 and vim.o.pumheight) or outer_height - border_size.v
+    ),
     style = 'minimal',
     border = vim.o.winborder,
   })
@@ -762,7 +771,11 @@ function DefaultView:_update_docs(item)
       local max_width = math.floor(vim.o.columns * self._config.docs_max_win_width_ratio)
       local max_height = math.floor(vim.o.lines * self._config.docs_max_win_width_ratio)
       local menu_viewport = self._menu_window:get_viewport()
-      local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and vim.o.winborder or border_padding_side
+      local docs_border = (vim.o.winborder ~= '' and vim.o.winborder ~= 'none') and (
+        vim.o.winborder
+      ) or (
+        border_padding_side
+      )
       local border_size = FloatingWindow.get_border_size(docs_border)
       local content_size = FloatingWindow.get_content_size({
         bufnr = self._docs_window:get_buf(),
