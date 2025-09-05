@@ -170,13 +170,12 @@ local function get_coloring(item)
 end
 
 ---Redraw for cmdline.
----@param win integer?
-local function redraw_for_cmdline(win)
+local function redraw_for_cmdline()
   if vim.api.nvim_get_mode().mode == 'c' then
     if vim.tbl_contains({ '/', '?' }, vim.fn.getcmdtype()) and vim.o.incsearch then
       vim.api.nvim_feedkeys(cmdline_redraw_keys, 'n', true)
     else
-      pcall(vim.api.nvim__redraw, { valid = true, win = win })
+      pcall(vim.api.nvim__redraw, { valid = true })
     end
   end
 end
@@ -660,7 +659,7 @@ function DefaultView:show(params)
     border = vim.o.winborder,
   })
 
-  redraw_for_cmdline(self._menu_window:get_win())
+  redraw_for_cmdline()
 end
 
 ---Hide window.
@@ -836,7 +835,7 @@ function DefaultView:_update_docs(item)
       })
       vim.api.nvim_win_set_cursor(self._docs_window:get_win() --[[@as integer]], { 1, 0 })
     end):next(function()
-      redraw_for_cmdline(self._docs_window:get_win())
+      redraw_for_cmdline()
     end)
   end)
 end
