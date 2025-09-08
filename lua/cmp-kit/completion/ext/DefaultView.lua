@@ -493,7 +493,7 @@ function DefaultView:show(params)
   -- compute columns.
   local min_offset = math.huge
   for i, match in ipairs(self._matches) do
-    min_offset = math.min(min_offset, match.item:get_offset())
+    min_offset = math.min(min_offset, match.provider:get_keyword_offset() or math.huge)
 
     -- create for each column data.
     local cache_key = 'cmp-kit.completion.ext.DefaultView.compute_columns'
