@@ -285,9 +285,11 @@ local default_config = {
         end
 
         -- coloring.
-        local coloring = get_coloring(match.item)
-        if coloring then
-          return '●'
+        if match.item:get_kind() == LSP.CompletionItemKind.Color then
+          local coloring = get_coloring(match.item)
+          if coloring then
+            return '●'
+          end
         end
 
         return ''

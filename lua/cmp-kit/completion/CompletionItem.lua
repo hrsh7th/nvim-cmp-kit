@@ -217,10 +217,10 @@ function CompletionItem:get_preview_text()
       end
 
       -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
-      local chars = self:_get_commit_and_trigger_character_map()
-      if chars[preview_text:byte(-1)] then
-        preview_text = preview_text:sub(1, -2)
-      end
+      -- local chars = self:_get_commit_and_trigger_character_map()
+      -- if chars[preview_text:byte(-1)] then
+      --   preview_text = preview_text:sub(1, -2)
+      -- end
     end
     self.cache[cache_key] = preview_text
   end
