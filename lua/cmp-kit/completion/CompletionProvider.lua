@@ -68,6 +68,7 @@ end
 
 ---@class cmp-kit.completion.CompletionProvider
 ---@field public config cmp-kit.completion.CompletionProvider.Config
+---@field private _cache table<string, any>
 ---@field private _source cmp-kit.completion.CompletionSource
 ---@field private _state cmp-kit.completion.CompletionProvider.State
 local CompletionProvider = {}
@@ -85,6 +86,7 @@ function CompletionProvider.new(source, config)
       item_count = math.huge,
       keyword_length = 1,
     }),
+    _cache = {},
     _source = source,
     _state = {
       is_trigger_character_completion = false,
@@ -303,42 +305,61 @@ function CompletionProvider:capable()
   return true
 end
 
+---Return source configuration.
+---@return cmp-kit.completion.CompletionSource.Configuration?
+function CompletionProvider:get_configuration()
+  local cache_key = 'CompletionProvider_get_configuration'
+  if not self._cache[cache_key] then
+    if not self._source.get_configuration then
+      self._cache[cache_key] = nil
+    else
+      self._cache[cache_key] = self._source:get_configuration()
+    end
+    vim.schedule(function()
+      self._cache[cache_key] = nil
+    end)
+  end
+  return self._cache[cache_key]
+end
+
 ---Return LSP.PositionEncodingKind.
 ---@return cmp-kit.kit.LSP.PositionEncodingKind
 function CompletionProvider:get_position_encoding_kind()
-  if not self._source.get_configuration then
+  local configuration = self:get_configuration()
+  if not configuration then
     return LSP.PositionEncodingKind.UTF16
   end
-  local config = self._source:get_configuration()
-  return config.position_encoding_kind or LSP.PositionEncodingKind.UTF16
+  return configuration.position_encoding_kind or LSP.PositionEncodingKind.UTF16
 end
 
 ---Return keyword pattern.
 ---@return string
 function CompletionProvider:get_keyword_pattern()
-  if not self._source.get_configuration then
+  local configuration = self:get_configuration()
+  if not configuration then
     return DefaultConfig.default_keyword_pattern
   end
-  local config = self._source:get_configuration()
-  return config.keyword_pattern or DefaultConfig.default_keyword_pattern
+  return configuration.keyword_pattern or DefaultConfig.default_keyword_pattern
 end
 
 ---Return trigger characters.
 ---@return string[]
 function CompletionProvider:get_trigger_characters()
-  if not self._source.get_configuration then
+  local configuration = self:get_configuration()
+  if not configuration then
     return {}
   end
-  return self._source:get_configuration().trigger_characters or {}
+  return configuration.trigger_characters or {}
 end
 
 ---Return all commit characters.
 ---@return string[]
 function CompletionProvider:get_all_commit_characters()
-  if not self._source.get_configuration then
+  local configuration = self:get_configuration()
+  if not configuration then
     return {}
   end
-  return self._source:get_configuration().all_commit_characters or {}
+  return configuration.all_commit_characters or {}
 end
 
 ---Return response revision.
