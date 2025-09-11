@@ -495,24 +495,12 @@ function DefaultView:show(params)
   for i, match in ipairs(self._matches) do
     min_offset = math.min(min_offset, match.provider:get_keyword_offset() or math.huge)
 
-    -- create for each column data.
-    local cache_key = 'cmp-kit.completion.ext.DefaultView.compute_columns'
-    if not match.item.cache[cache_key] then
-      match.item.cache[cache_key] = {}
-      for j, component in ipairs(self._config.menu_components) do
-        local text = component.get_text(match, self._config)
-        match.item.cache[cache_key][j] = {}
-        match.item.cache[cache_key][j].text = text
-        match.item.cache[cache_key][j].display_width = get_strwidth(text)
-        match.item.cache[cache_key][j].byte_width = #text
-      end
-    end
-
     -- update columns.
-    for j in ipairs(self._config.menu_components) do
-      columns[j].texts[i] = match.item.cache[cache_key][j].text
-      columns[j].display_width = math.max(columns[j].display_width, match.item.cache[cache_key][j].display_width)
-      columns[j].byte_width = math.max(columns[j].byte_width, match.item.cache[cache_key][j].byte_width)
+    for j, component in ipairs(self._config.menu_components) do
+      local text = component.get_text(match, self._config)
+      columns[j].texts[i] = text
+      columns[j].display_width = math.max(columns[j].display_width, get_strwidth(text))
+      columns[j].byte_width = math.max(columns[j].byte_width, #text)
     end
   end
 
@@ -562,7 +550,11 @@ function DefaultView:show(params)
   table.insert(parts, (' '):rep(self._config.menu_padding_left or 1))
   for i, column in ipairs(columns) do
     table.insert(parts, (' '):rep(column.padding_left or 0))
-    table.insert(parts, '%s%s')
+    if column.align == 'right' then
+      table.insert(parts, ('%%%ss'):format(column.display_width))
+    else
+      table.insert(parts, ('%%-%ss'):format(column.display_width))
+    end
     if #columns > 1 and i < #columns then
       table.insert(parts, (' '):rep(self._config.menu_gap or 1))
     end
@@ -576,14 +568,7 @@ function DefaultView:show(params)
   for i in ipairs(self._matches) do
     local formatting_args = kit.clear(tmp_tbls.formatting_args)
     for _, column in ipairs(columns) do
-      local text = column.texts[i]
-      if column.align == 'right' then
-        table.insert(formatting_args, (' '):rep(column.display_width - get_strwidth(text)))
-        table.insert(formatting_args, text)
-      else
-        table.insert(formatting_args, text)
-        table.insert(formatting_args, (' '):rep(column.display_width - get_strwidth(text)))
-      end
+      table.insert(formatting_args, column.texts[i])
     end
     local line = formatting:format(unpack(formatting_args))
     table.insert(rendering_lines, line)

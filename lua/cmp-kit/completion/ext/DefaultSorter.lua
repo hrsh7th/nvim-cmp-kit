@@ -11,50 +11,55 @@ local Bonus = {
 ---@param a cmp-kit.completion.Match
 ---@param b cmp-kit.completion.Match
 ---@param context cmp-kit.completion.SorterContext
+---@param cache table<string, any>
 ---@return boolean
-local function compare(a, b, context)
-  local just_completion_a = a.provider:get_keyword_offset() == a.item:get_offset()
-  local just_completion_b = b.provider:get_keyword_offset() == b.item:get_offset()
-  if just_completion_a ~= just_completion_b then
-    return just_completion_a
+local function compare(a, b, context, cache)
+  local a_cache = cache[a.item] or {
+    just_completion = a.provider:get_keyword_offset() == a.item:get_offset(),
+    preselect = a.item:is_preselect(),
+    exact = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text(),
+    locality = context.locality_map[a.item:get_preview_text()] or math.huge,
+    sort_text = a.item:get_sort_text(),
+    label_text = a.item:get_label_text(),
+  }
+  cache[a.item] = a_cache
+  local b_cache = cache[b.item] or {
+    just_completion = b.provider:get_keyword_offset() == b.item:get_offset(),
+    preselect = b.item:is_preselect(),
+    exact = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text(),
+    locality = context.locality_map[b.item:get_preview_text()] or math.huge,
+    sort_text = b.item:get_sort_text(),
+    label_text = b.item:get_label_text(),
+  }
+
+  if a_cache.just_completion ~= b_cache.just_completion then
+    return a_cache.just_completion
   end
-
-  local preselect_a = a.item:is_preselect()
-  local preselect_b = b.item:is_preselect()
-
-  local exact_a = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text()
-  local exact_b = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text()
-
-  local locality_a = context.locality_map[a.item:get_preview_text()] or math.huge
-  local locality_b = context.locality_map[b.item:get_preview_text()] or math.huge
-
-  local sort_text_a = a.item:get_sort_text()
-  local sort_text_b = b.item:get_sort_text()
 
   local sort_text_bonus_a = 0
   local sort_text_bonus_b = 0
-  if sort_text_a and not sort_text_b then
+  if a_cache.sort_text and not b_cache.sort_text then
     sort_text_bonus_a = Bonus.sort_text
   end
-  if not sort_text_a and sort_text_b then
+  if not a_cache.sort_text and b_cache.sort_text then
     sort_text_bonus_b = Bonus.sort_text
   end
-  if sort_text_a and sort_text_b then
-    if sort_text_a < sort_text_b then
+  if a_cache.sort_text and b_cache.sort_text then
+    if a_cache.sort_text < b_cache.sort_text then
       sort_text_bonus_a = Bonus.sort_text
-    elseif sort_text_a > sort_text_b then
+    elseif a_cache.sort_text > b_cache.sort_text then
       sort_text_bonus_b = Bonus.sort_text
     end
   end
 
   local score_bonus_a = 0
   local score_bonus_b = 0
-  score_bonus_a = score_bonus_a + (preselect_a and Bonus.preselect or 0)
-  score_bonus_b = score_bonus_b + (preselect_b and Bonus.preselect or 0)
-  score_bonus_a = score_bonus_a + locality_a < locality_b and Bonus.locality or 0
-  score_bonus_b = score_bonus_b + locality_a > locality_b and Bonus.locality or 0
-  score_bonus_a = score_bonus_a + (exact_a and Bonus.exact or 0)
-  score_bonus_b = score_bonus_b + (exact_b and Bonus.exact or 0)
+  score_bonus_a = score_bonus_a + (a_cache.preselect and Bonus.preselect or 0)
+  score_bonus_b = score_bonus_b + (b_cache.preselect and Bonus.preselect or 0)
+  score_bonus_a = score_bonus_a + a_cache.locality < b_cache.locality and Bonus.locality or 0
+  score_bonus_b = score_bonus_b + a_cache.locality > b_cache.locality and Bonus.locality or 0
+  score_bonus_a = score_bonus_a + (a_cache.exact and Bonus.exact or 0)
+  score_bonus_b = score_bonus_b + (b_cache.exact and Bonus.exact or 0)
   score_bonus_a = score_bonus_a + sort_text_bonus_a
   score_bonus_b = score_bonus_b + sort_text_bonus_b
 
@@ -64,10 +69,8 @@ local function compare(a, b, context)
     return score_a > score_b
   end
 
-  local label_text_a = a.item:get_label_text()
-  local label_text_b = b.item:get_label_text()
-  if label_text_a ~= label_text_b then
-    return label_text_a < label_text_b
+  if a_cache.label_text ~= b_cache.label_text then
+    return a_cache.label_text < b_cache.label_text
   end
   return a.index < b.index
 end
@@ -80,8 +83,9 @@ local DefaultSorter = {}
 ---@return cmp-kit.completion.Match[]
 function DefaultSorter.sort(matches, context)
   -- sort matches.
+  local cache = {}
   table.sort(matches, function(a, b)
-    return compare(a, b, context)
+    return compare(a, b, context, cache)
   end)
 
   return matches

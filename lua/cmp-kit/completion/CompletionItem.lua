@@ -1,3 +1,4 @@
+local empty = {}
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
@@ -161,15 +162,17 @@ end
 function CompletionItem:get_label_details()
   local cache_key = 'get_label_details'
   if not self.cache[cache_key] then
-    local details = {} --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails]]
+    local details --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails]]
     if self._item.labelDetails then
+      details = details or {}
       details.detail = details.detail or self._item.labelDetails.detail
       details.description = details.description or self._item.labelDetails.description
     end
     if self._item.detail then
+      details = details or {}
       details.detail = details.detail or self._item.detail
     end
-    self.cache[cache_key] = details
+    self.cache[cache_key] = details or empty
   end
   return self.cache[cache_key]
 end
@@ -214,18 +217,8 @@ function CompletionItem:get_preview_text()
       end
 
       -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
-      local chars = {}
-      for _, c in ipairs(self:get_commit_characters()) do
-        if Character.is_symbol(c:byte(1)) then
-          chars[c] = true
-        end
-      end
-      for _, c in ipairs(self._provider:get_trigger_characters()) do
-        if Character.is_symbol(c:byte(1)) then
-          chars[c] = true
-        end
-      end
-      if chars[preview_text:sub(-1, -1)] then
+      local chars = self:_get_commit_and_trigger_character_map()
+      if chars[preview_text:byte(-1)] then
         preview_text = preview_text:sub(1, -2)
       end
     end
@@ -310,30 +303,36 @@ end
 function CompletionItem:get_commit_characters()
   local cache_key = 'get_commit_characters'
   if not self.cache[cache_key] then
-    local uniq = {}
-    local commit_characters = {}
+    local uniq
+    local commit_characters
     for _, c in ipairs(self._provider:get_all_commit_characters()) do
+      uniq = uniq or {}
       if not uniq[c] then
         uniq[c] = true
+        commit_characters = commit_characters or {}
         table.insert(commit_characters, c)
       end
     end
     if self._item.commitCharacters then
       for _, c in ipairs(self._item.commitCharacters) do
+        uniq = uniq or {}
         if not uniq[c] then
           uniq[c] = true
+          commit_characters = commit_characters or {}
           table.insert(commit_characters, c)
         end
       end
     elseif self._completion_list.itemDefaults and self._completion_list.itemDefaults.commitCharacters then
       for _, c in ipairs(self._completion_list.itemDefaults.commitCharacters) do
+        uniq = uniq or {}
         if not uniq[c] then
           uniq[c] = true
+          commit_characters = commit_characters or {}
           table.insert(commit_characters, c)
         end
       end
     end
-    self.cache[cache_key] = commit_characters
+    self.cache[cache_key] = commit_characters or empty
   end
   return self.cache[cache_key]
 end
@@ -377,14 +376,16 @@ end
 function CompletionItem:get_tags()
   local cache_key = 'get_tags'
   if not self.cache[cache_key] then
-    local tags = {}
+    local tags
     for _, tag in ipairs(self._item.tags or {}) do
+      tags = tags or {}
       tags[tag] = true
     end
     if self._item.deprecated then
+      tags = tags or {}
       tags[LSP.CompletionItemTag.Deprecated] = true
     end
-    self.cache[cache_key] = tags
+    self.cache[cache_key] = tags or empty
   end
   return self.cache[cache_key]
 end
@@ -759,6 +760,25 @@ function CompletionItem:_has_inline_additional_text_edits()
         end
       end
     end
+  end
+  return self.cache[cache_key]
+end
+
+---Create commitCharacters and triggerCharacters map.
+---@return table<integer, boolean>
+function CompletionItem:_get_commit_and_trigger_character_map()
+  local cache_key = '_get_commit_and_trigger_character_map'
+  if not self.cache[cache_key] then
+    local chars
+    for _, c in ipairs(self:get_commit_characters()) do
+      chars = chars or {}
+      chars[c:byte(1)] = true
+    end
+    for _, c in ipairs(self._provider:get_trigger_characters()) do
+      chars = chars or {}
+      chars[c:byte(1)] = true
+    end
+    self.cache[cache_key] = chars or empty
   end
   return self.cache[cache_key]
 end

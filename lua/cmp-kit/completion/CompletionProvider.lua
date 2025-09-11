@@ -1,4 +1,5 @@
 ---@diagnostic disable: invisible
+local empty = {}
 local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
@@ -347,9 +348,9 @@ end
 function CompletionProvider:get_trigger_characters()
   local configuration = self:get_configuration()
   if not configuration then
-    return {}
+    return empty
   end
-  return configuration.trigger_characters or {}
+  return configuration.trigger_characters or empty
 end
 
 ---Return all commit characters.
@@ -357,9 +358,9 @@ end
 function CompletionProvider:get_all_commit_characters()
   local configuration = self:get_configuration()
   if not configuration then
-    return {}
+    return empty
   end
-  return configuration.all_commit_characters or {}
+  return configuration.all_commit_characters or empty
 end
 
 ---Return response revision.
@@ -396,7 +397,7 @@ end
 ---Return items.
 ---@return cmp-kit.completion.CompletionItem[]
 function CompletionProvider:get_items()
-  return self._state.items or {}
+  return self._state.items or empty
 end
 
 ---Return current completion is triggered by character or not.
