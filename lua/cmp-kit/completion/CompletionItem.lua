@@ -395,41 +395,44 @@ end
 function CompletionItem:get_documentation()
   local cache_key = 'get_documentation'
   if not self.cache[cache_key] then
-    local documentation = { kind = LSP.MarkupKind.Markdown, value = '' } --[[@as cmp-kit.kit.LSP.MarkupContent]]
+    local kind = LSP.MarkupKind.PlainText
+    local value = ''
 
     -- CompletionItem.documentation.
     if self._item.documentation then
       if type(self._item.documentation) == 'string' then
-        documentation.value = self._item.documentation --[[@as string]]
+        value = self._item.documentation --[[@as string]]
       else
-        documentation.kind = self._item.documentation.kind
-        documentation.value = self._item.documentation.value
+        kind = self._item.documentation.kind
+        value = self._item.documentation.value
       end
     end
 
     -- CompletionItem.detail.
     local label_details = self:get_label_details()
     if label_details.detail then
-      local has_already = documentation.value:find(label_details.detail, 1, true)
+      local has_already = value:find(label_details.detail, 1, true)
       if not has_already then
-        local value = ('```%s\n%s\n```'):format(
+        local detail_value = ('```%s\n%s\n```'):format(
           vim.api.nvim_get_option_value('filetype', { buf = self._trigger_context.bufnr }),
           label_details.detail
         )
-        if documentation.value ~= '' then
-          value = ('%s\n---\n%s'):format(value, documentation.value)
+        if value ~= '' then
+          detail_value = ('%s\n---\n%s'):format(detail_value, value)
         end
-        documentation.value = value
+        value = detail_value
       end
     end
 
     -- return nil if documentation does not provided.
-    if documentation.value == '' then
-      documentation = nil
+    if value == '' then
+      self.cache[cache_key] = empty
     else
-      documentation.value = documentation.value:gsub('\r\n', '\n'):gsub('\r', '\n')
+      self.cache[cache_key] = {
+        kind = kind,
+        value = value,
+      }
     end
-    self.cache[cache_key] = { output = documentation }
   end
   return self.cache[cache_key].output
 end

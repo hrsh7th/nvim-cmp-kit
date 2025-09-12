@@ -1,6 +1,7 @@
 local DefaultMatcher = require('cmp-kit.completion.ext.DefaultMatcher')
 
-local Bonus = {
+---@class cmp-kit.completion.ext.DefaultSorter.BonusConfig
+local BonusConfig = {
   exact = 10 * DefaultMatcher.Config.score_adjuster,
   preselect = 8 * DefaultMatcher.Config.score_adjuster,
   locality = 4 * DefaultMatcher.Config.score_adjuster,
@@ -12,8 +13,9 @@ local Bonus = {
 ---@param b cmp-kit.completion.Match
 ---@param context cmp-kit.completion.SorterContext
 ---@param cache table<string, any>
+---@param Bonus cmp-kit.completion.ext.DefaultSorter.BonusConfig
 ---@return boolean
-local function compare(a, b, context, cache)
+local function compare(a, b, context, cache, Bonus)
   if not cache[a.item] then
     cache[a.item] = {
       just_completion = a.provider:get_keyword_offset() == a.item:get_offset(),
@@ -90,7 +92,7 @@ function DefaultSorter.sort(matches, context)
   -- sort matches.
   local cache = {}
   table.sort(matches, function(a, b)
-    return compare(a, b, context, cache)
+    return compare(a, b, context, cache, BonusConfig)
   end)
 
   return matches
