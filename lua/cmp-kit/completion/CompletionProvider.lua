@@ -450,7 +450,7 @@ end
 ---@return cmp-kit.completion.Match[]
 function CompletionProvider:get_matches(trigger_context, config)
   if not self:in_completion_context(trigger_context) then
-    return {}
+    return empty
   end
 
   local next_before_text = trigger_context.text_before
@@ -464,7 +464,7 @@ function CompletionProvider:get_matches(trigger_context, config)
 
   local target_items = self._state.items
   if prev_before_text then
-    if #next_before_text > #prev_before_text and next_before_text:find(prev_before_text, 1, true) then
+    if #next_before_text > #prev_before_text and vim.startswith(prev_before_text, next_before_text) then
       target_items = kit.concat({}, self._state.matches_items)
     else
       kit.clear(self._state.matches_items)
