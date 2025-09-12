@@ -434,7 +434,7 @@ function CompletionItem:get_documentation()
       }
     end
   end
-  return self.cache[cache_key].output
+  return self.cache[cache_key].value and self.cache[cache_key]
 end
 
 ---Resolve completion item (completionItem/resolve).
