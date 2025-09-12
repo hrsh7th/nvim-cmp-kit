@@ -53,7 +53,6 @@ end
 ---@field public default_keyword_pattern string
 
 ---@class cmp-kit.completion.CompletionService.State
----@field public provider_response_revision table<cmp-kit.completion.CompletionProvider, integer>
 ---@field public complete_trigger_context cmp-kit.core.TriggerContext
 ---@field public matching_trigger_context cmp-kit.core.TriggerContext
 ---@field public selection cmp-kit.completion.Selection
@@ -87,7 +86,6 @@ function CompletionService.new(config)
     _preventing = 0,
     _events = {},
     _state = {
-      provider_response_revision = {},
       complete_trigger_context = TriggerContext.create_empty_context(),
       matching_trigger_context = TriggerContext.create_empty_context(),
       selection = {
@@ -337,7 +335,6 @@ function CompletionService:clear()
 
   -- reset current TriggerContext for preventing new completion in same context.
   self._state = {
-    provider_response_revision = {},
     complete_trigger_context = TriggerContext.create(),
     matching_trigger_context = TriggerContext.create(),
     selection = {

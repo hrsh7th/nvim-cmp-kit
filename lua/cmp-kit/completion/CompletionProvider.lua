@@ -50,7 +50,6 @@ end
 ---@class cmp-kit.completion.CompletionProvider.State
 ---@field public request_state cmp-kit.completion.CompletionProvider.RequestState
 ---@field public request_time integer
----@field public response_revision integer
 ---@field public completion_context? cmp-kit.kit.LSP.CompletionContext
 ---@field public completion_offset? integer
 ---@field public keyword_offset? integer
@@ -93,7 +92,6 @@ function CompletionProvider.new(source, config)
       is_trigger_character_completion = false,
       request_state = RequestState.Waiting,
       request_time = 0,
-      response_revision = 0,
       items = {},
       matches = {},
       matches_items = {},
@@ -224,8 +222,6 @@ function CompletionProvider:_adopt_response(trigger_context, list)
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
-  local prev_item_count = #self._state.items
-
   -- do not keep previous state if completion is not incomplete.
   kit.clear(self._state.items)
 
@@ -253,12 +249,6 @@ function CompletionProvider:_adopt_response(trigger_context, list)
   kit.clear(self._state.matches)
   kit.clear(self._state.matches_items)
   self._state.matches_before_text = nil
-
-  -- increase response_revision if changed.
-  local next_item_count = #self._state.items
-  if not (next_item_count == 0 and prev_item_count == 0) then
-    self._state.response_revision = self._state.response_revision + 1
-  end
 end
 
 ---Resolve completion item (completionItem/resolve).
@@ -363,19 +353,12 @@ function CompletionProvider:get_all_commit_characters()
   return configuration.all_commit_characters or empty
 end
 
----Return response revision.
----@return integer
-function CompletionProvider:get_response_revision()
-  return self._state.response_revision
-end
-
 ---Clear completion state.
 function CompletionProvider:clear()
   self._state = {
     is_trigger_character_completion = false,
     request_state = RequestState.Waiting,
     request_time = 0,
-    response_revision = self._state.response_revision,
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
     matches_items = kit.clear(self._state.matches_items),
