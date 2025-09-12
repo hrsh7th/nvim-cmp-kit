@@ -14,23 +14,28 @@ local Bonus = {
 ---@param cache table<string, any>
 ---@return boolean
 local function compare(a, b, context, cache)
-  local a_cache = cache[a.item] or {
-    just_completion = a.provider:get_keyword_offset() == a.item:get_offset(),
-    preselect = a.item:is_preselect(),
-    exact = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text(),
-    locality = context.locality_map[a.item:get_preview_text()] or math.huge,
-    sort_text = a.item:get_sort_text(),
-    label_text = a.item:get_label_text(),
-  }
-  cache[a.item] = a_cache
-  local b_cache = cache[b.item] or {
-    just_completion = b.provider:get_keyword_offset() == b.item:get_offset(),
-    preselect = b.item:is_preselect(),
-    exact = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text(),
-    locality = context.locality_map[b.item:get_preview_text()] or math.huge,
-    sort_text = b.item:get_sort_text(),
-    label_text = b.item:get_label_text(),
-  }
+  if not cache[a.item] then
+    cache[a.item] = {
+      just_completion = a.provider:get_keyword_offset() == a.item:get_offset(),
+      preselect = a.item:is_preselect(),
+      exact = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text(),
+      locality = context.locality_map[a.item:get_preview_text()] or math.huge,
+      sort_text = a.item:get_sort_text(),
+      label_text = a.item:get_label_text(),
+    }
+  end
+  local a_cache = cache[a.item]
+  if not cache[b.item] then
+    cache[b.item] = {
+      just_completion = b.provider:get_keyword_offset() == b.item:get_offset(),
+      preselect = b.item:is_preselect(),
+      exact = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text(),
+      locality = context.locality_map[b.item:get_preview_text()] or math.huge,
+      sort_text = b.item:get_sort_text(),
+      label_text = b.item:get_label_text(),
+    }
+  end
+  local b_cache = cache[b.item]
 
   if a_cache.just_completion ~= b_cache.just_completion then
     return a_cache.just_completion
@@ -44,7 +49,7 @@ local function compare(a, b, context, cache)
   if not a_cache.sort_text and b_cache.sort_text then
     sort_text_bonus_b = Bonus.sort_text
   end
-  if a_cache.sort_text and b_cache.sort_text then
+  if a_cache.sort_text and b_cache.sort_text and a_cache.sort_text ~= b_cache.sort_text then
     if a_cache.sort_text < b_cache.sort_text then
       sort_text_bonus_a = Bonus.sort_text
     elseif a_cache.sort_text > b_cache.sort_text then

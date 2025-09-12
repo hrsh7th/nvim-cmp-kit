@@ -87,7 +87,7 @@ local function compute(
           break
         end
         mi = mi + 1
-        strict_bonus = strict_bonus + (t_char == q_char and score_adjuster or 0)
+        strict_bonus = strict_bonus + (t_char == q_char and score_adjuster * 0.1 or 0)
 
         local inner_score, inner_ranges = dfs(
           qi + mi,
