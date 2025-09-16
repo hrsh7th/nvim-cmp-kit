@@ -5,8 +5,21 @@ local BonusConfig = {
   exact = 10 * DefaultMatcher.Config.score_adjuster,
   preselect = 8 * DefaultMatcher.Config.score_adjuster,
   locality = 4 * DefaultMatcher.Config.score_adjuster,
-  sort_text = DefaultMatcher.Config.score_adjuster / 2,
+  sort_text = 3 * DefaultMatcher.Config.score_adjuster,
 }
+
+local item_cache = {}
+
+---@param match cmp-kit.completion.Match
+local function log(match, ...)
+  if item_cache[match.item] then
+    return
+  end
+  item_cache[match.item] = true
+
+  vim.print(...)
+end
+
 
 ---Compare two items.
 ---@param a cmp-kit.completion.Match
@@ -17,8 +30,10 @@ local BonusConfig = {
 ---@return boolean
 local function compare(a, b, context, cache, Bonus)
   if not cache[a.item] then
+    local offset = a.provider:get_keyword_offset() or a.provider:get_completion_offset()
+    local offset_diff = offset - a.item:get_offset()
     cache[a.item] = {
-      just_completion = a.provider:get_keyword_offset() == a.item:get_offset(),
+      offset_diff = offset_diff,
       preselect = a.item:is_preselect(),
       exact = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text(),
       locality = context.locality_map[a.item:get_preview_text()] or math.huge,
@@ -27,9 +42,12 @@ local function compare(a, b, context, cache, Bonus)
     }
   end
   local a_cache = cache[a.item]
+
   if not cache[b.item] then
+    local offset = b.provider:get_keyword_offset() or b.provider:get_completion_offset()
+    local offset_diff = offset - b.item:get_offset()
     cache[b.item] = {
-      just_completion = b.provider:get_keyword_offset() == b.item:get_offset(),
+      offset_diff = offset_diff,
       preselect = b.item:is_preselect(),
       exact = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text(),
       locality = context.locality_map[b.item:get_preview_text()] or math.huge,
@@ -39,8 +57,8 @@ local function compare(a, b, context, cache, Bonus)
   end
   local b_cache = cache[b.item]
 
-  if a_cache.just_completion ~= b_cache.just_completion then
-    return a_cache.just_completion
+  if a_cache.offset_diff ~= b_cache.offset_diff then
+    return a_cache.offset_diff < b_cache.offset_diff
   end
 
   local sort_text_bonus_a = 0
