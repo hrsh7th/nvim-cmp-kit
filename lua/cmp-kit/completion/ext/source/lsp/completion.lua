@@ -32,12 +32,6 @@ return function(option)
       }
     end,
     capable = function(_)
-      if not option.client.server_capabilities then
-        return false
-      end
-      if not option.client.server_capabilities.completionProvider then
-        return false
-      end
       return option.client:supports_method('textDocument/completion', vim.api.nvim_get_current_buf())
     end,
     resolve = function(_, item, callback)
@@ -87,10 +81,10 @@ return function(option)
           context = completion_context,
         })
         local response = request
-          :catch(function()
-            return nil
-          end)
-          :await()
+            :catch(function()
+              return nil
+            end)
+            :await()
         request = nil
         return response
       end):dispatch(function(res)
