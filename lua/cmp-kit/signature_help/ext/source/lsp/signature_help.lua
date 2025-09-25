@@ -35,12 +35,6 @@ return function(option)
       }
     end,
     capable = function(_)
-      if not option.client.server_capabilities then
-        return false
-      end
-      if not option.client.server_capabilities.signatureHelpProvider then
-        return false
-      end
       return option.client:supports_method('textDocument/signatureHelp', vim.api.nvim_get_current_buf())
     end,
     fetch = function(_, signature_help_context, callback)
