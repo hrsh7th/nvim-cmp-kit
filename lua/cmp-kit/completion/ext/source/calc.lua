@@ -1,7 +1,7 @@
 local Async = require('cmp-kit.kit.Async')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local PATTERN = [=[\s*\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+-,]\)\+\s*]=]
+local PATTERN = [=[\s*\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+-,]\)\+\s*\%(\s*=\s*\)\?]=]
 
 local DIGIT_ONLY = [=[^\s*\d\+\%(\.\d\+\)\?\s*$]=]
 
@@ -18,7 +18,7 @@ return function()
     get_configuration = function()
       return {
         keyword_pattern = PATTERN,
-        trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ' },
+        trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ', '=' },
       }
     end,
     complete = function(_, _, callback)
@@ -28,7 +28,8 @@ return function()
         if not off then
           return INVALID
         end
-        local candidate_text = ctx.text_before:sub(off)
+        local leading_text = ctx.text_before:sub(off)
+        local candidate_text = leading_text:gsub('%s*=%s*$', '')
 
         local stack = {}
         for i = #candidate_text, 1, -1 do
@@ -68,14 +69,14 @@ return function()
             {
               label = ('= %s'):format(output),
               insertText = tostring(output),
-              filterText = candidate_text,
+              filterText = leading_text,
               sortText = '1',
               nvim_previewText = tostring(output),
             },
             {
               label = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
               insertText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
-              filterText = candidate_text,
+              filterText = leading_text,
               sortText = '2',
               nvim_previewText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
             },
