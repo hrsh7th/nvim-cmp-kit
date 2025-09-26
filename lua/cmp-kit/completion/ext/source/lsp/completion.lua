@@ -27,7 +27,10 @@ return function(option)
       return {
         position_encoding_kind = option.client.offset_encoding,
         keyword_pattern = option.keyword_pattern,
-        trigger_characters = kit.get(capabilities, { 'registerOptions', 'triggerCharacters' }, {}),
+        trigger_characters = kit.concat(
+          kit.get(capabilities, { 'registerOptions', 'triggerCharacters' }, {}),
+          kit.get(option.client.server_capabilities, { 'completionProvider', 'triggerCharacters' }, {})
+        ),
       }
     end,
     capable = function(_)
@@ -38,7 +41,7 @@ return function(option)
         local capabilities = option.client.dynamic_capabilities:get('textDocument/completion', {
           bufnr = vim.api.nvim_get_current_buf(),
         })
-        if kit.get(capabilities, { 'registerOptions', 'resolveProvider' }, {}) then
+        if kit.get(capabilities, { 'registerOptions', 'resolveProvider' }) or kit.get(option.client.server_capabilities, { 'completionProvider', 'resolveProvider' }) then
           return client:completionItem_resolve(item):await()
         end
         return item
