@@ -8,19 +8,6 @@ local BonusConfig = {
   sort_text = 3 * DefaultMatcher.Config.score_adjuster,
 }
 
-local item_cache = {}
-
----@param match cmp-kit.completion.Match
-local function log(match, ...)
-  if item_cache[match.item] then
-    return
-  end
-  item_cache[match.item] = true
-
-  vim.print(...)
-end
-
-
 ---Compare two items.
 ---@param a cmp-kit.completion.Match
 ---@param b cmp-kit.completion.Match
@@ -36,7 +23,7 @@ local function compare(a, b, context, cache, Bonus)
       offset_diff = offset_diff,
       preselect = a.item:is_preselect(),
       exact = context.trigger_context:get_query(a.item:get_offset()) == a.item:get_filter_text(),
-      locality = context.locality_map[a.item:get_preview_text()] or math.huge,
+      locality = context.locality_map[a.item:get_label_text()] or math.huge,
       sort_text = a.item:get_sort_text(),
       label_text = a.item:get_label_text(),
     }
@@ -50,7 +37,7 @@ local function compare(a, b, context, cache, Bonus)
       offset_diff = offset_diff,
       preselect = b.item:is_preselect(),
       exact = context.trigger_context:get_query(b.item:get_offset()) == b.item:get_filter_text(),
-      locality = context.locality_map[b.item:get_preview_text()] or math.huge,
+      locality = context.locality_map[b.item:get_label_text()] or math.huge,
       sort_text = b.item:get_sort_text(),
       label_text = b.item:get_label_text(),
     }
