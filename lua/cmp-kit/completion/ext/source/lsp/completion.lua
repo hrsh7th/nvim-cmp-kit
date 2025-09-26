@@ -71,27 +71,21 @@ return function(option)
       end
 
       local position_params = vim.lsp.util.make_position_params(0, option.client.offset_encoding)
-      Async.run(function()
-        request = client:textDocument_completion({
-          textDocument = {
-            uri = position_params.textDocument.uri,
-          },
-          position = {
-            line = position_params.position.line,
-            character = position_params.position.character,
-          },
-          context = completion_context,
-        })
-        local response = request
-            :catch(function()
-              return nil
-            end)
-            :await()
+      request = client:textDocument_completion({
+        textDocument = {
+          uri = position_params.textDocument.uri,
+        },
+        position = {
+          line = position_params.position.line,
+          character = position_params.position.character,
+        },
+        context = completion_context,
+      })
+      request:dispatch(function(res)
         request = nil
-        return response
-      end):dispatch(function(res)
         callback(nil, res)
       end, function(err)
+        request = nil
         callback(err, nil)
       end)
     end,
