@@ -541,7 +541,7 @@ function CompletionItem:commit(option)
     local after = range['end'].character - self._trigger_context.character
 
     -- Apply sync additionalTextEdits if provied.
-    if false and self._item.additionalTextEdits then
+    if self._item.additionalTextEdits then
       vim.lsp.util.apply_text_edits(
         vim
         .iter(self._item.additionalTextEdits)
