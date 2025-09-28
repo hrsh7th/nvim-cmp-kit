@@ -162,7 +162,7 @@ end
 function CompletionItem:get_label_details()
   local cache_key = 'get_label_details'
   if not self.cache[cache_key] then
-    local details --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails]]
+    local details = nil --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails?]]
     if self._item.labelDetails then
       details = details or {}
       details.detail = details.detail or self._item.labelDetails.detail
