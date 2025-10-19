@@ -1,3 +1,5 @@
+local LSP = require('cmp-kit.kit.LSP')
+local Position = require('cmp-kit.kit.LSP.Position')
 local RegExp = require('cmp-kit.kit.Vim.RegExp')
 
 ---@type { ns: integer, last_typed_char: string?, trigger_context: cmp-kit.core.TriggerContext? }
@@ -188,6 +190,22 @@ function TriggerContext:get_keyword_offset(pattern)
     return nil
   end
   return self.cache.get_keyword_offset[pattern]
+end
+
+---Convert position as utf8.
+---NOTE: This method ignores the `position.line` because CompletionItem does not consider line posision.
+---@param position cmp-kit.kit.LSP.Position
+---@param from_encoding cmp-kit.kit.LSP.PositionEncodingKind
+---@return cmp-kit.kit.LSP.Position
+function TriggerContext:convert_position_as_utf8(from_encoding, position)
+  if from_encoding == LSP.PositionEncodingKind.UTF8 then
+    return position
+  end
+  local cache_key = ('convert_position_as_utf8:%s:%s'):format(from_encoding, position.character)
+  if not self.cache[cache_key] then
+    self.cache[cache_key] = Position.to_utf8(self.text, position, from_encoding)
+  end
+  return self.cache[cache_key]
 end
 
 return TriggerContext

@@ -301,7 +301,6 @@ describe('cmp-kit.completion', function()
     end)
 
     it('should support symbolic keyword completion (special feature)', function()
-      -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
       Keymap.spec(function()
         Keymap.send('i'):await()
         local _, _, service = spec.setup({

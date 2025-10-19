@@ -100,36 +100,39 @@ end
 ---NOTE: VSCode does not need this because it always shows the completion menu relative to the cursor position. But vim's completion usually shows the menu aligned with the keyword.
 ---@return number
 function CompletionItem:get_offset()
-  local cache_key = 'get_offset'
-  if not self.cache[cache_key] then
-    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
-        (self._trigger_context.character + 1)
+  if not self.cache.get_offset then
+    local keyword_offset = (
+      self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern())
+      or (self._trigger_context.character + 1)
+    )
     if not self:has_text_edit() then
-      self.cache[cache_key] = keyword_offset
+      self.cache.get_offset = keyword_offset
+
+      -- if filter_text starts with symbol, we search symbol position from buffer text.
       local filter_text = self:get_filter_text()
-      if Character.is_symbol(filter_text:byte(1)) then
+      local filter_text_char1 = filter_text:byte(1)
+      if Character.is_symbol(filter_text_char1) then
         local min_i = math.max(1, keyword_offset - #filter_text)
-        for i = math.min(#self._trigger_context.text_before, keyword_offset), min_i, -1 do
-          if Character.is_semantic_index(self._trigger_context.text, i) then
-            local m = true
-            local max_j = math.min(i + #filter_text - 1, #self._trigger_context.text_before)
-            for j = i, max_j do
+        for i = keyword_offset, min_i, -1 do
+          local trigger_text_char = self._trigger_context.text_before:byte(i)
+          if trigger_text_char == filter_text_char1 then
+            local matched = true
+            for j = i + 1, keyword_offset - 1 do
               if self._trigger_context.text_before:byte(j) ~= filter_text:byte(1 + j - i) then
-                m = false
+                matched = false
                 break
               end
             end
-            if m then
-              self.cache[cache_key] = i
+            if matched then
+              self.cache.get_offset = i
               break
             end
           end
         end
       end
     else
+      -- Use `textEdit.range.start.character` as offset but We ignore leading whitespace characters.
       local insert_range = self:get_insert_range()
-
-      -- We trim whitespace from `preview_text` so we ignore whitespace changes from `textEdit`.
       local trigger_context_cache_key = ('%s:%s:%s'):format('get_offset', keyword_offset, insert_range.start.character)
       if not self._trigger_context.cache[trigger_context_cache_key] then
         local offset = insert_range.start.character + 1
@@ -141,27 +144,25 @@ function CompletionItem:get_offset()
         end
         self._trigger_context.cache[trigger_context_cache_key] = math.min(offset, keyword_offset)
       end
-      self.cache[cache_key] = self._trigger_context.cache[trigger_context_cache_key]
+      self.cache.get_offset = self._trigger_context.cache[trigger_context_cache_key]
     end
   end
-  return self.cache[cache_key]
+  return self.cache.get_offset
 end
 
 ---Return label text.
 ---@return string
 function CompletionItem:get_label_text()
-  local cache_key = 'get_label_text'
-  if not self.cache[cache_key] then
-    self.cache[cache_key] = oneline(self._item.label)
+  if not self.cache.get_label_text then
+    self.cache.get_label_text = oneline(self._item.label)
   end
-  return self.cache[cache_key]
+  return self.cache.get_label_text
 end
 
 ---Return label details.
 ---@return cmp-kit.kit.LSP.CompletionItemLabelDetails
 function CompletionItem:get_label_details()
-  local cache_key = 'get_label_details'
-  if not self.cache[cache_key] then
+  if not self.cache.get_label_details then
     local details = nil --[[@type cmp-kit.kit.LSP.CompletionItemLabelDetails?]]
     if self._item.labelDetails then
       details = details or {}
@@ -172,9 +173,9 @@ function CompletionItem:get_label_details()
       details = details or {}
       details.detail = details.detail or self._item.detail
     end
-    self.cache[cache_key] = details or empty
+    self.cache.get_label_details = details or empty
   end
-  return self.cache[cache_key]
+  return self.cache.get_label_details
 end
 
 ---Return sort_text.
@@ -187,8 +188,7 @@ end
 ---NOTE: VSCode does not need this because it doesn't insert the text when the item is selected. But vim's completion usually inserts the text when the item is selected.
 ---@return string
 function CompletionItem:get_preview_text()
-  local cache_key = 'get_preview_text'
-  if not self.cache[cache_key] then
+  if not self.cache.get_preview_text then
     local preview_text --[[@as string]]
     if self._item.nvim_previewText then
       preview_text = trim_prewhite(self._item.nvim_previewText) --[[@as string]]
@@ -222,15 +222,14 @@ function CompletionItem:get_preview_text()
         preview_text = preview_text:sub(1, -2)
       end
     end
-    self.cache[cache_key] = preview_text
+    self.cache.get_preview_text = preview_text
   end
-  return self.cache[cache_key]
+  return self.cache.get_preview_text
 end
 
 ---Return filter text that will be used for matching.
 function CompletionItem:get_filter_text()
-  local cache_key = 'get_filter_text'
-  if not self.cache[cache_key] then
+  if not self.cache.get_filter_text then
     local text = trim_prewhite(self._item.filterText or self._item.label)
 
     -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
@@ -238,6 +237,7 @@ function CompletionItem:get_filter_text()
     local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
         self._trigger_context.character + 1
     if self:has_text_edit() then
+      -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local delta = keyword_offset - self:get_offset()
       if delta > 0 then
         if Character.is_symbol(self._trigger_context.text:byte(self:get_offset())) then
@@ -250,9 +250,9 @@ function CompletionItem:get_filter_text()
         text = text:sub(1 + math.abs(delta))
       end
     end
-    self.cache[cache_key] = text
+    self.cache.get_filter_text = text
   end
-  return self.cache[cache_key]
+  return self.cache.get_filter_text
 end
 
 ---Return insert text that will be inserted if the item is confirmed.
@@ -301,8 +301,7 @@ end
 ---Return commit characters.
 ---@return string[]
 function CompletionItem:get_commit_characters()
-  local cache_key = 'get_commit_characters'
-  if not self.cache[cache_key] then
+  if not self.cache.get_commit_characters then
     local uniq
     local commit_characters
     for _, c in ipairs(self._provider:get_all_commit_characters()) do
@@ -332,28 +331,27 @@ function CompletionItem:get_commit_characters()
         end
       end
     end
-    self.cache[cache_key] = commit_characters or empty
+    self.cache.get_commit_characters = commit_characters or empty
   end
-  return self.cache[cache_key]
+  return self.cache.get_commit_characters
 end
 
 ---Return text edit.
 ---@return (cmp-kit.kit.LSP.InsertReplaceEdit|cmp-kit.kit.LSP.TextEdit)?
 function CompletionItem:get_text_edit()
-  local cache_key = 'get_text_edit'
-  if not self.cache[cache_key] then
+  if not self.cache.get_text_edit then
     if self._item.textEdit then
-      self.cache[cache_key] = self._item.textEdit
+      self.cache.get_text_edit = self._item.textEdit
     end
     if self._item.textEditText then
       if self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange then
         if self._completion_list.itemDefaults.editRange.start then
-          self.cache[cache_key] = {
+          self.cache.get_text_edit = {
             range = self._completion_list.itemDefaults.editRange,
             newText = self._item.textEditText,
           }
         elseif self._completion_list.itemDefaults.editRange.insert then
-          self.cache[cache_key] = {
+          self.cache.get_text_edit = {
             insert = self._completion_list.itemDefaults.editRange.insert,
             replace = self._completion_list.itemDefaults.editRange.replace,
             newText = self._item.textEditText,
@@ -362,7 +360,7 @@ function CompletionItem:get_text_edit()
       end
     end
   end
-  return self.cache[cache_key]
+  return self.cache.get_text_edit
 end
 
 ---Return item is preselect or not.
@@ -374,8 +372,7 @@ end
 ---Get completion item tags.
 ---@return table<cmp-kit.kit.LSP.CompletionItemTag, boolean>
 function CompletionItem:get_tags()
-  local cache_key = 'get_tags'
-  if not self.cache[cache_key] then
+  if not self.cache.get_tags then
     local tags
     for _, tag in ipairs(self._item.tags or {}) do
       tags = tags or {}
@@ -385,16 +382,15 @@ function CompletionItem:get_tags()
       tags = tags or {}
       tags[LSP.CompletionItemTag.Deprecated] = true
     end
-    self.cache[cache_key] = tags or empty
+    self.cache.get_tags = tags or empty
   end
-  return self.cache[cache_key]
+  return self.cache.get_tags
 end
 
 ---Return item's documentation.
 ---@return cmp-kit.kit.LSP.MarkupContent?
 function CompletionItem:get_documentation()
-  local cache_key = 'get_documentation'
-  if not self.cache[cache_key] then
+  if not self.cache.get_documentation then
     local kind = LSP.MarkupKind.PlainText
     local value = ''
 
@@ -426,15 +422,15 @@ function CompletionItem:get_documentation()
 
     -- return nil if documentation does not provided.
     if value == '' then
-      self.cache[cache_key] = empty
+      self.cache.get_documentation = empty
     else
-      self.cache[cache_key] = {
+      self.cache.get_documentation = {
         kind = kind,
         value = value,
       }
     end
   end
-  return self.cache[cache_key].value and self.cache[cache_key]
+  return self.cache.get_documentation.value and self.cache.get_documentation
 end
 
 ---Resolve completion item (completionItem/resolve).
@@ -622,7 +618,15 @@ end
 ---Return this has textEdit or not.
 ---@return boolean
 function CompletionItem:has_text_edit()
-  return not not (self._item.textEdit or (self._completion_list.itemDefaults and self._completion_list.itemDefaults.editRange))
+  if self._item.textEdit then
+    return true
+  end
+  if self._completion_list.itemDefaults then
+    if self._completion_list.itemDefaults.editRange then
+      return true
+    end
+  end
+  return false
 end
 
 ---Return this has additionalTextEdits or not.
@@ -636,8 +640,7 @@ end
 ---NOTE: This range is utf-8 byte length based.
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_insert_range()
-  local cache_key = 'get_insert_range'
-  if not self.cache[cache_key] then
+  if not self.cache.get_insert_range then
     ---@type cmp-kit.kit.LSP.Range
     local range
     if self._item.textEdit then
@@ -654,12 +657,12 @@ function CompletionItem:get_insert_range()
       end
     end
     if range then
-      self.cache[cache_key] = self:_convert_range_encoding(range)
+      self.cache.get_insert_range = self:_convert_range_encoding(range)
     else
       -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local default_range = kit.clone(self._provider:get_default_insert_range())
       default_range.start.character = self:get_offset() - 1
-      self.cache[cache_key] = {
+      self.cache.get_insert_range = {
         start = {
           line = default_range.start.line,
           character = self:get_offset() - 1,
@@ -668,7 +671,7 @@ function CompletionItem:get_insert_range()
       }
     end
   end
-  return self.cache[cache_key]
+  return self.cache.get_insert_range
 end
 
 ---Return replace range.
@@ -676,8 +679,7 @@ end
 ---NOTE: This range is utf-8 byte length based.
 ---@return cmp-kit.kit.LSP.Range
 function CompletionItem:get_replace_range()
-  local cache_key = 'get_replace_range'
-  if not self.cache[cache_key] then
+  if not self.cache.get_replace_range then
     local range --[[@as cmp-kit.kit.LSP.Range]]
     if self._item.textEdit then
       if self._item.textEdit.replace then
@@ -689,9 +691,9 @@ function CompletionItem:get_replace_range()
       end
     end
     range = range or self:get_insert_range()
-    self.cache[cache_key] = create_expanded_range({ self._provider:get_default_replace_range(), range })
+    self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), range })
   end
-  return self.cache[cache_key]
+  return self.cache.get_replace_range
 end
 
 ---Convert range encoding to LSP.PositionEncodingKind.UTF8.
@@ -707,38 +709,14 @@ function CompletionItem:_convert_range_encoding(range)
 
   local cache_key = ('%s:%s:%s:%s'):format(
     'CompletionItem:_convert_range_encoding',
+    from_encoding,
     range.start.character,
-    range['end'].character,
-    from_encoding
+    range['end'].character
   )
   if not self._trigger_context.cache[cache_key] then
-    local start_cache_key = ('%s:%s:%s'):format(
-      'CompletionItem:_convert_range_encoding:start',
-      range.start.character,
-      from_encoding
-    )
-    if not self._trigger_context.cache[start_cache_key] then
-      self._trigger_context.cache[start_cache_key] = Position.to_utf8(
-        self._trigger_context.text,
-        range.start,
-        from_encoding
-      )
-    end
-    local end_cache_key = ('%s:%s:%s'):format(
-      'CompletionItem:_convert_range_encoding:end',
-      range['end'].character,
-      from_encoding
-    )
-    if not self._trigger_context.cache[end_cache_key] then
-      self._trigger_context.cache[end_cache_key] = Position.to_utf8(
-        self._trigger_context.text,
-        range['end'],
-        from_encoding
-      )
-    end
     self._trigger_context.cache[cache_key] = {
-      start = self._trigger_context.cache[start_cache_key],
-      ['end'] = self._trigger_context.cache[end_cache_key],
+      start = self._trigger_context:convert_position_as_utf8(from_encoding, range.start),
+      ['end'] = self._trigger_context:convert_position_as_utf8(from_encoding, range['end']),
     }
   end
   return self._trigger_context.cache[cache_key]
@@ -748,30 +726,28 @@ end
 ---NOTE: This is a cmp-kit's specific implementation.
 ---@return boolean
 function CompletionItem:_has_inline_additional_text_edits()
-  local cache_key = '_has_inline_additional_text_edits'
-  if not self.cache[cache_key] then
-    self.cache[cache_key] = false
+  if not self.cache._has_inline_additional_text_edits then
+    self.cache._has_inline_additional_text_edits = false
     if self._item.additionalTextEdits then
       for _, text_edit in ipairs(self._item.additionalTextEdits) do
         if text_edit.range.start.line == self._trigger_context.line then
-          self.cache[cache_key] = true
+          self.cache._has_inline_additional_text_edits = true
           break
         end
         if text_edit.range['end'].line == self._trigger_context.line then
-          self.cache[cache_key] = true
+          self.cache._has_inline_additional_text_edits = true
           break
         end
       end
     end
   end
-  return self.cache[cache_key]
+  return self.cache._has_inline_additional_text_edits
 end
 
 ---Create commitCharacters and triggerCharacters map.
 ---@return table<integer, boolean>
 function CompletionItem:_get_commit_and_trigger_character_map()
-  local cache_key = '_get_commit_and_trigger_character_map'
-  if not self.cache[cache_key] then
+  if not self.cache._get_commit_and_trigger_character_map then
     local chars
     for _, c in ipairs(self:get_commit_characters()) do
       chars = chars or {}
@@ -781,9 +757,9 @@ function CompletionItem:_get_commit_and_trigger_character_map()
       chars = chars or {}
       chars[c:byte(1)] = true
     end
-    self.cache[cache_key] = chars or empty
+    self.cache._get_commit_and_trigger_character_map = chars or empty
   end
-  return self.cache[cache_key]
+  return self.cache._get_commit_and_trigger_character_map
 end
 
 return CompletionItem

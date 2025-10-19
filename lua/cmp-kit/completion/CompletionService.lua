@@ -161,6 +161,7 @@ function CompletionService.new(config)
             end
           end
 
+          local pre_trigger_context = TriggerContext.create()
           self
               :commit(match.item, {
                 replace = false,
@@ -169,11 +170,13 @@ function CompletionService.new(config)
                 -- NOTE: cmp-kit's specific implementation.
                 -- after commit character, send canceled key if possible.
                 local trigger_context = TriggerContext.create()
+                local added_text = trigger_context.text_before:sub(pre_trigger_context.character + 1)
                 local preview_text = match.item:get_preview_text()
 
                 local can_feedkeys = true
                 can_feedkeys = can_feedkeys and trigger_context.mode == 'i'
                 can_feedkeys = can_feedkeys and trigger_context.text_before:sub(- #preview_text) == preview_text
+                can_feedkeys = can_feedkeys and not added_text:find(typed)
                 if can_feedkeys then
                   vim.api.nvim_feedkeys(typed, 'i', true)
                 end

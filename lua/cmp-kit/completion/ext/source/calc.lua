@@ -79,6 +79,8 @@ return function()
               filterText = leading_text,
               sortText = '2',
               nvim_previewText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
+              preselect = true,
+              commitCharacters = { '=' }
             },
           },
         }

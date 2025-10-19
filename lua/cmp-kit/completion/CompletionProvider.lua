@@ -222,27 +222,29 @@ function CompletionProvider:_adopt_response(trigger_context, list)
   self._state.request_state = RequestState.Completed
   self._state.is_incomplete = list.isIncomplete or false
 
-  -- do not keep previous state if completion is not incomplete.
-  kit.clear(self._state.items)
-
   -- convert response to items.
+  local idx = 1
   for _, item in ipairs(list.items) do
-    local completion_item = CompletionItem.new(trigger_context, self, list, item)
-
-    -- check insert range.
+    -- check range.
     local is_valid_range = true
-    if completion_item:has_text_edit() then
-      local range = completion_item:get_insert_range()
-      local is_valid_s = range.start.line < trigger_context.line or
-          (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
-      local is_valid_e = trigger_context.line < range['end'].line or
-          (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
-      is_valid_range = is_valid_s and is_valid_e
+    if item.textEdit and (item.textEdit.range or item.textEdit.insert) then
+      local range = item.textEdit.insert or item.textEdit.range
+      is_valid_range = is_valid_range and (
+        range.start.line < trigger_context.line or
+        (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
+      )
+      is_valid_range = is_valid_range and (
+        trigger_context.line < range['end'].line or
+        (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
+      )
     end
-
     if is_valid_range then
-      self._state.items[#self._state.items + 1] = completion_item
+      self._state.items[idx] = CompletionItem.new(trigger_context, self, list, item)
+      idx = idx + 1
     end
+  end
+  for i = #self._state.items, idx + 1, -1 do
+    self._state.items[i] = nil
   end
 
   -- clear matching state.
@@ -447,7 +449,7 @@ function CompletionProvider:get_matches(trigger_context, config)
 
   local target_items = self._state.items
   if prev_before_text then
-    if #next_before_text > #prev_before_text and vim.startswith(prev_before_text, next_before_text) then
+    if #next_before_text > #prev_before_text and vim.startswith(next_before_text, prev_before_text) then
       target_items = kit.concat({}, self._state.matches_items)
     else
       kit.clear(self._state.matches_items)
