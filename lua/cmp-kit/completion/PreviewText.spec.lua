@@ -69,6 +69,14 @@ describe('cmp-kit.completion', function()
           })
         )
         assert.are.equal(
+          '"repository"',
+          PreviewText.create({
+            insert_text = '"repository"',
+            before_text = '',
+            after_text = '',
+          })
+        )
+        assert.are.equal(
           'import ',
           PreviewText.create({
             insert_text = 'import { URL } from "url";',

@@ -101,10 +101,7 @@ end
 ---@return number
 function CompletionItem:get_offset()
   if not self.cache.get_offset then
-    local keyword_offset = (
-      self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern())
-      or (self._trigger_context.character + 1)
-    )
+    local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
     if not self:has_text_edit() then
       self.cache.get_offset = keyword_offset
 
@@ -211,16 +208,16 @@ function CompletionItem:get_preview_text()
       else
         preview_text = PreviewText.create({
           insert_text = text,
-          before_text = self._trigger_context:get_query(self:get_offset()),
+          before_text = self._trigger_context:substr(1, self:get_offset()),
           after_text = self._trigger_context.text_after,
         })
       end
 
       -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
-      local chars = self:_get_commit_and_trigger_character_map()
-      if chars[preview_text:byte(-1)] then
-        preview_text = preview_text:sub(1, -2)
-      end
+      -- local chars = self:_get_commit_and_trigger_character_map()
+      -- if chars[preview_text:byte(-1)] then
+      --   preview_text = preview_text:sub(1, -2)
+      -- end
     end
     self.cache.get_preview_text = preview_text
   end
@@ -234,15 +231,15 @@ function CompletionItem:get_filter_text()
 
     -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
     -- Fix filter_text for non-VSCode compliant servers such as clangd.
-    local keyword_offset = self._trigger_context:get_keyword_offset(self._provider:get_keyword_pattern()) or
-        self._trigger_context.character + 1
+    local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
     if self:has_text_edit() then
+      local offset = self:get_offset()
       -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
-      local delta = keyword_offset - self:get_offset()
+      local delta = keyword_offset - offset
       if delta > 0 then
-        if Character.is_symbol(self._trigger_context.text:byte(self:get_offset())) then
-          local prefix = self._trigger_context.text:sub(self:get_offset(), keyword_offset - 1)
-          if text:sub(1, #prefix) ~= prefix then
+        if Character.is_symbol(self._trigger_context.text:byte(offset)) then
+          local prefix = self._trigger_context:substr(offset, keyword_offset - 1)
+          if not vim.startswith(text, prefix) then
             text = prefix .. text
           end
         end
@@ -657,7 +654,10 @@ function CompletionItem:get_insert_range()
       end
     end
     if range then
-      self.cache.get_insert_range = self:_convert_range_encoding(range)
+      self.cache.get_insert_range = self._trigger_context:convert_range_as_utf8(
+        self._provider:get_position_encoding_kind(),
+        range
+      )
     else
       -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local default_range = kit.clone(self._provider:get_default_insert_range())
@@ -694,32 +694,6 @@ function CompletionItem:get_replace_range()
     self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), range })
   end
   return self.cache.get_replace_range
-end
-
----Convert range encoding to LSP.PositionEncodingKind.UTF8.
----NOTE: This method ignores the `position.line` because CompletionItem does not consider line posision.
----NOTE: This range is utf-8 byte length based.
----@param range cmp-kit.kit.LSP.Range
----@return cmp-kit.kit.LSP.Range
-function CompletionItem:_convert_range_encoding(range)
-  local from_encoding = self._provider:get_position_encoding_kind()
-  if from_encoding == LSP.PositionEncodingKind.UTF8 then
-    return range
-  end
-
-  local cache_key = ('%s:%s:%s:%s'):format(
-    'CompletionItem:_convert_range_encoding',
-    from_encoding,
-    range.start.character,
-    range['end'].character
-  )
-  if not self._trigger_context.cache[cache_key] then
-    self._trigger_context.cache[cache_key] = {
-      start = self._trigger_context:convert_position_as_utf8(from_encoding, range.start),
-      ['end'] = self._trigger_context:convert_position_as_utf8(from_encoding, range['end']),
-    }
-  end
-  return self._trigger_context.cache[cache_key]
 end
 
 ---Check this item has inline additionalTextEdits.

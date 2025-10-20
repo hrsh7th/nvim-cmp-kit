@@ -58,7 +58,6 @@ end
 ---@field public is_trigger_character_completion boolean
 ---@field public items cmp-kit.completion.CompletionItem[]
 ---@field public matches cmp-kit.completion.Match[]
----@field public matches_items cmp-kit.completion.CompletionItem[]
 ---@field public matches_before_text? string
 
 ---@class cmp-kit.completion.CompletionProvider.Config
@@ -94,7 +93,6 @@ function CompletionProvider.new(source, config)
       request_time = 0,
       items = {},
       matches = {},
-      matches_items = {},
       matches_before_text = nil,
     }, --[[@as cmp-kit.completion.CompletionProvider.State]]
   }, CompletionProvider)
@@ -229,13 +227,15 @@ function CompletionProvider:_adopt_response(trigger_context, list)
     local is_valid_range = true
     if item.textEdit and (item.textEdit.range or item.textEdit.insert) then
       local range = item.textEdit.insert or item.textEdit.range
+      local start = trigger_context:convert_position_as_utf8(self:get_position_encoding_kind(), range.start)
       is_valid_range = is_valid_range and (
-        range.start.line < trigger_context.line or
-        (range.start.line == trigger_context.line and range.start.character <= trigger_context.character)
+        start.line < trigger_context.line or
+        (start.line == trigger_context.line and start.character <= trigger_context.character)
       )
+      local end_ = trigger_context:convert_position_as_utf8(self:get_position_encoding_kind(), range['end'])
       is_valid_range = is_valid_range and (
-        trigger_context.line < range['end'].line or
-        (range['end'].line == trigger_context.line and trigger_context.character <= range['end'].character)
+        trigger_context.line < end_.line or
+        (end_.line == trigger_context.line and trigger_context.character <= end_.character)
       )
     end
     if is_valid_range then
@@ -249,7 +249,6 @@ function CompletionProvider:_adopt_response(trigger_context, list)
 
   -- clear matching state.
   kit.clear(self._state.matches)
-  kit.clear(self._state.matches_items)
   self._state.matches_before_text = nil
 end
 
@@ -301,18 +300,17 @@ end
 ---Return source configuration.
 ---@return cmp-kit.completion.CompletionSource.Configuration?
 function CompletionProvider:get_configuration()
-  local cache_key = 'CompletionProvider_get_configuration'
-  if not self._cache[cache_key] then
+  if not self._cache.get_configuration then
     if not self._source.get_configuration then
-      self._cache[cache_key] = nil
+      self._cache.get_configuration = nil
     else
-      self._cache[cache_key] = self._source:get_configuration()
+      self._cache.get_configuration = self._source:get_configuration()
     end
     vim.schedule(function()
-      self._cache[cache_key] = nil
+      self._cache.get_configuration = nil
     end)
   end
-  return self._cache[cache_key]
+  return self._cache.get_configuration
 end
 
 ---Return LSP.PositionEncodingKind.
@@ -363,7 +361,6 @@ function CompletionProvider:clear()
     request_time = 0,
     items = kit.clear(self._state.items),
     matches = kit.clear(self._state.matches),
-    matches_items = kit.clear(self._state.matches_items),
   }
 end
 
@@ -394,7 +391,7 @@ function CompletionProvider:in_trigger_character_completion()
   if self._state.trigger_context then
     local keyword_offset = self._state.trigger_context:get_keyword_offset(self:get_keyword_pattern()) or
         (self._state.trigger_context.character + 1)
-    local maybe_trigger_char = self._state.trigger_context.text_before:sub(keyword_offset - 1, keyword_offset - 1)
+    local maybe_trigger_char = self._state.trigger_context:substr(keyword_offset - 1, keyword_offset - 1)
     if not Character.is_white(maybe_trigger_char:byte(1)) then
       in_trigger_char_loose = vim.tbl_contains(self:get_trigger_characters(), maybe_trigger_char)
     end
@@ -447,25 +444,16 @@ function CompletionProvider:get_matches(trigger_context, config)
     return self._state.matches
   end
 
-  local target_items = self._state.items
-  if prev_before_text then
-    if #next_before_text > #prev_before_text and vim.startswith(next_before_text, prev_before_text) then
-      target_items = kit.concat({}, self._state.matches_items)
-    else
-      kit.clear(self._state.matches_items)
-    end
-  end
-
   -- filtering items.
-  kit.clear(self._state.matches)
-  kit.clear(self._state.matches_items)
-  for _, item in ipairs(target_items) do
-    local query_text = trigger_context:get_query(item:get_offset())
-    local filter_text = item:get_filter_text()
-    local score = config.matcher.match(query_text, filter_text)
+  local idx = 0
+  for _, item in ipairs(self._state.items) do
+    local score = config.matcher.match(
+      trigger_context:get_query(item:get_offset()),
+      item:get_filter_text()
+    )
     if score > 0 then
-      self._state.matches_items[#self._state.matches_items + 1] = item
-      self._state.matches[#self._state.matches + 1] = {
+      idx = idx + 1
+      self._state.matches[idx] = {
         trigger_context = trigger_context,
         provider = self,
         item = item,
@@ -473,6 +461,9 @@ function CompletionProvider:get_matches(trigger_context, config)
         index = 0, -- assign later.
       }
     end
+  end
+  for i = #self._state.matches, idx + 1, -1 do
+    self._state.matches[i] = nil
   end
   return self._state.matches
 end

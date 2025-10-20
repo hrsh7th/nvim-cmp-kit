@@ -135,11 +135,20 @@ end
 ---@param offset integer
 ---@return string
 function TriggerContext:get_query(offset)
-  self.cache.get_query = self.cache.get_query or {}
-  if not self.cache.get_query[offset] then
-    self.cache.get_query[offset] = self.text:sub(offset, self.character)
+  return self:substr(offset, self.character)
+end
+
+---Get substring from whole text.
+---@param i integer
+---@param j integer
+---@return string
+function TriggerContext:substr(i, j)
+  self.cache.substr = self.cache.substr or {}
+  self.cache.substr[i] = self.cache.substr[i] or {}
+  if not self.cache.substr[i][j] then
+    self.cache.substr[i][j] = self.text:sub(i, j)
   end
-  return self.cache.get_query[offset]
+  return self.cache.substr[i][j]
 end
 
 ---Check if trigger context is changed.
@@ -192,20 +201,44 @@ function TriggerContext:get_keyword_offset(pattern)
   return self.cache.get_keyword_offset[pattern]
 end
 
+---Convert range as utf8.
+---NOTE: This method ignores the `position.line` because CompletionItem does not consider line posision.
+---@param from_encoding cmp-kit.kit.LSP.PositionEncodingKind
+---@param range cmp-kit.kit.LSP.Range
+---@return cmp-kit.kit.LSP.Range
+function TriggerContext:convert_range_as_utf8(from_encoding, range)
+  if from_encoding == LSP.PositionEncodingKind.UTF8 then
+    return range
+  end
+  self.cache.convert_range_as_utf8 = self.cache.convert_range_as_utf8 or {}
+  local cache = self.cache.convert_range_as_utf8
+  cache[from_encoding] = cache[from_encoding] or {}
+  cache[from_encoding][range.start.character] = cache[from_encoding][range.start.character] or {}
+  if not cache[from_encoding][range.start.character][range['end'].character] then
+    cache[from_encoding][range.start.character][range['end'].character] = {
+      start = self:convert_position_as_utf8(from_encoding, range.start),
+      ['end'] = self:convert_position_as_utf8(from_encoding, range['end'])
+    }
+  end
+  return cache[from_encoding][range.start.character][range['end'].character]
+end
+
 ---Convert position as utf8.
 ---NOTE: This method ignores the `position.line` because CompletionItem does not consider line posision.
----@param position cmp-kit.kit.LSP.Position
 ---@param from_encoding cmp-kit.kit.LSP.PositionEncodingKind
+---@param position cmp-kit.kit.LSP.Position
 ---@return cmp-kit.kit.LSP.Position
 function TriggerContext:convert_position_as_utf8(from_encoding, position)
   if from_encoding == LSP.PositionEncodingKind.UTF8 then
     return position
   end
-  local cache_key = ('convert_position_as_utf8:%s:%s'):format(from_encoding, position.character)
-  if not self.cache[cache_key] then
-    self.cache[cache_key] = Position.to_utf8(self.text, position, from_encoding)
+  self.cache.convert_position_as_utf8 = self.cache.convert_position_as_utf8 or {}
+  local cache = self.cache.convert_position_as_utf8
+  cache[from_encoding] = cache[from_encoding] or {}
+  if not cache[from_encoding][position.character] then
+    cache[from_encoding][position.character] = Position.to_utf8(self.text, position, from_encoding)
   end
-  return self.cache[cache_key]
+  return cache[from_encoding][position.character]
 end
 
 return TriggerContext
