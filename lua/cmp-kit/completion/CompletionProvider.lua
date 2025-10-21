@@ -37,14 +37,16 @@ end
 ---@param keyword_pattern string
 ---@return { [1]: integer, [2]: integer } 1-origin utf8 byte index
 local function extract_keyword_range(trigger_context, keyword_pattern)
-  trigger_context.cache.CompletionProvider_extract_keyword_range = trigger_context.cache
-      .CompletionProvider_extract_keyword_range or {}
-  if not trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern] then
+  trigger_context.cache.CompletionProvider_extract_keyword_range = (
+    trigger_context.cache.CompletionProvider_extract_keyword_range or {}
+  )
+  local cache = trigger_context.cache.CompletionProvider_extract_keyword_range
+  if not cache[keyword_pattern] then
     local c = trigger_context.character + 1
     local _, s, e = RegExp.extract_at(trigger_context.text, keyword_pattern, c)
-    trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern] = { s or c, e or c }
+    cache[keyword_pattern] = { s or c, e or c }
   end
-  return trigger_context.cache.CompletionProvider_extract_keyword_range[keyword_pattern]
+  return cache[keyword_pattern]
 end
 
 ---@class cmp-kit.completion.CompletionProvider.State
@@ -113,10 +115,6 @@ function CompletionProvider:complete(trigger_context, on_step)
   on_step = on_step or function() end
 
   return Async.run(function()
-    if not self:in_completion_context(trigger_context) then
-      self:clear()
-    end
-
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
@@ -158,11 +156,13 @@ function CompletionProvider:complete(trigger_context, on_step)
       end
     end
 
+    -- reset current completion.
+    if not keyword_offset then
+      self:clear()
+    end
+
     -- do not invoke new completion.
     if not completion_context then
-      if not keyword_offset then
-        self:clear()
-      end
       on_step('skip-completion')
       return
     end
@@ -360,6 +360,7 @@ function CompletionProvider:clear()
     request_state = RequestState.Waiting,
     request_time = 0,
     items = kit.clear(self._state.items),
+    matches_before_text = nil,
     matches = kit.clear(self._state.matches),
   }
 end
@@ -479,9 +480,10 @@ function CompletionProvider:get_default_insert_range()
   self._state.trigger_context.cache.CompletionProvider_get_default_insert_range = (
     self._state.trigger_context.cache.CompletionProvider_get_default_insert_range or {}
   )
-  if not self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern] then
+  local cache = self._state.trigger_context.cache.CompletionProvider_get_default_insert_range
+  if not cache[keyword_pattern] then
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
-    self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern] = {
+    cache[keyword_pattern] = {
       start = {
         line = self._state.trigger_context.line,
         character = r[1] - 1,
@@ -492,7 +494,7 @@ function CompletionProvider:get_default_insert_range()
       },
     }
   end
-  return self._state.trigger_context.cache.CompletionProvider_get_default_insert_range[keyword_pattern]
+  return cache[keyword_pattern]
 end
 
 ---Create default replace range from keyword pattern.
@@ -506,9 +508,10 @@ function CompletionProvider:get_default_replace_range()
   self._state.trigger_context.cache.CompletionProvider_get_default_replace_range = (
     self._state.trigger_context.cache.CompletionProvider_get_default_replace_range or {}
   )
-  if not self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern] then
+  local cache = self._state.trigger_context.cache.CompletionProvider_get_default_replace_range
+  if not cache[keyword_pattern] then
     local r = extract_keyword_range(self._state.trigger_context, keyword_pattern)
-    self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern] = {
+    cache[keyword_pattern] = {
       start = {
         line = self._state.trigger_context.line,
         character = r[1] - 1,
@@ -519,7 +522,7 @@ function CompletionProvider:get_default_replace_range()
       },
     }
   end
-  return self._state.trigger_context.cache.CompletionProvider_get_default_replace_range[keyword_pattern]
+  return cache[keyword_pattern]
 end
 
 return CompletionProvider

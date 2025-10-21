@@ -578,6 +578,18 @@ function DefaultView:show(params)
   end
   vim.api.nvim_buf_set_lines(self._menu_window:get_buf(), 0, -1, false, rendering_lines)
 
+  -- update window highlights on-demand.
+  if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
+    self._menu_window:set_win_option('winhighlight', winhl_bordered)
+  else
+    self._menu_window:set_win_option('winhighlight', winhl_pum)
+  end
+  self._menu_window:set_win_option('winblend', vim.o.pumblend)
+
+  -- apply selection.
+  self:select(params)
+
+  -- calculate window position & sizes.
   local border_size = FloatingWindow.get_border_size(vim.o.winborder)
   local trigger_context = TriggerContext.create()
   local leading_text = trigger_context.text_before:sub(min_offset)
@@ -612,14 +624,7 @@ function DefaultView:show(params)
     end
   end
 
-  if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
-    self._menu_window:set_win_option('winhighlight', winhl_bordered)
-  else
-    self._menu_window:set_win_option('winhighlight', winhl_pum)
-  end
-  self._menu_window:set_win_option('winblend', vim.o.pumblend)
-  self._menu_window:set_win_option('cursorline', params.selection.index ~= 0)
-
+  -- show completion window.
   local position = self._config.get_menu_position({
     offset = {
       anchor = anchor,
@@ -632,7 +637,6 @@ function DefaultView:show(params)
       col = pos.col - border_size.h - 1,
     },
   })
-
   self._menu_window:show({
     anchor = position.anchor,
     row = position.row,

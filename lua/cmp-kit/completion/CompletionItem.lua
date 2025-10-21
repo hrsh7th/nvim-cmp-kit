@@ -130,8 +130,11 @@ function CompletionItem:get_offset()
     else
       -- Use `textEdit.range.start.character` as offset but We ignore leading whitespace characters.
       local insert_range = self:get_insert_range()
-      local trigger_context_cache_key = ('%s:%s:%s'):format('get_offset', keyword_offset, insert_range.start.character)
-      if not self._trigger_context.cache[trigger_context_cache_key] then
+      self._trigger_context.cache.CompletionItem_get_offset = self._trigger_context.cache.CompletionItem_get_offset or {}
+      self._trigger_context.cache.CompletionItem_get_offset[keyword_offset] =
+          self._trigger_context.cache.CompletionItem_get_offset[keyword_offset] or {}
+      local cache = self._trigger_context.cache.CompletionItem_get_offset[keyword_offset]
+      if not cache[insert_range.start.character] then
         local offset = insert_range.start.character + 1
         for i = offset, keyword_offset do
           offset = i
@@ -139,9 +142,9 @@ function CompletionItem:get_offset()
             break
           end
         end
-        self._trigger_context.cache[trigger_context_cache_key] = math.min(offset, keyword_offset)
+        cache[insert_range.start.character] = math.min(offset, keyword_offset)
       end
-      self.cache.get_offset = self._trigger_context.cache[trigger_context_cache_key]
+      self.cache.get_offset = cache[insert_range.start.character]
     end
   end
   return self.cache.get_offset
