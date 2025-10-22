@@ -23,6 +23,7 @@ end
 ---@field public buffer_text string[]
 ---@field public mode? 'i' | 'c'
 ---@field public input? string
+---@field public provider_name? string
 ---@field public keyword_pattern? string
 ---@field public position_encoding_kind? cmp-kit.kit.LSP.PositionEncodingKind
 ---@field public resolve? fun(item: cmp-kit.kit.LSP.CompletionItem): cmp-kit.kit.Async.AsyncTask cmp-kit.kit.LSP.CompletionItem
@@ -61,7 +62,7 @@ function spec.setup(option)
   ---Create source.
   ---@type cmp-kit.completion.CompletionSource
   local source = {
-    name = 'dummy',
+    name = option.provider_name or 'test',
     get_configuration = function()
       return {
         keyword_pattern = option.keyword_pattern or DefaultConfig.default_keyword_pattern,

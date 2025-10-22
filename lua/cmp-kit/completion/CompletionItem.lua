@@ -1,14 +1,16 @@
-local empty = {}
-local kit = require('cmp-kit.kit')
-local LSP = require('cmp-kit.kit.LSP')
-local Async = require('cmp-kit.kit.Async')
-local Range = require('cmp-kit.kit.LSP.Range')
-local debugger = require('cmp-kit.core.debugger')
-local LinePatch = require('cmp-kit.core.LinePatch')
+local empty          = {}
+local kit            = require('cmp-kit.kit')
+local LSP            = require('cmp-kit.kit.LSP')
+local Async          = require('cmp-kit.kit.Async')
+local Range          = require('cmp-kit.kit.LSP.Range')
+local debugger       = require('cmp-kit.core.debugger')
+local LinePatch      = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
-local Character = require('cmp-kit.kit.App.Character')
-local PreviewText = require('cmp-kit.completion.PreviewText')
-local SnippetText = require('cmp-kit.completion.SnippetText')
+local Character      = require('cmp-kit.kit.App.Character')
+local PreviewText    = require('cmp-kit.completion.PreviewText')
+local SnippetText    = require('cmp-kit.completion.SnippetText')
+local Hack           = require('cmp-kit.completion.Hack')
+
 
 ---Trim whitespace.
 ---@param text string
@@ -194,8 +196,6 @@ function CompletionItem:get_preview_text()
       local text --[[@as string]]
       if self._item.filterText then
         text = trim_prewhite(self._item.filterText) --[[@as string]]
-      elseif self._item.insertText then
-        text = trim_prewhite(self._item.insertText) --[[@as string]]
       else
         text = self:get_insert_text()
         if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
@@ -209,7 +209,7 @@ function CompletionItem:get_preview_text()
       else
         preview_text = PreviewText.create({
           insert_text = text,
-          before_text = self._trigger_context:substr(1, self:get_offset()),
+          before_text = self._trigger_context:substr(1, self:get_offset() - 1),
           after_text = self._trigger_context.text_after,
         })
       end
@@ -228,23 +228,15 @@ end
 ---Return filter text that will be used for matching.
 function CompletionItem:get_filter_text()
   if not self.cache.get_filter_text then
-    local text = trim_prewhite(self._item.filterText or self._item.label)
-
-    -- NOTE: This is cmp-kit's specific implementation. fix filter_text for non-VSCode compliant servers such as clangd.
-    if self:has_text_edit() then
-      local offset = self:get_offset() -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
-      if Character.is_symbol(self._trigger_context.text:byte(offset)) then
-        local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
-        local delta = keyword_offset - offset
-        if delta > 0 then
-          local prefix = self._trigger_context:substr(offset, keyword_offset - 1)
-          if not vim.startswith(text, prefix) then
-            text = prefix .. text
-          end
-        end
-      end
+    self.cache.get_filter_text = trim_prewhite(self._item.filterText or self._item.label)
+    if self._provider:get_name() == 'clangd' then
+      self.cache.get_filter_text = Hack.clangd.get_filter_text(
+        self,
+        self._trigger_context,
+        self._provider,
+        self.cache.get_filter_text
+      )
     end
-    self.cache.get_filter_text = text
   end
   return self.cache.get_filter_text
 end

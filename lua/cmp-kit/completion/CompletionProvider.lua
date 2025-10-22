@@ -118,12 +118,11 @@ function CompletionProvider:complete(trigger_context, on_step)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local completion_offset = keyword_offset or trigger_context.character + 1
-    local is_same_completion_offset = not not (completion_offset == self._state.completion_offset)
     local is_same_keyword_offset = not not (keyword_offset and keyword_offset == self._state.keyword_offset)
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
+    local completion_offset = trigger_context.character + 1
     if trigger_context.force then
       -- manual based completion
       completion_context = {
@@ -176,7 +175,7 @@ function CompletionProvider:complete(trigger_context, on_step)
       if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter then
         return true
       end
-      if is_same_completion_offset then
+      if completion_offset == self._state.completion_offset then
         return self._state.is_trigger_character_completion
       end
       return false

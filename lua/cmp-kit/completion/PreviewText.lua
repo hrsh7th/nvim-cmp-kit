@@ -40,37 +40,13 @@ PreviewText.Pairs = {
 ---@return string
 function PreviewText.create(params)
   local insert_text = params.insert_text
-  local before_text = params.before_text
   local after_text = params.after_text
   local is_alnum_consumed = false
-
-  -- skip if already inserted text is same as actual insert text.
-  local insert_text_idx = 1
-  local before_text_idx = 1
-  while insert_text_idx <= #insert_text and before_text_idx <= #before_text do
-    local b_char = before_text:byte(before_text_idx)
-    local i_char = insert_text:byte(insert_text_idx)
-    if Character.is_white(b_char) then
-      before_text_idx = before_text_idx + 1
-    elseif Character.is_white(i_char) then
-      insert_text_idx = insert_text_idx + 1
-    else
-      if Character.match_icase(b_char, i_char) then
-        if Character.is_alnum(i_char) then
-          is_alnum_consumed = true
-        end
-        insert_text_idx = insert_text_idx + 1
-        before_text_idx = before_text_idx + 1
-      else
-        break
-      end
-    end
-  end
 
   local is_after_symbol = Character.is_symbol(after_text:byte(1))
 
   local pairs_stack = {}
-  for i = insert_text_idx, #insert_text do
+  for i = 1, #insert_text do
     local byte = insert_text:byte(i)
     if PreviewText.ForceStopCharacters[byte] then
       return insert_text:sub(1, i - 1)
@@ -92,6 +68,18 @@ function PreviewText.create(params)
     else
       is_alnum_consumed = is_alnum_consumed or is_alnum
     end
+  end
+
+  -- check after symbol.
+  local skip_suffix_idx = 1
+  if not is_alnum_consumed then
+    if insert_text:byte(-1) == after_text:byte(1) then
+      skip_suffix_idx = 2
+    end
+  end
+
+  if skip_suffix_idx ~= 1 then
+    return insert_text:sub(1, #insert_text - (skip_suffix_idx - 1))
   end
   return insert_text
 end

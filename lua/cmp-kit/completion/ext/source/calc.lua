@@ -1,7 +1,7 @@
 local Async = require('cmp-kit.kit.Async')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local PATTERN = [=[\s*\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+\-,]\)\+\s*\%(\s*=\s*\)\?]=]
+local PATTERN = [=[\%(^\|\s\)\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+\-,]\)\+\s*\%(\s*=\s*\)\?]=]
 
 local DIGIT_ONLY = [=[^\s*\d\+\%(\.\d\+\)\?\s*$]=]
 

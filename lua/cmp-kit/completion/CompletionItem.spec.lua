@@ -27,6 +27,7 @@ describe('cmp-kit.completion', function()
           local _, _, service = spec.setup({
             input = 'p',
             buffer_text = { 'obj.|for' },
+            provider_name = 'clangd',
             items = { {
               label = 'prop',
               textEdit = {

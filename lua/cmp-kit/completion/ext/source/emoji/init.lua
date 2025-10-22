@@ -24,12 +24,12 @@ return function()
     get_configuration = function()
       return {
         trigger_characters = { ':' },
-        keyword_pattern = [=[\%(^\|[^[:alnum:]:]\)\zs:\w\w*]=],
+        keyword_pattern = [=[\%(^\|\s\)\zs:\w\w*]=],
       }
     end,
     complete = function(_, _, callback)
       local trigger_context = TriggerContext.create()
-      if not vim.regex([=[\%(^\|[^[:alnum:]:]\)\zs:\w*$]=]):match_str(trigger_context.text_before) then
+      if not vim.regex([=[\%(^\|\s\)\zs:\w\w*$]=]):match_str(trigger_context.text_before) then
         return callback(nil, nil)
       end
       Async.run(function()
