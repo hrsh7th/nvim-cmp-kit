@@ -663,10 +663,6 @@ function CompletionService:matching()
       if not is_menu_visible then
         emit(self._events.on_menu_show, { service = self })
       end
-      -- re-emit selection.
-      if preselect_index then
-        self:_update_selection(preselect_index --[[@as integer]], true)
-      end
     end
   else
     if not self._config.is_macro_executing() then

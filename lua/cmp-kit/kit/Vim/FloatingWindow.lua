@@ -312,8 +312,10 @@ end
 function FloatingWindow:set_win_option(key, value, kind)
   kind = kind or 'main'
   self._win_option[kind] = self._win_option[kind] or {}
-  self._win_option[kind][key] = value
-  self:_update_option()
+  if self._win_option[kind][key] ~= value then
+    self._win_option[kind][key] = value
+    self:_update_option()
+  end
 end
 
 ---Get window option.
@@ -341,8 +343,10 @@ end
 function FloatingWindow:set_buf_option(key, value, kind)
   kind = kind or 'main'
   self._buf_option[kind] = self._buf_option[kind] or {}
-  self._buf_option[kind][key] = value
-  self:_update_option()
+  if self._buf_option[kind][key] ~= value then
+    self._buf_option[kind][key] = value
+    self:_update_option()
+  end
 end
 
 ---Get window option.

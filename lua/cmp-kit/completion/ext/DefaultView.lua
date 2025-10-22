@@ -584,10 +584,7 @@ function DefaultView:show(params)
   else
     self._menu_window:set_win_option('winhighlight', winhl_pum)
   end
-  self._menu_window:set_win_option('winblend', vim.o.pumblend)
-
-  -- apply selection.
-  self:select(params)
+  self._docs_window:set_win_option('winblend', vim.o.pumblend ~= 0 and vim.o.pumblend or vim.o.winblend)
 
   -- calculate window position & sizes.
   local border_size = FloatingWindow.get_border_size(vim.o.winborder)
@@ -649,6 +646,7 @@ function DefaultView:show(params)
     style = 'minimal',
     border = vim.o.winborder,
   })
+  self:select(params)
 
   redraw_for_cmdline()
 end
@@ -701,7 +699,7 @@ function DefaultView:select(params)
     vim.api.nvim_win_set_cursor(self._menu_window:get_win() --[[@as integer]], { 1, 0 })
   else
     self._menu_window:set_win_option('cursorline', true)
-    vim.api.nvim_win_set_cursor(self._menu_window:get_win() --[[@as integer]], { params.selection.index, 0 })
+    pcall(vim.api.nvim_win_set_cursor, self._menu_window:get_win() --[[@as integer]], { params.selection.index, 0 })
   end
 
   -- show documentation.
@@ -809,12 +807,13 @@ function DefaultView:_update_docs(item)
         col = menu_viewport.col - restricted_size.outer_width
       end
 
+      -- update window highlights on-demand.
       if vim.o.winborder ~= '' and vim.o.winborder ~= 'none' then
         self._docs_window:set_win_option('winhighlight', winhl_bordered)
       else
         self._docs_window:set_win_option('winhighlight', winhl_pum)
       end
-      self._docs_window:set_win_option('winblend', vim.o.pumblend)
+      self._docs_window:set_win_option('winblend', vim.o.pumblend ~= 0 and vim.o.pumblend or vim.o.winblend)
 
       self._docs_window:show({
         row = row, --[[@as integer]]

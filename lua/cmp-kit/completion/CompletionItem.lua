@@ -3,7 +3,6 @@ local kit = require('cmp-kit.kit')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
 local Range = require('cmp-kit.kit.LSP.Range')
-local Position = require('cmp-kit.kit.LSP.Position')
 local debugger = require('cmp-kit.core.debugger')
 local LinePatch = require('cmp-kit.core.LinePatch')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
@@ -105,7 +104,7 @@ function CompletionItem:get_offset()
     if not self:has_text_edit() then
       self.cache.get_offset = keyword_offset
 
-      -- if filter_text starts with symbol, we search symbol position from buffer text.
+      -- NOTE: cmp-kit's special implementation. if filter_text starts with symbol, we search symbol position from buffer text.
       local filter_text = self:get_filter_text()
       local filter_text_char1 = filter_text:byte(1)
       if Character.is_symbol(filter_text_char1) then
@@ -137,12 +136,11 @@ function CompletionItem:get_offset()
       if not cache[insert_range.start.character] then
         local offset = insert_range.start.character + 1
         for i = offset, keyword_offset do
-          offset = i
+          cache[insert_range.start.character] = i
           if not Character.is_white(self._trigger_context.text:byte(i)) then
             break
           end
         end
-        cache[insert_range.start.character] = math.min(offset, keyword_offset)
       end
       self.cache.get_offset = cache[insert_range.start.character]
     end
@@ -232,22 +230,18 @@ function CompletionItem:get_filter_text()
   if not self.cache.get_filter_text then
     local text = trim_prewhite(self._item.filterText or self._item.label)
 
-    -- NOTE: This is cmp-kit's specific implementation and can have some of the pitfalls.
-    -- Fix filter_text for non-VSCode compliant servers such as clangd.
-    local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
+    -- NOTE: This is cmp-kit's specific implementation. fix filter_text for non-VSCode compliant servers such as clangd.
     if self:has_text_edit() then
-      local offset = self:get_offset()
-      -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
-      local delta = keyword_offset - offset
-      if delta > 0 then
-        if Character.is_symbol(self._trigger_context.text:byte(offset)) then
+      local offset = self:get_offset() -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
+      if Character.is_symbol(self._trigger_context.text:byte(offset)) then
+        local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
+        local delta = keyword_offset - offset
+        if delta > 0 then
           local prefix = self._trigger_context:substr(offset, keyword_offset - 1)
           if not vim.startswith(text, prefix) then
             text = prefix .. text
           end
         end
-      elseif delta < 0 then
-        text = text:sub(1 + math.abs(delta))
       end
     end
     self.cache.get_filter_text = text
@@ -665,13 +659,7 @@ function CompletionItem:get_insert_range()
       -- NOTE: get_insert_range and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
       local default_range = kit.clone(self._provider:get_default_insert_range())
       default_range.start.character = self:get_offset() - 1
-      self.cache.get_insert_range = {
-        start = {
-          line = default_range.start.line,
-          character = self:get_offset() - 1,
-        },
-        ['end'] = default_range['end'],
-      }
+      self.cache.get_insert_range = default_range
     end
   end
   return self.cache.get_insert_range
