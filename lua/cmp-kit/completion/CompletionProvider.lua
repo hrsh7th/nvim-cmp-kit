@@ -118,12 +118,12 @@ function CompletionProvider:complete(trigger_context, on_step)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local is_same_completion_offset = not not (keyword_offset and keyword_offset == self._state.completion_offset)
+    local completion_offset = keyword_offset or trigger_context.character + 1
+    local is_same_completion_offset = not not (completion_offset == self._state.completion_offset)
     local is_same_keyword_offset = not not (keyword_offset and keyword_offset == self._state.keyword_offset)
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
-    local completion_offset ---@type integer?
     if trigger_context.force then
       -- manual based completion
       completion_context = {
@@ -156,25 +156,31 @@ function CompletionProvider:complete(trigger_context, on_step)
       end
     end
 
-    -- reset current completion.
-    if not keyword_offset then
-      self:clear()
-    end
-
     -- do not invoke new completion.
     if not completion_context then
+      if self:in_trigger_character_completion() then
+        if not self:in_completion_context(trigger_context) then
+          self:clear()
+        end
+      else
+        if not keyword_offset then
+          self:clear()
+        end
+      end
       on_step('skip-completion')
       return
     end
 
-    -- update is_trigger_character_completion
-    local is_trigger_char = false
-    is_trigger_char = is_trigger_char or (
-      completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter and
-      Character.is_symbol(trigger_context.trigger_character:byte(1))
-    )
-    is_trigger_char = is_trigger_char or (self:in_trigger_character_completion() and is_same_completion_offset)
-    self._state.is_trigger_character_completion = is_trigger_char
+    -- update or keep is_trigger_character_completion flag.
+    self._state.is_trigger_character_completion = (function()
+      if completion_context.triggerKind == LSP.CompletionTriggerKind.TriggerCharacter then
+        return true
+      end
+      if is_same_completion_offset then
+        return self._state.is_trigger_character_completion
+      end
+      return false
+    end)()
 
     -- update request state.
     self._state.request_state = RequestState.Fetching

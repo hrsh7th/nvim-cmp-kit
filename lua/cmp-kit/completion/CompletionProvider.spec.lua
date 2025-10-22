@@ -41,35 +41,100 @@ describe('cmp-kit.completion', function()
       local provider, ctx = create_provider()
       Keymap.spec(function()
         Keymap.send('i'):await()
-        assert.is_nil(provider:complete(TriggerContext.create()):await())
 
-        -- no_completion.
+        -- no_completion: keyword_pattern=false.
         Keymap.send(' '):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
         assert.is_nil(provider:complete(TriggerContext.create()):await())
 
-        -- no_completion -> keyword_pattern & incomplete.
+        -- completion: keyword_pattern=true.
         Keymap.send('f'):await()
-        ctx.set_response({ isIncomplete = true, items = { { label = 'foo' } } })
+        ctx.set_response({ isIncomplete = true, items = { { label = 'foobarbaz' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
 
-        -- keyword_pattern & incomplete -> keyword_pattern.
+        -- completion: keyword_pattern=true, alreadyCompleted=true, prevIsIncomplete=true
         Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
 
-        -- keyword_pattern -> force.
+        -- no_completion: keyword_pattern=true, alreadyCompleted=true, prevIsIncomplete=false
         Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        assert.is_nil(provider:complete(TriggerContext.create()):await())
+
+        -- completion: force.
+        Keymap.send('b'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create({ force = true })):await())
 
-        -- keyword_pattern & force -> keyword_pattern
-        Keymap.send('o'):await()
-        ctx.set_response({ isIncomplete = false, items = { { label = 'foo' } } })
-        assert.is_nil(provider:complete(TriggerContext.create()):await())
-
-        -- keyword_pattern -> trigger_character
+        -- completion: trigger_char
         Keymap.send('.'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
         assert.are_not.is_nil(provider:complete(TriggerContext.create()):await())
+      end)
+    end)
+
+    it('completion state: keyword pattern will be cleared if keyword_pattern=false', function()
+      spec.reset()
+
+      local provider, ctx = create_provider()
+      Keymap.spec(function()
+        Keymap.send('i'):await()
+
+        -- completion.
+        Keymap.send('f'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.are_not.same({}, provider:get_items())
+
+        -- keep: keyword_pattern=true.
+        Keymap.send('o'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.are_not.same({}, provider:get_items())
+
+        -- clear: keyword_pattern=false.
+        Keymap.send(Keymap.termcodes('<BS><BS>')):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.are.same({}, provider:get_items())
+      end)
+    end)
+
+    it('completion state: trigger_characters does not clear even if keyword_pattern=false', function()
+      spec.reset()
+
+      local provider, ctx = create_provider()
+      Keymap.spec(function()
+        Keymap.send('i'):await()
+
+        -- completion.
+        Keymap.send('.'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.is_true(provider:in_trigger_character_completion())
+        assert.are_not.same({}, provider:get_items())
+
+        -- keep: keyword_pattern=true.
+        Keymap.send('f'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.is_true(provider:in_trigger_character_completion())
+        assert.are_not.same({}, provider:get_items())
+
+        -- keep: keyword_pattern=true.
+        Keymap.send('o'):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.is_true(provider:in_trigger_character_completion())
+        assert.are_not.same({}, provider:get_items())
+
+        -- keep: keyword_pattern=false.
+        Keymap.send(Keymap.termcodes('<BS><BS>')):await()
+        ctx.set_response({ isIncomplete = false, items = { { label = 'foobarbaz' } } })
+        provider:complete(TriggerContext.create()):await()
+        assert.is_true(provider:in_trigger_character_completion())
+        assert.are_not.same({}, provider:get_items())
       end)
     end)
   end)

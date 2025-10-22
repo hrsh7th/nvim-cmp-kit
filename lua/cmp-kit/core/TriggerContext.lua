@@ -9,11 +9,18 @@ local state = {
   trigger_context = nil,
 }
 
+local test_state = {
+  bufnr = -1,
+  changedtick = -1,
+  prev_text_before = nil,
+  last_typed_char = nil,
+}
+
 vim.on_key(function(_, typed)
   if not typed then
     return
   end
-  if select('#', typed:byte(1, -1)) ~= 1 then
+  if #typed ~= 1 then
     return
   end
   state.last_typed_char = typed
@@ -96,7 +103,26 @@ function TriggerContext.new(mode, line, character, text, bufnr, option)
   end
 
   if not trigger_character and os.getenv('TEST') then
-    trigger_character = text_before:match('(.)$')
+    if mode == 'i' then
+      local b = vim.api.nvim_get_current_buf()
+      if test_state.bufnr ~= b then
+        test_state.bufnr = b
+        test_state.changedtick = -1
+        test_state.prev_text_before = nil
+      end
+      local changedtick = vim.api.nvim_buf_get_changedtick(0)
+      if test_state.changedtick ~= changedtick then
+        test_state.changedtick = changedtick
+        test_state.last_typed_char = nil
+        if not test_state.prev_text_before or #test_state.prev_text_before < #text_before then
+          test_state.prev_text_before = text_before
+          test_state.last_typed_char = text_before:match('(.)$')
+        end
+      end
+      trigger_character = test_state.last_typed_char
+    else
+      trigger_character = text_before:match('(.)$')
+    end
   end
 
   local self = setmetatable({
