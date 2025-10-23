@@ -185,9 +185,9 @@ function CompletionProvider:complete(trigger_context, on_step)
     self._state.request_state = RequestState.Fetching
     self._state.request_time = vim.uv.hrtime() / 1e6
     self._state.trigger_context = trigger_context
+    self._state.keyword_offset = keyword_offset
     self._state.completion_context = completion_context
     self._state.completion_offset = completion_offset
-    self._state.keyword_offset = keyword_offset
 
     -- invoke completion.
     on_step('send-request')
@@ -211,8 +211,14 @@ function CompletionProvider:complete(trigger_context, on_step)
     -- adopt response.
     local list = to_completion_list(raw_response)
     self:_adopt_response(trigger_context, list)
-
     on_step('adopt-response')
+
+    -- Clear state if a non-keyword completion (e.g., trigger char) yields an empty response.
+    -- This prevents caching the "empty" result, which would incorrectly block subsequent
+    -- completions at the same offset (e.g., `new |` -> empty, then `new A|` -> skipped).
+    if not keyword_offset and #self._state.items == 0 then
+      self:clear()
+    end
 
     return completion_context
   end)
