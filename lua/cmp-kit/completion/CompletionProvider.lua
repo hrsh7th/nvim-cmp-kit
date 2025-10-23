@@ -118,7 +118,6 @@ function CompletionProvider:complete(trigger_context, on_step)
     local trigger_characters = self:get_trigger_characters()
     local keyword_pattern = self:get_keyword_pattern()
     local keyword_offset = trigger_context:get_keyword_offset(keyword_pattern)
-    local is_same_keyword_offset = not not (keyword_offset and keyword_offset == self._state.keyword_offset)
 
     ---Check should complete for new trigger context or not.
     local completion_context ---@type cmp-kit.kit.LSP.CompletionContext
@@ -139,6 +138,7 @@ function CompletionProvider:complete(trigger_context, on_step)
     else
       -- keyword based completion.
       if keyword_offset and (trigger_context.character + 1 - keyword_offset) >= self.config.keyword_length then
+        local is_same_keyword_offset = not not (keyword_offset and keyword_offset == self._state.completion_offset)
         if is_same_keyword_offset and self._state.is_incomplete then
           -- keyword completion for incomplete completion.
           completion_context = {
@@ -226,7 +226,7 @@ function CompletionProvider:_adopt_response(trigger_context, list)
   self._state.is_incomplete = list.isIncomplete or false
 
   -- convert response to items.
-  local idx = 1
+  kit.clear(self._state.items)
   for _, item in ipairs(list.items) do
     -- check range.
     local is_valid_range = true
@@ -244,12 +244,9 @@ function CompletionProvider:_adopt_response(trigger_context, list)
       )
     end
     if is_valid_range then
-      self._state.items[idx] = CompletionItem.new(trigger_context, self, list, item)
-      idx = idx + 1
+      local completion_item = CompletionItem.new(trigger_context, self, list, item)
+      self._state.items[#self._state.items + 1] = completion_item
     end
-  end
-  for i = #self._state.items, idx + 1, -1 do
-    self._state.items[i] = nil
   end
 
   -- clear matching state.
@@ -373,7 +370,7 @@ end
 ---Return keyword offset.
 ---@return integer?
 function CompletionProvider:get_keyword_offset()
-  return self._state.keyword_offset
+  return self._state.keyword_offset or self._state.completion_offset
 end
 
 ---Return completion offset.
@@ -451,15 +448,14 @@ function CompletionProvider:get_matches(trigger_context, config)
   end
 
   -- filtering items.
-  local idx = 0
+  kit.clear(self._state.matches)
   for _, item in ipairs(self._state.items) do
     local score = config.matcher.match(
       trigger_context:get_query(item:get_offset()),
       item:get_filter_text()
     )
     if score > 0 then
-      idx = idx + 1
-      self._state.matches[idx] = {
+      self._state.matches[#self._state.matches + 1] = {
         trigger_context = trigger_context,
         provider = self,
         item = item,
@@ -467,9 +463,6 @@ function CompletionProvider:get_matches(trigger_context, config)
         index = 0, -- assign later.
       }
     end
-  end
-  for i = #self._state.matches, idx + 1, -1 do
-    self._state.matches[i] = nil
   end
   return self._state.matches
 end
