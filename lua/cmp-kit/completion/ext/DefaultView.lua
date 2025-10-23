@@ -254,9 +254,17 @@ local default_config = {
           end_col = #text,
           hl_group = 'CmpKitCompletionItemLabel',
         })
-        for _, position in ipairs(
-          DefaultMatcher.decor(match.trigger_context:get_query(match.item:get_offset()), text)
-        ) do
+
+        -- @see https://github.com/microsoft/vscode/blob/main/src/vs/base/common/filters.ts#L435
+        local matches = {}
+        for i = 1, 12 do
+          local query = match.trigger_context:get_query(match.item:get_offset() + i - 1)
+          matches = DefaultMatcher.decor(query, text)
+          if #matches > 0 then
+            break
+          end
+        end
+        for _, position in ipairs(matches) do
           table.insert(extmarks, {
             col = position[1] - 1,
             end_col = position[2] - 1,
