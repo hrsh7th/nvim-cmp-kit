@@ -257,7 +257,7 @@ local default_config = {
 
         -- @see https://github.com/microsoft/vscode/blob/main/src/vs/base/common/filters.ts#L435
         local matches = {}
-        for i = 1, 12 do
+        for i = 1, math.min(12, 1 + match.provider:get_keyword_offset() - match.item:get_offset()) do
           local query = match.trigger_context:get_query(match.item:get_offset() + i - 1)
           matches = DefaultMatcher.decor(query, text)
           if #matches > 0 then
