@@ -19,7 +19,7 @@ function Hack.clangd.get_filter_text(
   if item:has_text_edit() then
     local offset = item:get_offset() -- NOTE: get_filter_text and get_offset reference each other, but calling get_offset here does NOT cause an infinite loop.
     if Character.is_symbol(trigger_context.text:byte(offset)) then
-      local keyword_offset = provider:get_keyword_offset() or trigger_context.character + 1
+      local keyword_offset = provider:get_keyword_offset()
       local delta = keyword_offset - offset
       if delta > 0 then
         local prefix = trigger_context:substr(offset, keyword_offset - 1)

@@ -99,7 +99,7 @@ end
 
 ---Get suggest offset position 1-origin utf-8 byte index.
 ---NOTE: VSCode does not need this because it always shows the completion menu relative to the cursor position. But vim's completion usually shows the menu aligned with the keyword.
----@return number
+---@return integer
 function CompletionItem:get_offset()
   if not self.cache.get_offset then
     local keyword_offset = self._provider:get_keyword_offset() or self._trigger_context.character + 1
@@ -154,7 +154,7 @@ end
 ---@return string
 function CompletionItem:get_label_text()
   if not self.cache.get_label_text then
-    self.cache.get_label_text = oneline(self._item.label)
+    self.cache.get_label_text = oneline(self._item.label or '')
   end
   return self.cache.get_label_text
 end
@@ -193,14 +193,9 @@ function CompletionItem:get_preview_text()
     if self._item.nvim_previewText then
       preview_text = trim_prewhite(self._item.nvim_previewText) --[[@as string]]
     else
-      local text --[[@as string]]
-      if self._item.filterText then
-        text = trim_prewhite(self._item.filterText) --[[@as string]]
-      else
-        text = self:get_insert_text()
-        if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
-          text = tostring(SnippetText.parse(text)) --[[@as string]]
-        end
+      local text = self:get_insert_text()
+      if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
+        text = tostring(SnippetText.parse(text)) --[[@as string]]
       end
 
       -- NOTE: In string syntax, We use raw insertText.
@@ -213,12 +208,6 @@ function CompletionItem:get_preview_text()
           after_text = self._trigger_context.text_after,
         })
       end
-
-      -- NOTE: cmp-kit's special implementation. Removes special characters so that they can be pressed after selecting an item.
-      -- local chars = self:_get_commit_and_trigger_character_map()
-      -- if chars[preview_text:byte(-1)] then
-      --   preview_text = preview_text:sub(1, -2)
-      -- end
     end
     self.cache.get_preview_text = preview_text
   end
@@ -228,7 +217,7 @@ end
 ---Return filter text that will be used for matching.
 function CompletionItem:get_filter_text()
   if not self.cache.get_filter_text then
-    self.cache.get_filter_text = trim_prewhite(self._item.filterText or self._item.label)
+    self.cache.get_filter_text = trim_prewhite(self._item.filterText or self._item.label or '')
     if self._provider:get_name() == 'clangd' then
       self.cache.get_filter_text = Hack.clangd.get_filter_text(
         self,
@@ -251,7 +240,7 @@ function CompletionItem:get_insert_text()
   elseif self._item.insertText then
     return self._item.insertText
   end
-  return self._item.label
+  return self._item.label or ''
 end
 
 ---Return insertTextFormat.
