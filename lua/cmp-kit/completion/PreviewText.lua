@@ -36,7 +36,7 @@ PreviewText.Pairs = {
 }
 
 ---Create preview text.
----@param params { insert_text: string, before_text: string, after_text: string }
+---@param params { insert_text: string, before_text: string, after_text: string, in_string: boolean }
 ---@return string
 function PreviewText.create(params)
   local insert_text = params.insert_text
@@ -45,28 +45,30 @@ function PreviewText.create(params)
 
   local is_after_symbol = Character.is_symbol(after_text:byte(1))
 
-  local pairs_stack = {}
-  for i = 1, #insert_text do
-    local byte = insert_text:byte(i)
-    if PreviewText.ForceStopCharacters[byte] then
-      return insert_text:sub(1, i - 1)
-    end
-    local is_alnum = Character.is_alnum(byte)
-
-    if is_alnum_consumed and is_after_symbol and after_text:byte(1) == byte then
-      return insert_text:sub(1, i - 1)
-    end
-
-    if byte == pairs_stack[#pairs_stack] then
-      table.remove(pairs_stack, #pairs_stack)
-    elseif not is_alnum_consumed and PreviewText.Pairs[byte] then
-      table.insert(pairs_stack, PreviewText.Pairs[byte])
-    elseif is_alnum_consumed and not is_alnum and #pairs_stack == 0 then
-      if PreviewText.StopCharacters[byte] then
+  if not params.in_string then
+    local pairs_stack = {}
+    for i = 1, #insert_text do
+      local byte = insert_text:byte(i)
+      if PreviewText.ForceStopCharacters[byte] then
         return insert_text:sub(1, i - 1)
       end
-    else
-      is_alnum_consumed = is_alnum_consumed or is_alnum
+      local is_alnum = Character.is_alnum(byte)
+
+      if is_alnum_consumed and is_after_symbol and after_text:byte(1) == byte then
+        return insert_text:sub(1, i - 1)
+      end
+
+      if byte == pairs_stack[#pairs_stack] then
+        table.remove(pairs_stack, #pairs_stack)
+      elseif not is_alnum_consumed and PreviewText.Pairs[byte] then
+        table.insert(pairs_stack, PreviewText.Pairs[byte])
+      elseif is_alnum_consumed and not is_alnum and #pairs_stack == 0 then
+        if PreviewText.StopCharacters[byte] then
+          return insert_text:sub(1, i - 1)
+        end
+      else
+        is_alnum_consumed = is_alnum_consumed or is_alnum
+      end
     end
   end
 

@@ -197,17 +197,12 @@ function CompletionItem:get_preview_text()
       if self:get_insert_text_format() == LSP.InsertTextFormat.Snippet then
         text = tostring(SnippetText.parse(text)) --[[@as string]]
       end
-
-      -- NOTE: In string syntax, We use raw insertText.
-      if self._trigger_context.in_string then
-        preview_text = oneline(text)
-      else
-        preview_text = PreviewText.create({
-          insert_text = text,
-          before_text = self._trigger_context:substr(1, self:get_offset() - 1),
-          after_text = self._trigger_context.text_after,
-        })
-      end
+      preview_text = PreviewText.create({
+        insert_text = text,
+        before_text = self._trigger_context:substr(1, self:get_offset() - 1),
+        after_text = self._trigger_context.text_after,
+        in_string = self._trigger_context.in_string,
+      })
     end
     self.cache.get_preview_text = preview_text
   end
