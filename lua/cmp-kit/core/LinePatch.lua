@@ -11,16 +11,22 @@ do
   local set_options = Keymap.termcodes(table.concat({
     '<Cmd>noautocmd setlocal backspace=2<CR>',
     '<Cmd>noautocmd setlocal textwidth=0<CR>',
+    '<Cmd>noautocmd setlocal indentkeys=<CR>',
   }, ''))
   local reset_options = Keymap.termcodes(table.concat({
     '<Cmd>noautocmd setlocal textwidth=%s<CR>',
     '<Cmd>noautocmd setlocal backspace=%s<CR>',
+    '<Cmd>noautocmd setlocal indentkeys=%s<CR>',
   }, ''))
   wrap_keys = function(keys)
     return table.concat({
       set_options,
       keys,
-      reset_options:format(vim.bo.textwidth or 0, vim.go.backspace or 2),
+      reset_options:format(
+        vim.bo.textwidth or 0,
+        vim.go.backspace or 2,
+        vim.bo.indentkeys or ''
+      ),
     }, '')
   end
 end
