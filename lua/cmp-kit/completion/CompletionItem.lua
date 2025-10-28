@@ -685,22 +685,4 @@ function CompletionItem:_has_inline_additional_text_edits()
   return self.cache._has_inline_additional_text_edits
 end
 
----Create commitCharacters and triggerCharacters map.
----@return table<integer, boolean>
-function CompletionItem:_get_commit_and_trigger_character_map()
-  if not self.cache._get_commit_and_trigger_character_map then
-    local chars
-    for _, c in ipairs(self:get_commit_characters()) do
-      chars = chars or {}
-      chars[c:byte(1)] = true
-    end
-    for _, c in ipairs(self._provider:get_trigger_characters()) do
-      chars = chars or {}
-      chars[c:byte(1)] = true
-    end
-    self.cache._get_commit_and_trigger_character_map = chars or empty
-  end
-  return self.cache._get_commit_and_trigger_character_map
-end
-
 return CompletionItem
