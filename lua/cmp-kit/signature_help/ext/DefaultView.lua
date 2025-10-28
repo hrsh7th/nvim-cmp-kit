@@ -230,7 +230,7 @@ function DefaultView:show(data)
   else
     self._window:set_win_option('winhighlight', winhl_pum)
   end
-  self._window:set_win_option('winblend', vim.o.pumblend)
+  self._window:set_win_option('winblend', vim.o.pumblend ~= 0 and vim.o.pumblend or vim.o.winblend)
 
   self._window:show({
     row = row + row_off,

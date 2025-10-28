@@ -192,14 +192,6 @@ local function prepare_markdown_contents(raw_contents)
       end
     elseif section.type == 'markdown' then
       section.contents = trim_empty_lines(section.contents)
-
-      -- shrink linebreak for markdown rules.
-      for j = #section.contents, 1, -1 do
-        if section.contents[j - 1] ~= '' and section.contents[j] == '' then
-          table.remove(section.contents, j)
-        end
-      end
-
       if #section.contents == 0 then
         table.remove(sections, i)
       end

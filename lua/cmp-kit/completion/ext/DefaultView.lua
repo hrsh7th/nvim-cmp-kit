@@ -592,7 +592,7 @@ function DefaultView:show(params)
   else
     self._menu_window:set_win_option('winhighlight', winhl_pum)
   end
-  self._docs_window:set_win_option('winblend', vim.o.pumblend ~= 0 and vim.o.pumblend or vim.o.winblend)
+  self._menu_window:set_win_option('winblend', vim.o.pumblend ~= 0 and vim.o.pumblend or vim.o.winblend)
 
   -- calculate window position & sizes.
   local border_size = FloatingWindow.get_border_size(vim.o.winborder)
