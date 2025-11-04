@@ -664,6 +664,7 @@ function DefaultView:hide()
   if self._disposed then
     return
   end
+  vim.api.nvim_set_decoration_provider(self._ns, {})
   get_strwidth.clear_cache()
   self._menu_window:hide()
   self._docs_window:hide()
