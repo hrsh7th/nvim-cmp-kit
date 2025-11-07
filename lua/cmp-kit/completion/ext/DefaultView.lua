@@ -524,34 +524,36 @@ function DefaultView:show(params)
   -- set decoration provider.
   vim.api.nvim_set_decoration_provider(self._ns, {
     on_win = function(_, _, buf, toprow, botrow)
-      if buf ~= self._menu_window:get_buf() then
-        return
-      end
+      pcall(function()
+        if buf ~= self._menu_window:get_buf() then
+          return
+        end
 
-      for row = toprow, botrow do
-        if row < #self._matches then
-          local off = self._config.menu_padding_left
-          for _, column in ipairs(columns) do
-            off = off + column.padding_left
+        for row = toprow, botrow do
+          if row < #self._matches then
+            local off = self._config.menu_padding_left
+            for _, column in ipairs(columns) do
+              off = off + column.padding_left
 
-            local text = column.texts[row + 1]
-            local space_width = column.display_width - get_strwidth(text)
-            local right_align_off = column.align == 'right' and space_width or 0
-            for _, extmark in ipairs(column.component.get_extmarks(text, self._matches[row + 1], self._config)) do
-              vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
-                end_row = row,
-                end_col = off + right_align_off + extmark.end_col,
-                hl_group = extmark.hl_group,
-                hl_mode = 'combine',
-                priority = extmark.priority,
-                conceal = extmark.conceal,
-                ephemeral = true,
-              })
+              local text = column.texts[row + 1]
+              local space_width = column.display_width - get_strwidth(text)
+              local right_align_off = column.align == 'right' and space_width or 0
+              for _, extmark in ipairs(column.component.get_extmarks(text, self._matches[row + 1], self._config)) do
+                vim.api.nvim_buf_set_extmark(buf, self._ns, row, off + right_align_off + extmark.col, {
+                  end_row = row,
+                  end_col = off + right_align_off + extmark.end_col,
+                  hl_group = extmark.hl_group,
+                  hl_mode = 'combine',
+                  priority = extmark.priority,
+                  conceal = extmark.conceal,
+                  ephemeral = true,
+                })
+              end
+              off = off + #text + space_width + column.padding_right + self._config.menu_gap
             end
-            off = off + #text + space_width + column.padding_right + self._config.menu_gap
           end
         end
-      end
+      end)
     end,
   })
 

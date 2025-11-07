@@ -11,7 +11,6 @@ local PreviewText    = require('cmp-kit.completion.PreviewText')
 local SnippetText    = require('cmp-kit.completion.SnippetText')
 local Hack           = require('cmp-kit.completion.Hack')
 
-
 ---Trim whitespace.
 ---@param text string
 ---@return string
@@ -204,7 +203,7 @@ function CompletionItem:get_preview_text()
         in_string = self._trigger_context.in_string,
       })
     end
-    self.cache.get_preview_text = preview_text
+    self.cache.get_preview_text = trim_prewhite(preview_text)
   end
   return self.cache.get_preview_text
 end
