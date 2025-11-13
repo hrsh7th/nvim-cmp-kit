@@ -164,6 +164,7 @@ return function(option)
           end
           table.insert(items, {
             label = vim.fs.basename(entry.path) .. (entry.type == 'directory' and '/' or ''),
+            insertText = vim.fs.basename(entry.path),
             kind = kind,
             data = entry,
           })
