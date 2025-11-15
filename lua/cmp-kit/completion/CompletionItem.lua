@@ -31,16 +31,13 @@ end
 ---Get expanded range.
 ---@param ranges { [1]: cmp-kit.kit.LSP.Range } | cmp-kit.kit.LSP.Range[]
 ---@return cmp-kit.kit.LSP.Range
-local function create_expanded_range(ranges)
+local function create_end_expanded_range(ranges)
   local max --[[@as cmp-kit.kit.LSP.Range]]
   for _, range in ipairs(ranges) do
     if range then
       if not max then
         max = kit.clone(range)
       else
-        if range.start.character < max.start.character then
-          max.start.character = range.start.character
-        end
         if max['end'].character < range['end'].character then
           max['end'].character = range['end'].character
         end
@@ -135,8 +132,8 @@ function CompletionItem:get_offset()
           self._trigger_context.cache.CompletionItem_get_offset[keyword_offset] or {}
       local cache = self._trigger_context.cache.CompletionItem_get_offset[keyword_offset]
       if not cache[insert_range.start.character] then
-        local offset = insert_range.start.character + 1
-        for i = offset, keyword_offset do
+        cache[insert_range.start.character] = insert_range.start.character + 1
+        for i = cache[insert_range.start.character], keyword_offset do
           cache[insert_range.start.character] = i
           if not Character.is_white(self._trigger_context.text:byte(i)) then
             break
@@ -501,9 +498,10 @@ function CompletionItem:commit(option)
     LinePatch.apply_by_func(bufnr, trigger_context.character, 0, self._trigger_context.text_before):await()
 
     -- Make overwrite information.
+    trigger_context = TriggerContext.create()
     local range = option.replace and self:get_replace_range() or self:get_insert_range()
-    local before = self._trigger_context.character - range.start.character
-    local after = range['end'].character - self._trigger_context.character
+    local before = trigger_context.character - range.start.character
+    local after = range['end'].character - trigger_context.character
 
     -- Apply sync additionalTextEdits if provied.
     if self._item.additionalTextEdits then
@@ -512,7 +510,7 @@ function CompletionItem:commit(option)
         .iter(self._item.additionalTextEdits)
         :map(function(text_edit)
           return {
-            range = Range.to_buf(self._trigger_context.bufnr, text_edit.range,
+            range = Range.to_buf(trigger_context.bufnr, text_edit.range,
               self._provider:get_position_encoding_kind()),
             newText = text_edit.newText,
           }
@@ -657,7 +655,7 @@ function CompletionItem:get_replace_range()
       end
     end
     range = range or self:get_insert_range()
-    self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), range })
+    self.cache.get_replace_range = create_end_expanded_range({ self._provider:get_default_replace_range(), range })
   end
   return self.cache.get_replace_range
 end
