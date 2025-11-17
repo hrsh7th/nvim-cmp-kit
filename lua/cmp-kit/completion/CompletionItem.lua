@@ -31,13 +31,16 @@ end
 ---Get expanded range.
 ---@param ranges { [1]: cmp-kit.kit.LSP.Range } | cmp-kit.kit.LSP.Range[]
 ---@return cmp-kit.kit.LSP.Range
-local function create_end_expanded_range(ranges)
+local function create_expanded_range(ranges)
   local max --[[@as cmp-kit.kit.LSP.Range]]
   for _, range in ipairs(ranges) do
     if range then
       if not max then
         max = kit.clone(range)
       else
+        if range.start.character < max.start.character then
+          max.start.character = range.start.character
+        end
         if max['end'].character < range['end'].character then
           max['end'].character = range['end'].character
         end
@@ -654,8 +657,11 @@ function CompletionItem:get_replace_range()
         range = self._completion_list.itemDefaults.editRange.replace
       end
     end
-    range = range or self:get_insert_range()
-    self.cache.get_replace_range = create_end_expanded_range({ self._provider:get_default_replace_range(), range })
+    range = range and self._trigger_context:convert_range_as_utf8(
+      self._provider:get_position_encoding_kind(),
+      range
+    ) or self:get_insert_range()
+    self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), range })
   end
   return self.cache.get_replace_range
 end
