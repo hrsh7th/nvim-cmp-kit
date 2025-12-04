@@ -8,6 +8,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           '16',
           PreviewText.create({
+            offset = 1,
             insert_text = '16',
             before_text = '',
             after_text = '',
@@ -17,6 +18,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           'insert',
           PreviewText.create({
+            offset = 1,
             insert_text = 'insert',
             before_text = '',
             after_text = '',
@@ -26,6 +28,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           '"true"',
           PreviewText.create({
+            offset = 1,
             insert_text = '"true"',
             before_text = '',
             after_text = '',
@@ -35,6 +38,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           '(insert)',
           PreviewText.create({
+            offset = 1,
             insert_text = '(insert))',
             before_text = '',
             after_text = '',
@@ -44,6 +48,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           '"repository',
           PreviewText.create({
+            offset = 1,
             insert_text = '"repository"',
             before_text = '',
             after_text = '"',
@@ -53,6 +58,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           '"',
           PreviewText.create({
+            offset = 1,
             insert_text = '""',
             before_text = '',
             after_text = '"',
@@ -62,6 +68,7 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           'signature',
           PreviewText.create({
+            offset = 1,
             insert_text = 'signature',
             before_text = '',
             after_text = 'exit',
@@ -71,8 +78,19 @@ describe('cmp-kit.completion', function()
         assert.are.equal(
           'insert',
           PreviewText.create({
+            offset = 1,
             insert_text = 'insert(list, pos, value)',
             before_text = '',
+            after_text = '',
+          })
+        )
+        -- realworld: 1
+        assert.are.equal(
+          'import { Directory }',
+          PreviewText.create({
+            offset = 1,
+            insert_text = 'import { Directory } from \'cmd-ts/batteries/fs\';',
+            before_text = 'import ',
             after_text = '',
           })
         )
