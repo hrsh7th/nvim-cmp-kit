@@ -1,9 +1,11 @@
 local Async = require('cmp-kit.kit.Async')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local PATTERN = [=[\%(^\|\s\)\zs\%( \|math\.\w\+\|\d\+\%(\.\d\+\)\?\|[()*/+\-,]\)\+\s*\%(\s*=\s*\)\?]=]
-
-local DIGIT_ONLY = [=[^\s*\d\+\%(\.\d\+\)\?\s*$]=]
+local INT_PART = [=[\%(\d\{1,3\}\%(,\d\{3\}\)\+\|\d\+\)]=]
+local DECIMAL_PART = [=[\.\d\+]=]
+local NUM2 = ([=[%s\%%(%s\)\?]=]):format(INT_PART, DECIMAL_PART)
+local DIGIT_ONLY = ([=[^\s*%s\s*$]=]):format(NUM2)
+local PATTERN = ([=[\%%(^\|\s*\)\zs\%%( \|math\.\w\+\|%s\|[()*/+\-,]\)\+\s*\%%(\s*=\s*\)\?]=]):format(NUM2)
 
 local INVALID = {
   isIncomplete = false,
@@ -29,11 +31,11 @@ return function()
           return INVALID
         end
         local leading_text = ctx.text_before:sub(off)
-        local candidate_text = leading_text:gsub('%s*=%s*$', '')
 
+        local ok_idx = 1
         local stack = {}
-        for i = #candidate_text, 1, -1 do
-          local char = candidate_text:sub(i, i)
+        for i = #leading_text, 1, -1 do
+          local char = leading_text:sub(i, i)
           if char == ')' then
             table.insert(stack, {
               idx = i,
@@ -41,22 +43,43 @@ return function()
             })
           elseif char == '(' then
             if #stack == 0 then
-              return INVALID
+              ok_idx = i + 1
+              break
             end
             table.remove(stack)
           end
         end
 
-        local program = candidate_text
+        local program = leading_text:gsub('%s*=%s*$', ''):sub(ok_idx)
         if #stack > 0 then
-          program = candidate_text:sub(stack[#stack].idx)
+          program = leading_text:sub(stack[#stack].idx)
         end
+        program = program:gsub('^%s*', ''):gsub('%s*$', '')
 
-        program = (program:gsub('^%s*', ''))
+        if program == '' then
+          return INVALID
+        end
 
         if vim.regex(DIGIT_ONLY):match_str(program) then
           return INVALID
         end
+
+        -- remove , except in math functions
+        local fixed_program_parts = {}
+        local i = 1
+        while i <= #program do
+          local func_s, func_e = program:find('math%.%w+%b()', i)
+          if type(func_s) == 'number' and func_s == i then
+            table.insert(fixed_program_parts, program:sub(func_s, func_e))
+            i = func_e + 1
+          else
+            if program:sub(i, i) ~= ',' then
+              table.insert(fixed_program_parts, program:sub(i, i))
+            end
+            i = i + 1
+          end
+        end
+        program = table.concat(fixed_program_parts)
 
         local output = assert(loadstring(('return %s'):format(program), 'calc'))()
         if type(output) ~= 'number' then
@@ -68,18 +91,42 @@ return function()
           items = {
             {
               label = ('= %s'):format(output),
-              insertText = tostring(output),
               filterText = leading_text,
               sortText = '1',
               nvim_previewText = tostring(output),
+              textEdit = {
+                newText = tostring(output),
+                range = {
+                  start = {
+                    line = ctx.line,
+                    character = off + ok_idx - 2,
+                  },
+                  ['end'] = {
+                    line = ctx.line,
+                    character = ctx.character,
+                  },
+                },
+              },
             },
             {
-              label = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
-              insertText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
+              label = ('%s = %s'):format((program:gsub('%s*$', '')), output),
               filterText = leading_text,
               sortText = '2',
-              nvim_previewText = ('%s = %s'):format((candidate_text:gsub('%s*$', '')), output),
-              commitCharacters = { '=' }
+              nvim_previewText = ('%s = %s'):format((program:gsub('%s*$', '')), output),
+              commitCharacters = { '=' },
+              textEdit = {
+                newText = ('%s = %s'):format((program:gsub('%s*$', '')), output),
+                range = {
+                  start = {
+                    line = ctx.line,
+                    character = off + ok_idx - 2,
+                  },
+                  ['end'] = {
+                    line = ctx.line,
+                    character = ctx.character,
+                  },
+                },
+              },
             },
           },
         }
