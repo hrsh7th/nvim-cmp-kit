@@ -281,6 +281,24 @@ function CompletionService:on_dispose(callback)
   end
 end
 
+---Wait for stable state.
+---@param timeout? integer
+function CompletionService:wait_for_stable(timeout)
+  timeout = timeout or (2 * 1000)
+
+
+  vim.wait(timeout, function()
+    for _, group in ipairs(self:_get_provider_groups()) do
+      for _, cfg in ipairs(group) do
+        if cfg.provider:is_fetching(self._config.performance.fetching_timeout_ms) then
+          return false
+        end
+      end
+    end
+    return true
+  end)
+end
+
 ---Dispose completion service.
 function CompletionService:dispose()
   if self._disposed then
@@ -320,6 +338,16 @@ function CompletionService:register_source(source, params)
       end
     end
   end
+end
+
+---Abort completion.
+function CompletionService:abort()
+  return Async.run(function()
+    if self:_is_active_selection() then
+      self:select(0, false):await()
+    end
+    self:clear()
+  end)
 end
 
 ---Clear completion.
@@ -378,7 +406,7 @@ end
 ---@return cmp-kit.kit.Async.AsyncTask
 function CompletionService:select(index, preselect)
   if self._config.is_macro_executing() then
-    self:_wait_for_stable()
+    self:wait_for_stable()
     self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
@@ -420,7 +448,7 @@ end
 ---@return cmp-kit.completion.Selection
 function CompletionService:get_selection()
   if self._config.is_macro_executing() then
-    self:_wait_for_stable()
+    self:wait_for_stable()
     self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
@@ -688,7 +716,7 @@ function CompletionService:commit(item, option)
   option.no_snippet = option.no_snippet or false
 
   if self._config.is_macro_executing() then
-    self:_wait_for_stable()
+    self:wait_for_stable()
     self._state.matching_trigger_context = TriggerContext.create_empty_context()
     self:matching()
   end
@@ -838,16 +866,6 @@ function CompletionService:_insert_selection(text_before, item_next, item_prev)
       text_before:sub(prev_offset + 1, next_offset),
       item_next and item_next:get_preview_text() or ''
     )):next(resume)
-end
-
----Wait for stable state.
----@param timeout? integer
-function CompletionService:_wait_for_stable(timeout)
-  timeout = timeout or (2 * 1000)
-
-  local tasks = self._macro_completions
-  self._macro_completions = {}
-  Async.all(tasks):sync(2 * 1000)
 end
 
 ---Check invalid state.
