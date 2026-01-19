@@ -95,7 +95,7 @@ end
 ---@param win_config cmp-kit.kit.Vim.FloatingWindow.WindowConfig
 ---@return integer
 local function show_or_move(win, buf, win_config)
-  win_config.border = normalize_winborder(win_config.border or (vim.o.winborder --[[@as string]]))
+  win_config.border = normalize_winborder(win_config.border or vim.o.winborder --[[@as string]])
 
   local border_size = FloatingWindow.get_border_size(win_config.border)
   if win_config.anchor == 'NE' then
@@ -157,7 +157,7 @@ end
 ---@param border nil | string | string[]
 ---@return cmp-kit.kit.Vim.FloatingWindow.BorderSize
 function FloatingWindow.get_border_size(border)
-  border = normalize_winborder(border or (vim.o.winborder --[[@as string]]))
+  border = normalize_winborder(border or vim.o.winborder --[[@as string]])
 
   local maybe_border_size = (function()
     if not border or border == '' then
@@ -238,9 +238,9 @@ function FloatingWindow.get_content_size(params)
     end
 
     for _, extmark in
-    ipairs(vim.api.nvim_buf_get_extmarks(params.bufnr, -1, 0, -1, {
-      details = true,
-    }))
+      ipairs(vim.api.nvim_buf_get_extmarks(params.bufnr, -1, 0, -1, {
+        details = true,
+      }))
     do
       if extmark[4] and extmark[4].virt_lines then
         content_height = content_height + #extmark[4].virt_lines
