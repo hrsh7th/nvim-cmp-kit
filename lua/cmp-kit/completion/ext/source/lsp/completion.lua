@@ -1,4 +1,3 @@
-local kit = require('cmp-kit.kit')
 local Client = require('cmp-kit.kit.LSP.Client')
 local Async = require('cmp-kit.kit.Async')
 
@@ -21,16 +20,18 @@ return function(option)
   return {
     name = option.client.name,
     get_configuration = function()
-      local capabilities = option.client.dynamic_capabilities:get('textDocument/completion', {
-        bufnr = vim.api.nvim_get_current_buf(),
-      })
+      local options = {}
+      for _, registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
+        options = vim.tbl_deep_extend('force', options, registration.registerOptions or {})
+      end
+      local registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
+      if registration then
+        options = vim.tbl_deep_extend('force', options, registration)
+      end
       return {
         position_encoding_kind = option.client.offset_encoding,
         keyword_pattern = option.keyword_pattern,
-        trigger_characters = kit.concat(
-          kit.get(capabilities, { 'registerOptions', 'triggerCharacters' }, {}),
-          kit.get(option.client.server_capabilities, { 'completionProvider', 'triggerCharacters' }, {})
-        ),
+        trigger_characters = options.triggerCharacters,
       }
     end,
     capable = function(_)
@@ -38,10 +39,15 @@ return function(option)
     end,
     resolve = function(_, item, callback)
       Async.run(function()
-        local capabilities = option.client.dynamic_capabilities:get('textDocument/completion', {
-          bufnr = vim.api.nvim_get_current_buf(),
-        })
-        if kit.get(capabilities, { 'registerOptions', 'resolveProvider' }) or kit.get(option.client.server_capabilities, { 'completionProvider', 'resolveProvider' }) then
+        local options = {}
+        for _, registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
+          options = vim.tbl_deep_extend('force', options, registration.registerOptions or {})
+        end
+        local registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
+        if registration then
+          options = vim.tbl_deep_extend('force', options, registration)
+        end
+        if options.resolveProvider then
           return client:completionItem_resolve(item):await()
         end
         return item
