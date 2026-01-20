@@ -21,12 +21,14 @@ return function(option)
     name = option.client.name,
     get_configuration = function()
       local options = {}
-      for _, registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
-        options = vim.tbl_deep_extend('force', options, registration.registerOptions or {})
+      -- static.
+      local static_registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
+      if static_registration then
+        options = vim.tbl_deep_extend('force', options, static_registration)
       end
-      local registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
-      if registration then
-        options = vim.tbl_deep_extend('force', options, registration)
+      -- dynamic.
+      for _, dynamic_registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
+        options = vim.tbl_deep_extend('force', options, dynamic_registration.registerOptions or {})
       end
       return {
         position_encoding_kind = option.client.offset_encoding,
@@ -40,12 +42,14 @@ return function(option)
     resolve = function(_, item, callback)
       Async.run(function()
         local options = {}
-        for _, registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
-          options = vim.tbl_deep_extend('force', options, registration.registerOptions or {})
+        -- static.
+        local static_registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
+        if static_registration then
+          options = vim.tbl_deep_extend('force', options, static_registration)
         end
-        local registration = vim.tbl_get(client.client.server_capabilities, 'completionProvider')
-        if registration then
-          options = vim.tbl_deep_extend('force', options, registration)
+        -- dynamic.
+        for _, dynamic_registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/completion'), 0) or {}) do
+          options = vim.tbl_deep_extend('force', options, dynamic_registration.registerOptions or {})
         end
         if options.resolveProvider then
           return client:completionItem_resolve(item):await()

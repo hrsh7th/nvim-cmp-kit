@@ -18,20 +18,20 @@ return function(option)
   return {
     name = option.client.name,
     get_configuration = function()
-      local trigger_characters = kit.get(option.client, {
-        'server_capabilities',
-        'signatureHelpProvider',
-        'triggerCharacters',
-      }, {})
-      local retrigger_characters = kit.get(option.client, {
-        'server_capabilities',
-        'signatureHelpProvider',
-        'retriggerCharacters',
-      }, {})
+      local options = {}
+      -- static.
+      local static_registration = vim.tbl_get(client.client.server_capabilities, 'signatureHelpProvider')
+      if static_registration then
+        options = vim.tbl_deep_extend('force', options, static_registration)
+      end
+      -- dynamic.
+      for _, dynamic_registration in ipairs(client.client:_get_registrations(client.client:_registration_provider('textDocument/signatureHelp'), 0) or {}) do
+        options = vim.tbl_deep_extend('force', options, dynamic_registration.registerOptions or {})
+      end
       return {
         position_encoding_kind = option.client.offset_encoding,
-        trigger_characters = trigger_characters,
-        retrigger_characters = kit.concat(trigger_characters, retrigger_characters),
+        trigger_characters = options.triggerCharacters or {},
+        retrigger_characters = kit.concat(options.triggerCharacters or {}, options.retriggerCharacters or {}),
       }
     end,
     capable = function(_)
