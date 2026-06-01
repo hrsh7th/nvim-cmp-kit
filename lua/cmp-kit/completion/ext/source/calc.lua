@@ -5,7 +5,11 @@ local INT_PART = [=[\%(\d\{1,3\}\%(,\d\{3\}\)\+\|\d\+\)]=]
 local DECIMAL_PART = [=[\.\d\+]=]
 local NUM2 = ([=[%s\%%(%s\)\?]=]):format(INT_PART, DECIMAL_PART)
 local DIGIT_ONLY = ([=[^\s*%s\s*$]=]):format(NUM2)
-local PATTERN = ([=[\%%(^\|\s*\)\zs\%%( \|math\.\w\+\|%s\|[()*/+\-,]\)\+\s*\%%(\s*=\s*\)\?]=]):format(NUM2)
+local MATH_FUNCTION_CALL = [=[math\.\w\+([^)]*)]=]
+local PATTERN = ([=[\%%(^\|\s*\)\zs\%%( \|%s\|math\.\w\+\|%s\|[()*/+\-]\)\+\s*\%%(\s*=\s*\)\?]=]):format(
+  MATH_FUNCTION_CALL,
+  NUM2
+)
 
 local INVALID = {
   isIncomplete = false,
@@ -31,6 +35,19 @@ return function()
           return INVALID
         end
         local leading_text = ctx.text_before:sub(off)
+
+        --- ignore if prefix pattern matches the date-like strings
+        do
+          for _, pat in ipairs({
+            '%d%d%d%d%-%d%d%-%d%d%s*$', -- 2024-01-30
+            '%d%d%d%d/%d%d/%d%d%s*$',   -- 2024/01/30
+            '%d%d/%d%d/%d%d%d%d%s*$',   -- 01/30/2024
+          }) do
+            if leading_text:match(pat) then
+              return INVALID
+            end
+          end
+        end
 
         local ok_idx = 1
         local stack = {}
@@ -81,7 +98,14 @@ return function()
         end
         program = table.concat(fixed_program_parts)
 
-        local output = assert(loadstring(('return %s'):format(program), 'calc'))()
+        local chunk = loadstring(('return %s'):format(program), 'calc')
+        if not chunk then
+          return INVALID
+        end
+        local ok, output = pcall(chunk)
+        if not ok then
+          return INVALID
+        end
         if type(output) ~= 'number' then
           return INVALID
         end
