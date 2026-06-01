@@ -94,11 +94,16 @@ return function(option)
         },
         context = completion_context,
       })
-      request:dispatch(function(res)
-        request = nil
+      local current_request = request
+      current_request:dispatch(function(res)
+        if request == current_request then
+          request = nil
+        end
         callback(nil, res)
       end, function(err)
-        request = nil
+        if request == current_request then
+          request = nil
+        end
         callback(err, nil)
       end)
     end,
