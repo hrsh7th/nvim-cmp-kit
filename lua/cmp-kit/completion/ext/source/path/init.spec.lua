@@ -28,7 +28,6 @@ describe('cmp-kit.completion.ext.source.path', function()
       assert.are_same(
         complete(source, {
           triggerKind = LSP.CompletionTriggerKind.Invoked,
-          triggerCharacter = '/',
         }),
         {}
       )
