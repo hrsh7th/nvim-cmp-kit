@@ -201,12 +201,12 @@ end
 ---@return fun()
 function CompletionService:on_menu_show(callback)
   self._events = self._events or {}
-  self._events.on_menu_hide = self._events.on_menu_hide or {}
-  table.insert(self._events.on_menu_hide, callback)
+  self._events.on_menu_show = self._events.on_menu_show or {}
+  table.insert(self._events.on_menu_show, callback)
   return function()
-    for i, c in ipairs(self._events.on_menu_hide) do
+    for i, c in ipairs(self._events.on_menu_show) do
       if c == callback then
-        table.remove(self._events.on_menu_hide, i)
+        table.remove(self._events.on_menu_show, i)
         break
       end
     end
@@ -650,20 +650,19 @@ function CompletionService:matching()
 
       local dedup_map = kit.clear(tmp_tbls.dedup_map)
       local limited_matches = {}
-      for j, match in ipairs(sorted_matches) do
-        -- set first preselect index.
-        if self._config.preselect then
-          if not preselect_index and match.item:is_preselect() then
-            preselect_index = j
-          end
-        end
-
+      for _, match in ipairs(sorted_matches) do
         -- check dedup & count.
         local is_dedup_ok = not match.provider.config.dedup or not dedup_map[match.item:get_label_text()]
-        local is_count_ok = match.provider.config.item_count >= (item_count_per_provider[match.provider] or 0)
+        local is_count_ok = (item_count_per_provider[match.provider] or 0) < match.provider.config.item_count
         if is_count_ok and is_dedup_ok then
           table.insert(limited_matches, match)
           item_count_per_provider[match.provider] = (item_count_per_provider[match.provider] or 0) + 1
+          -- set first preselect index.
+          if self._config.preselect then
+            if not preselect_index and match.item:is_preselect() then
+              preselect_index = #limited_matches
+            end
+          end
         end
         dedup_map[match.item:get_label_text()] = true
       end
