@@ -558,9 +558,9 @@ function CompletionItem:commit(option)
             local next_trigger_context = TriggerContext.create()
             local should_skip = false
             should_skip = should_skip or (prev_trigger_context.line ~= next_trigger_context.line)
-            should_skip = should_skip or #vim.iter(self._item.additionalTextEdits):filter(function(text_edit)
-              return text_edit.range.start.line >= next_trigger_context.line
-            end) > 0
+            for _, text_edit in ipairs(self._item.additionalTextEdits) do
+              should_skip = should_skip or text_edit.range.start.line >= next_trigger_context.line
+            end
             if not should_skip then
               vim.cmd.undojoin()
               vim.lsp.util.apply_text_edits(

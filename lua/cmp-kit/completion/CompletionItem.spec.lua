@@ -215,6 +215,43 @@ describe('cmp-kit.completion', function()
         end)
       end)
 
+      it('should skip delayed additionalTextEdits on or below cursor line', function()
+        Keymap.spec(function()
+          Keymap.send('i'):await()
+          local _, _, service = spec.setup({
+            input = 'a',
+            buffer_text = {
+              '|',
+              'target',
+            },
+            items = { {
+              label = 'abc',
+              insertText = 'abc',
+            } },
+            resolve = function(item)
+              return Async.timeout(700):next(function()
+                local clone = vim.tbl_deep_extend('keep', {}, item)
+                clone.additionalTextEdits = {
+                  {
+                    newText = 'CHANGED',
+                    range = range(1, 0, 1, 6),
+                  },
+                }
+                return clone
+              end)
+            end,
+          })
+          local match = service:get_matches()[1]
+          match.item:commit({ replace = true }):await()
+          Async.timeout(900):sync(1000)
+          spec.assert({
+            'abc|',
+            'target',
+          })
+          Keymap.send(Keymap.termcodes('<Esc>')):await()
+        end)
+      end)
+
       it('should support EmmyLua annotation completion (lua-language-server)', function()
         -- This test verifies that the filterText correction for clangd does not cause any problems with lua-language-server completion.
         Keymap.spec(function()
