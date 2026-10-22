@@ -1,4 +1,5 @@
 local Async = require('cmp-kit.kit.Async')
+local LSP = require('cmp-kit.kit.LSP')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
 local INT_PART = [=[\%(\d\{1,3\}\%(,\d\{3\}\)\+\|\d\+\)]=]
@@ -23,6 +24,7 @@ return function()
     name = 'calc',
     get_configuration = function()
       return {
+        position_encoding_kind = LSP.PositionEncodingKind.UTF8,
         keyword_pattern = PATTERN,
         trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ', '=' },
       }

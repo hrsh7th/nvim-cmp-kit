@@ -2,6 +2,7 @@ local calc_source = require('cmp-kit.completion.ext.source.calc')
 local spec = require('cmp-kit.spec')
 local LSP = require('cmp-kit.kit.LSP')
 local Async = require('cmp-kit.kit.Async')
+local CompletionService = require('cmp-kit.completion.CompletionService')
 
 describe('cmp-kit.completion.ext.source.calc', function()
   local source = calc_source()
@@ -42,4 +43,24 @@ describe('cmp-kit.completion.ext.source.calc', function()
     assert_output('1 + 2 * (3 - 1) = |', 1 + 2 * (3 - 1))
     assert_output('1, 2)|', nil)
   end)
+
+  for _, prefix in ipairs({ 'a: ', 'あ: ', '🗿: ', 'マルチバイト🗿: ' }) do
+    it(('starts completion after the prefix %q'):format(prefix), function()
+      for _, expression in ipairs({ '1 + 2', '1234567890 + 2' }) do
+        spec.setup({ buffer_text = { prefix .. expression .. '|' } })
+        local service = CompletionService.new({})
+        service:register_source(calc_source())
+        service:complete({ force = true }):sync(2 * 1000)
+        service:matching()
+
+        local matches = service:get_matches()
+        assert.are_equal(2, #matches)
+        for _, match in ipairs(matches) do
+          local range = match.item:get_insert_range()
+          assert.are_equal(#prefix, range.start.character)
+          assert.are_equal(#prefix + #expression, range['end'].character)
+        end
+      end
+    end)
+  end
 end)
