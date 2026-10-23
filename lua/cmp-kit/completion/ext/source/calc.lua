@@ -2,7 +2,8 @@ local Async = require('cmp-kit.kit.Async')
 local LSP = require('cmp-kit.kit.LSP')
 local TriggerContext = require('cmp-kit.core.TriggerContext')
 
-local PATTERN = [=[[A-Za-z0-9_.,()*/+^%\-][A-Za-z0-9_.,()*/+^% \t\-]*\%(\s*//.*\)\?]=]
+local PATTERN = [=[[A-Za-z0-9_.,()*/+^%\-][A-Za-z0-9_.,()*/+^% \t\-]*\%(\s*=>\s*\[[^]]*\][A-Za-z0-9_.,()*/+^% \t\-]*\)*]=]
+local PLACEHOLDER = '()=>%s*%[()([^%[%]]+)()%]()'
 local INVALID = { isIncomplete = false, items = {} }
 
 local get_candidate, get_replacements, collect_block, create_evaluator
@@ -15,14 +16,14 @@ local function new()
       return {
         position_encoding_kind = LSP.PositionEncodingKind.UTF8,
         keyword_pattern = PATTERN,
-        trigger_characters = { ')', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ', '=' },
+        trigger_characters = { ')', ']', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', ' ', '=' },
       }
     end,
     complete = function(_, _, callback)
       Async.run(function()
-        -- カーソル直前の式候補を取り出し、日付は補完しない。
+        -- カーソル直前の式候補を取り出し、コメントや日付は補完しない。
         local ctx = TriggerContext.create()
-        local expression, offset = get_candidate(ctx)
+        local expression, offset, finish = get_candidate(ctx)
         if not expression then
           return INVALID
         end
@@ -32,37 +33,44 @@ local function new()
           end
         end
 
-        -- ブロックを上から評価し、各行より前に定義された値を使って結果を更新する。
+        -- 各行を順に評価し、現在行の補完結果と、範囲の重ならない同期編集を求める。
         local evaluate = create_evaluator()
-        local output
+        local output, placeholders
         local updates = {}
         for _, entry in ipairs(collect_block(ctx)) do
           local current = entry.line == ctx.line
-          local value = evaluate(current and expression or entry.expression, entry.name)
-          local annotation = entry.annotation
           if current then
-            output = value
-          elseif value ~= nil and annotation and tonumber(tostring(value)) ~= annotation.value then
-            table.insert(updates, {
-              newText = tostring(value),
-              range = {
-                start = { line = entry.line, character = annotation.first },
-                ['end'] = { line = entry.line, character = annotation.last },
-              },
-            })
+            output, placeholders = evaluate(expression)
+          end
+          local _, edits = evaluate(entry.expression or expression, entry.name)
+          local base = (entry.offset or offset) - 1
+          for _, edit in ipairs(edits) do
+            local first, last = base + edit.first, base + edit.last
+            if not current or last <= offset - 1 or first >= finish then
+              table.insert(updates, {
+                newText = edit.newText,
+                range = {
+                  start = { line = entry.line, character = first },
+                  ['end'] = { line = entry.line, character = last },
+                },
+              })
+            end
           end
         end
 
-        -- 単体の値は、他行に実際の更新がある場合だけ補完する。
+        -- 単体の値は、他の結果に実際の更新がある場合だけ補完する。
         local scalar = tonumber((expression:gsub(',', ''))) or expression:match('^[A-Za-z_][A-Za-z0-9_.]*$')
         if output == nil or (scalar and #updates == 0) then
           return INVALID
         end
 
-        -- 式と結果注記を置き換え、コメントの文章は残す。
-        local replacements, finish = get_replacements(ctx, expression, offset, output)
+        -- 数値への置換と、式を残した結果プレースホルダの追加を提示する。
         local items = {}
-        for i, text in ipairs(replacements) do
+        for i, text in ipairs(get_replacements(expression, output, placeholders)) do
+          local range = {
+            start = { line = ctx.line, character = offset - 1 },
+            ['end'] = { line = ctx.line, character = finish },
+          }
           items[i] = {
             label = text,
             filterText = ctx.text_before:sub(offset),
@@ -71,10 +79,8 @@ local function new()
             additionalTextEdits = updates,
             textEdit = {
               newText = text,
-              range = {
-                start = { line = ctx.line, character = offset - 1 },
-                ['end'] = { line = ctx.line, character = finish },
-              },
+              insert = range,
+              replace = range,
             },
           }
         end
@@ -89,79 +95,61 @@ local function new()
 end
 
 ---@param ctx cmp-kit.core.TriggerContext
----@return string?, integer?
+---@return string?, integer?, integer?
 function get_candidate(ctx)
-  if ctx.text_before:match('^%s*//') then
+  if ctx.text_before:find('//', 1, true) then
     return nil
   end
   local offset = ctx:get_keyword_offset(PATTERN)
   if not offset then
     return nil
   end
-  local text = ctx.text_before:sub(offset)
-  local expression = vim.trim((text:gsub('//.*$', '')))
-  if expression == '' then
-    return nil
-  end
-  return expression, offset
+  local suffix, value = ctx.text_after:match('^(%s*=>%s*%[([^%[%]]+)%])')
+  local finish = ctx.character + (tonumber(value) and #suffix or 0)
+  return vim.trim(ctx.text:sub(offset, finish)), offset, finish
 end
 
----@param text string
----@return { value: number, first: integer, last: integer }?
-local function parse_annotation(text)
-  local marker = text:find('//', 1, true)
-  if not marker then
-    return nil
-  end
-  -- 角括弧が1組だけあり、その中身が数値であるコメントを更新対象にする。
-  local prefix, value = text:sub(marker):match('^([^%[%]]*)%[([^%[%]]+)%][^%[%]]*$')
-  if not value or not tonumber(value) then
-    return nil
-  end
-  return { value = tonumber(value), first = marker + #prefix, last = marker + #prefix + #value }
-end
-
----@param ctx cmp-kit.core.TriggerContext
 ---@param expression string
----@param offset integer
 ---@param output number
----@return string[], integer
-function get_replacements(ctx, expression, offset, output)
-  local result = tostring(output)
-  local comment = ctx.text:find('//', offset, true)
-  if not comment or (comment > ctx.character and not ctx.text_after:match('^%s*//')) then
-    return { result, ('%s // [%s]'):format(expression, result) }, ctx.character
+---@param edits { first: integer, last: integer, newText: string }[]
+---@return string[]
+function get_replacements(expression, output, edits)
+  local text = expression
+  for i = #edits, 1, -1 do
+    local edit = edits[i]
+    text = text:sub(1, edit.first) .. edit.newText .. text:sub(edit.last + 1)
   end
-
-  local note = ctx.text:sub(comment)
-  local gap = ctx.text:sub(offset, comment - 1):match('%s*$')
-  local annotation = parse_annotation(ctx.text)
-  if annotation then
-    note = ctx.text:sub(comment, annotation.first) .. result .. ctx.text:sub(annotation.last + 1)
+  if not text:match('=>%s*%[[^%[%]]+%]%s*$') then
+    text = ('%s => [%s]'):format(text, output)
   end
-  local annotated = annotation and note or ('// [%s]%s'):format(result, note:sub(3))
-  return { result .. gap .. note, expression .. gap .. annotated }, #ctx.text
+  return { tostring(output), text }
 end
 
 ---@param text string
----@return string?, string?
+---@return string?, string?, integer?
 local function parse_line(text)
-  local annotated = text:find('//', 1, true)
-  text = vim.trim((text:gsub('//.*$', '')))
-  local name, expression = text:match('^([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(.*)$')
-  expression = expression or text
-  if expression:find('[^A-Za-z0-9_.,()*/+^%%%s%-]') then
+  local code = text:match('^(.-)//') or text
+  local leading = #code:match('^%s*')
+  code = vim.trim(code)
+  local name, operator, offset, expression = code:match('^([A-Za-z_][A-Za-z0-9_]*)%s*(=>?)%s*()(.*)$')
+  if operator ~= '=' then
+    name, offset, expression = nil, 1, code
+  end
+  local candidate = expression:gsub('=>%s*%[([^%[%]]+)%]', function(value)
+    return tonumber(value) and '' or '!'
+  end)
+  if candidate:find('[^A-Za-z0-9_.,()*/+^%%%s%-]') then
     return nil
   end
   -- 注記のない名前だけの行は、通常の文章と区別できないため境界にする。
-  if not name and not annotated and expression:match('^[A-Za-z_][A-Za-z0-9_%s]*$') then
+  if not name and candidate == expression and expression:match('^[A-Za-z_][A-Za-z0-9_%s]*$') then
     return nil
   end
-  return expression, name
+  return expression, name, leading + (offset or 1)
 end
 
 ---@param ctx cmp-kit.core.TriggerContext
----@return { line: integer, expression: string?, name: string?, annotation: { value: number, first: integer, last: integer }? }[]
+---@return { line: integer, expression: string?, name: string?, offset: integer? }[]
 function collect_block(ctx)
   local lines = ctx.mode == 'c' and { ctx.text } or vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
   local row = ctx.mode == 'c' and 1 or ctx.line + 1
@@ -175,8 +163,8 @@ function collect_block(ctx)
 
   local block = {}
   for i = first, last do
-    local expression, name = parse_line(lines[i])
-    table.insert(block, { line = i - 1, expression = expression, name = name, annotation = parse_annotation(lines[i]) })
+    local expression, name, offset = parse_line(lines[i])
+    table.insert(block, { line = i - 1, expression = expression, name = name, offset = offset })
   end
   return block
 end
@@ -198,7 +186,7 @@ local function normalize(expression)
   return table.concat(parts)
 end
 
----@return fun(expression: string?, name: string?): number?
+---@return fun(expression: string?, name: string?): number?, table[]
 function create_evaluator()
   -- 計算専用の環境に、副作用のない math 関数と定数を公開する。
   local builtins = vim.tbl_extend('force', {}, math)
@@ -207,7 +195,7 @@ function create_evaluator()
   local env = setmetatable({}, { __index = builtins })
 
   -- Lua の文を実行する関数式は受け付けず、数値を返す式だけを評価する。
-  local function run(program)
+  local function calculate(program)
     assert(not program:match('%f[%w_]function%f[^%w_]'), 'function expressions are not supported')
     local chunk = assert(loadstring(('return (%s)'):format(normalize(program)), 'calc'))
     setfenv(chunk, env)
@@ -216,13 +204,34 @@ function create_evaluator()
     return value
   end
 
-  -- 定義は評価後に登録する。失敗した再定義でも、それ以前の値は残さない。
+  -- 表示値は入力に使わず、左の計算結果を次の区間に渡してプレースホルダを更新する。
+  local function run(expression)
+    local value
+    local edits = {}
+    local offset = 1
+    for first, start, displayed, finish, after in expression:gmatch(PLACEHOLDER) do
+      assert(tonumber(displayed), 'expected a numeric placeholder')
+      local part = expression:sub(offset, first - 1)
+      value = calculate(value and ('(%.17g)%s'):format(value, part) or part)
+      if tonumber(tostring(value)) ~= tonumber(displayed) then
+        table.insert(edits, { first = start - 1, last = finish - 1, newText = tostring(value) })
+      end
+      offset = after
+    end
+    local part = expression:sub(offset)
+    if value == nil or part:match('%S') then
+      value = calculate(value and ('(%.17g)%s'):format(value, part) or part)
+    end
+    return value, edits
+  end
+
+  -- 定義は最終結果の評価後に登録する。失敗した再定義でも、それ以前の値は残さない。
   return function(expression, name)
-    local ok, value = pcall(run, expression)
+    local ok, value, edits = pcall(run, expression)
     if name and builtins[name] == nil then
       env[name] = ok and value or nil
     end
-    return ok and value or nil
+    return ok and value or nil, ok and edits or {}
   end
 end
 
