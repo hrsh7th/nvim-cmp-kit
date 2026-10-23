@@ -21,6 +21,27 @@ end
 describe('cmp-kit.completion', function()
   describe('CompletionItem', function()
     describe('#commit', function()
+      it('respects an explicit replace range without consuming the rest of the keyword', function()
+        Keymap.spec(function()
+          Keymap.send('i'):await()
+          local _, _, service = spec.setup({
+            buffer_text = { 'foo|bar' },
+            items = { {
+              label = 'new',
+              filterText = 'foo',
+              textEdit = {
+                newText = 'new',
+                insert = range(0, 0, 0, 3),
+                replace = range(0, 0, 0, 3),
+              },
+            } },
+          })
+          service:get_matches()[1].item:commit({ replace = true }):await()
+          spec.assert({ 'new|bar' })
+          Keymap.send(Keymap.termcodes('<Esc>')):await()
+        end)
+      end)
+
       it('should support dot-to-arrow completion (clangd)', function()
         Keymap.spec(function()
           Keymap.send('i'):await()
