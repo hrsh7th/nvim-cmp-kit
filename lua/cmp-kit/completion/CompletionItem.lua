@@ -660,11 +660,14 @@ function CompletionItem:get_replace_range()
         range = self._completion_list.itemDefaults.editRange.replace
       end
     end
-    range = range and self._trigger_context:convert_range_as_utf8(
-      self._provider:get_position_encoding_kind(),
-      range
-    ) or self:get_insert_range()
-    self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), range })
+    if range then
+      self.cache.get_replace_range = self._trigger_context:convert_range_as_utf8(
+        self._provider:get_position_encoding_kind(),
+        range
+      )
+    else
+      self.cache.get_replace_range = create_expanded_range({ self._provider:get_default_replace_range(), self:get_insert_range() })
+    end
   end
   return self.cache.get_replace_range
 end

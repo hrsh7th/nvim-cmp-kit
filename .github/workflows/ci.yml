@@ -32,9 +32,9 @@ jobs:
       - uses: leafo/gh-actions-luarocks@e65774a6386cb4f24e293dca7fc4ff89165b64c5 # v4.3.0
 
       - name: Luacheck
-        uses: judaew/luacheck-action@19176bb4a8d446a949cd1baf6d6d83f1fa52bfda # v0.2.2
-        with:
-          targets: lua
+        run: |
+          luarocks install luacheck
+          luacheck lua
 
       - run: |
           luarocks install vusted
