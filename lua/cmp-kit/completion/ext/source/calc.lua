@@ -23,7 +23,7 @@ local function new()
       Async.run(function()
         -- カーソル直前の式候補を取り出し、コメントや日付は補完しない。
         local ctx = TriggerContext.create()
-        local expression, offset, finish = get_candidate(ctx)
+        local expression, offset, finish, section = get_candidate(ctx)
         if not expression then
           return INVALID
         end
@@ -35,6 +35,7 @@ local function new()
 
         -- 各行を順に評価し、現在行の補完結果と、範囲の重ならない同期編集を求める。
         local evaluate = create_evaluator()
+        local start = offset + section - 2
         local output, placeholders
         local updates = {}
         for _, entry in ipairs(collect_block(ctx)) do
@@ -46,7 +47,7 @@ local function new()
           local base = (entry.offset or offset) - 1
           for _, edit in ipairs(edits) do
             local first, last = base + edit.first, base + edit.last
-            if not current or last <= offset - 1 or first >= finish then
+            if not current or last <= start or first >= finish then
               table.insert(updates, {
                 newText = edit.newText,
                 range = {
@@ -60,20 +61,21 @@ local function new()
 
         -- 単体の値は、他の結果に実際の更新がある場合だけ補完する。
         local scalar = tonumber((expression:gsub(',', ''))) or expression:match('^[A-Za-z_][A-Za-z0-9_.]*$')
-        if output == nil or (scalar and #updates == 0) then
+        local terminal = section > 1 and expression:sub(section):match('^%[[^%[%]]+%]%s*$')
+        if output == nil or ((scalar or terminal) and #updates == 0 and #placeholders == 0) then
           return INVALID
         end
 
         -- 数値への置換と、式を残した結果プレースホルダの追加を提示する。
         local items = {}
-        for i, text in ipairs(get_replacements(expression, output, placeholders)) do
+        for i, text in ipairs(get_replacements(expression, output, placeholders, section)) do
           local range = {
-            start = { line = ctx.line, character = offset - 1 },
+            start = { line = ctx.line, character = start },
             ['end'] = { line = ctx.line, character = finish },
           }
           items[i] = {
             label = text,
-            filterText = ctx.text_before:sub(offset),
+            filterText = ctx.text_before:sub(start + 1),
             sortText = tostring(i),
             nvim_previewText = text,
             additionalTextEdits = updates,
@@ -95,7 +97,7 @@ local function new()
 end
 
 ---@param ctx cmp-kit.core.TriggerContext
----@return string?, integer?, integer?
+---@return string?, integer?, integer?, integer?
 function get_candidate(ctx)
   if ctx.text_before:find('//', 1, true) then
     return nil
@@ -106,23 +108,34 @@ function get_candidate(ctx)
   end
   local suffix, value = ctx.text_after:match('^(%s*=>%s*%[([^%[%]]+)%])')
   local finish = ctx.character + (tonumber(value) and #suffix or 0)
-  return vim.trim(ctx.text:sub(offset, finish)), offset, finish
+  local expression = vim.trim(ctx.text:sub(offset, finish))
+  local section = 1
+  for _, first, _, _, after in expression:gmatch(PLACEHOLDER) do
+    if offset + after - 2 <= ctx.character then
+      section = first - 1
+    end
+  end
+  return expression, offset, finish, section
 end
 
 ---@param expression string
 ---@param output number
 ---@param edits { first: integer, last: integer, newText: string }[]
+---@param section integer
 ---@return string[]
-function get_replacements(expression, output, edits)
-  local text = expression
+function get_replacements(expression, output, edits, section)
+  local text = expression:sub(section)
   for i = #edits, 1, -1 do
     local edit = edits[i]
-    text = text:sub(1, edit.first) .. edit.newText .. text:sub(edit.last + 1)
+    if edit.first >= section - 1 then
+      text = text:sub(1, edit.first - section + 1) .. edit.newText .. text:sub(edit.last - section + 2)
+    end
   end
-  if not text:match('=>%s*%[[^%[%]]+%]%s*$') then
+  local terminal = section > 1 and text:match('^%[[^%[%]]+%]%s*$')
+  if not terminal and not text:match('=>%s*%[[^%[%]]+%]%s*$') then
     text = ('%s => [%s]'):format(text, output)
   end
-  return { tostring(output), text }
+  return section > 1 and { text } or { tostring(output), text }
 end
 
 ---@param text string

@@ -40,10 +40,12 @@ describe('cmp-kit.completion.ext.source.calc', function()
     local response = complete(lines)
     local replacements = {}
     for _, item in ipairs(response.items) do
+      spec.setup({ buffer_text = lines })
       local edit = item.textEdit
       local range = edit.range or edit.insert
-      local line = vim.api.nvim_buf_get_lines(0, range.start.line, range.start.line + 1, false)[1]
-      table.insert(replacements, line:sub(1, range.start.character) .. edit.newText .. line:sub(range['end'].character + 1))
+      local edits = vim.list_extend({ { range = range, newText = edit.newText } }, item.additionalTextEdits or {})
+      vim.lsp.util.apply_text_edits(edits, vim.api.nvim_get_current_buf(), LSP.PositionEncodingKind.UTF8)
+      table.insert(replacements, vim.api.nvim_buf_get_lines(0, range.start.line, range.start.line + 1, false)[1])
     end
     assert.are.same(expected, replacements)
   end
@@ -71,8 +73,8 @@ describe('cmp-kit.completion.ext.source.calc', function()
       service:complete({ force = true }):sync(2 * 1000)
       service:matching()
       local matches = service:get_matches()
-      assert.are_equal(2, #matches)
-      matches[2].item:commit({ replace = true }):await()
+      assert.is_true(#matches > 0)
+      matches[#matches].item:commit({ replace = true }):await()
       spec.assert(expected)
       Keymap.send(Keymap.termcodes('<Esc>')):await()
     end)
@@ -135,7 +137,7 @@ describe('cmp-kit.completion.ext.source.calc', function()
     end)
 
     it('replaces an old annotation instead of appending another result', function()
-      assert_replacements({ '1 + 2 => [999]|' }, { '3', '1 + 2 => [3]' })
+      assert_replacements({ '1 + 2 => [999]|' }, { '1 + 2 => [3]' })
       assert_replacements({ '1 + 2| => [999]' }, { '3', '1 + 2 => [3]' })
     end)
 
@@ -147,12 +149,13 @@ describe('cmp-kit.completion.ext.source.calc', function()
     end)
 
     it('preserves the text and spacing around an existing result marker', function()
-      for _, text in ipairs({ '1 + 2| => [999]  // 🗿 結果 +- 人 ', '1 + 2 => [999]|  // 🗿 結果 +- 人 ' }) do
-        assert_replacements({ text }, {
-          '3  // 🗿 結果 +- 人 ',
-          '1 + 2 => [3]  // 🗿 結果 +- 人 ',
-        })
-      end
+      assert_replacements({ '1 + 2| => [999]  // 🗿 結果 +- 人 ' }, {
+        '3  // 🗿 結果 +- 人 ',
+        '1 + 2 => [3]  // 🗿 結果 +- 人 ',
+      })
+      assert_replacements({ '1 + 2 => [999]|  // 🗿 結果 +- 人 ' }, {
+        '1 + 2 => [3]  // 🗿 結果 +- 人 ',
+      })
     end)
 
     it('does not complete expressions inside comment-only lines', function()
@@ -386,16 +389,31 @@ describe('cmp-kit.completion.ext.source.calc', function()
   end)
 
   describe('chained expressions', function()
+    it('does not offer to collapse an already calculated chain', function()
+      assert_replacements({ '9 / 16 => [0.5625] * 2 => [1.125] + 3 => [4.125] * 2 => [8.25]|' }, {})
+    end)
+
+    it('shows the current expression and result without earlier sections in the menu', function()
+      local expression = '9 / 16 => [0.5625] * 3 => [1.6875] + 2 => [3.6875] + 4 => [7.6875] * 3'
+      local response = complete({ expression .. '|' })
+      assert.are.same(
+        { '[7.6875] * 3 => [23.0625]' },
+        vim.tbl_map(function(item)
+          return item.label
+        end, response.items)
+      )
+      assert.are_equal('[7.6875] * 3 => [23.0625]', response.items[1].textEdit.newText)
+      assert.are_equal(expression:find('[7.6875]', 1, true) - 1, response.items[1].textEdit.insert.start.character)
+    end)
+
     it('appends a result while recalculating earlier placeholders', function()
       assert_replacements({ '9 / 16 => [999] * 3|' }, {
-        '1.6875',
         '9 / 16 => [0.5625] * 3 => [1.6875]',
       })
     end)
 
     it('recalculates every placeholder without appending another terminal result', function()
       assert_replacements({ '9 / 16 => [999] * 3 => [999]|' }, {
-        '1.6875',
         '9 / 16 => [0.5625] * 3 => [1.6875]',
       })
     end)
@@ -408,7 +426,7 @@ describe('cmp-kit.completion.ext.source.calc', function()
     end)
 
     it('passes the full precision result to the next calculation', function()
-      assert_replacements({ '1 / 3 => [0] * 3|' }, { '1', '1 / 3 => [0.33333333333333] * 3 => [1]' })
+      assert_replacements({ '1 / 3 => [0] * 3|' }, { '1 / 3 => [0.33333333333333] * 3 => [1]' })
     end)
 
     it('does not interpret bare brackets or non-numeric placeholders as results', function()
@@ -442,6 +460,19 @@ describe('cmp-kit.completion.ext.source.calc', function()
       assert_commit({ 'Count = 2| => [0] * 3 => [0]', 'Count * 2 => [0]' }, {
         'Count = 2 => [2]| * 3 => [6]',
         'Count * 2 => [12]',
+      })
+    end)
+
+    it('keeps earlier sections outside the main edit while synchronizing them', function()
+      assert_commit({ '9 / 16 => [999] * 3 => [999] + 2| // メモ' }, {
+        '9 / 16 => [0.5625] * 3 => [1.6875] + 2 => [3.6875]| // メモ',
+      })
+    end)
+
+    it('preserves later sections and their values when completing the current section', function()
+      assert_commit({ 'Adjusted = 9 / 16 => [999] * 3| => [999] + 2 => [999]', 'Adjusted * 2 => [0]' }, {
+        'Adjusted = 9 / 16 => [0.5625] * 3 => [1.6875]| + 2 => [3.6875]',
+        'Adjusted * 2 => [7.375]',
       })
     end)
   end)
