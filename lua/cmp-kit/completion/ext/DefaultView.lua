@@ -356,7 +356,7 @@ local default_config = {
   docs_min_win_width_ratio = 0.25,
   docs_max_win_width_ratio = 0.55,
   get_menu_position = function(preset)
-    return preset.offset
+    return preset.cursor
   end,
   icon_resolver = (function()
     local ok, MiniIcons = pcall(require, 'mini.icons')
