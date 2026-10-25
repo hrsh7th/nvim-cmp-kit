@@ -39,7 +39,6 @@ function System.LineBuffering:create(callback)
   local find = string.find
   local sub = string.sub
   local byte = string.byte
-  local byte_lf = bytes['\n']
   local byte_cr = bytes['\r']
   ---@type cmp-kit.kit.System.Buffer
   return {
